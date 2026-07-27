@@ -1,6 +1,6 @@
 @echo off
 cd %~dp0
-MAKE.BAT %*
+call MAKE.BAT %*
 
 cd %~dp0
-RUN.BAT %*
+call RUN.BAT %*
