@@ -62,4 +62,5 @@
  * ══════════════════════════════════════════════════════════════════════ */
 #include "FULL_BUILD.c"
 #include "MAIN.c"
+#include "SHARED/WARNINGS.c"
 

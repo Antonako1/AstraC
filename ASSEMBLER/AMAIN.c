@@ -68,7 +68,7 @@ ASTRAC_RESULT START_ASSEMBLING() {
         goto cleanup;
     }
 
-    LEX_DUMP(tok_arr);
+    // LEX_DUMP(tok_arr);
 
     if (cfg->verbose) AC_PRINTF("[AS] Stage 3/6: Building AST...\n");
     ast_arr = ASM_BUILD_AST(tok_arr);
@@ -77,6 +77,7 @@ ASTRAC_RESULT START_ASSEMBLING() {
         result = ASTRAC_ERR_AST;
         goto cleanup;
     }
+    goto cleanup;
 
     if (cfg->verbose) AC_PRINTF("[AS] Stage 4/6: Verifying AST...\n");
     if (!VERIFY_AST(ast_arr, info)) {
