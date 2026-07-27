@@ -1,0 +1,3 @@
+U32 main(U32 argc, PU8 *argv) {
+    return 0;
+}
