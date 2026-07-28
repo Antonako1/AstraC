@@ -202,21 +202,21 @@ _MAIN:
     MOV [EBP+36], EAX
     MOV EAX, 0x1234
     MOV [EBP+37], EAX
-    MOV EAX, [EBP-0]
+    MOV EAX, [EBP]
     PUSH EAX
     MOV EAX, [EBP-4]
     MOV EBX, EAX
     POP EAX
     ADD EAX, EBX
     PUSH EAX
-    MOV EAX, [EBP-0]
+    MOV EAX, [EBP]
     PUSH EAX
     MOV EAX, [EBP-4]
     MOV EBX, EAX
     POP EAX
     SUB EAX, EBX
     PUSH EAX
-    MOV EAX, [EBP-0]
+    MOV EAX, [EBP]
     PUSH EAX
     MOV EAX, 0x2
     MOV EBX, EAX
@@ -226,7 +226,7 @@ _MAIN:
     POP EAX
     IMUL EAX, EBX
     PUSH EAX
-    MOV EAX, [EBP-0]
+    MOV EAX, [EBP]
     PUSH EAX
     MOV EAX, 0x3
     MOV EBX, EAX
@@ -242,31 +242,31 @@ _MAIN:
     POP EAX
     ADD EAX, EBX
     MOV [EBP+41], EAX
-    MOV EAX, [EBP-0]
+    MOV EAX, [EBP]
     PUSH EAX
     MOV EAX, 0xFF
     MOV EBX, EAX
     POP EAX
     AND EAX, EBX
     MOV [EBP+45], EAX
-    MOV EAX, [EBP-0]
+    MOV EAX, [EBP]
     PUSH EAX
     MOV EAX, 0xFF00
     MOV EBX, EAX
     POP EAX
     OR EAX, EBX
     MOV [EBP+49], EAX
-    MOV EAX, [EBP-0]
+    MOV EAX, [EBP]
     PUSH EAX
     MOV EAX, 0xAAAA
     MOV EBX, EAX
     POP EAX
     XOR EAX, EBX
     MOV [EBP+53], EAX
-    MOV EAX, [EBP-0]
+    MOV EAX, [EBP]
     NOT EAX
     MOV [EBP+57], EAX
-    MOV EAX, [EBP-0]
+    MOV EAX, [EBP]
     PUSH EAX
     MOV EAX, 0x2
     MOV EBX, EAX
@@ -274,7 +274,7 @@ _MAIN:
     MOV ECX, EBX
     SHL EAX, CL
     MOV [EBP+61], EAX
-    MOV EAX, [EBP-0]
+    MOV EAX, [EBP]
     PUSH EAX
     MOV EAX, 0x2
     MOV EBX, EAX
@@ -282,7 +282,7 @@ _MAIN:
     MOV ECX, EBX
     SHR EAX, CL
     MOV [EBP+65], EAX
-    MOV EAX, [EBP-0]
+    MOV EAX, [EBP]
     PUSH EAX
     MOV EAX, [EBP-4]
     MOV EBX, EAX
@@ -291,7 +291,7 @@ _MAIN:
     SETE AL
     MOVZX EAX, AL
     MOV [EBP+69], EAX
-    MOV EAX, [EBP-0]
+    MOV EAX, [EBP]
     PUSH EAX
     MOV EAX, [EBP-4]
     MOV EBX, EAX
@@ -300,7 +300,7 @@ _MAIN:
     SETNE AL
     MOVZX EAX, AL
     MOV [EBP+73], EAX
-    MOV EAX, [EBP-0]
+    MOV EAX, [EBP]
     PUSH EAX
     MOV EAX, [EBP-4]
     MOV EBX, EAX
@@ -309,7 +309,7 @@ _MAIN:
     SETL AL
     MOVZX EAX, AL
     MOV [EBP+77], EAX
-    MOV EAX, [EBP-0]
+    MOV EAX, [EBP]
     PUSH EAX
     MOV EAX, [EBP-4]
     MOV EBX, EAX
@@ -318,7 +318,7 @@ _MAIN:
     SETG AL
     MOVZX EAX, AL
     MOV [EBP+81], EAX
-    MOV EAX, [EBP-0]
+    MOV EAX, [EBP]
     PUSH EAX
     MOV EAX, [EBP-4]
     MOV EBX, EAX
@@ -327,7 +327,7 @@ _MAIN:
     SETLE AL
     MOVZX EAX, AL
     MOV [EBP+85], EAX
-    MOV EAX, [EBP-0]
+    MOV EAX, [EBP]
     PUSH EAX
     MOV EAX, [EBP-4]
     MOV EBX, EAX
@@ -338,7 +338,7 @@ _MAIN:
     MOV [EBP+89], EAX
     MOV EAX, [EBP+8]
     PUSH EAX
-    MOV EAX, [EBP-0]
+    MOV EAX, [EBP]
     PUSH EAX
     MOV EAX, 0x0
     MOV EBX, EAX
@@ -465,11 +465,11 @@ _MAIN:
     PUSH EAX
     POP EAX
     XOR EAX, EAX
-    MOV EAX, [EBP-0]
+    MOV EAX, [EBP]
     MOV [EBP+153], EAX
     MOV EAX, [EBP+153]
     PUSH EAX
-    MOV EAX, [EBP-0]
+    MOV EAX, [EBP]
     MOV EBX, EAX
     POP EAX
     CMP EAX, EBX
@@ -477,7 +477,7 @@ _MAIN:
     MOVZX EAX, AL
     TEST EAX, EAX
     JZ __lbl5
-    MOV EAX, [EBP-0]
+    MOV EAX, [EBP]
     PUSH EAX
     POP EAX
     MOV [EBP+153], EAX
@@ -486,12 +486,12 @@ __lbl5:
 __lbl6:
     MOV EAX, [EBP-4]
     PUSH EAX
-    MOV EAX, [EBP-0]
+    MOV EAX, [EBP]
     PUSH EAX
     CALL _ADD
     ADD ESP, 8
     MOV [EBP+157], EAX
-    MOV EAX, [EBP-0]
+    MOV EAX, [EBP]
     PUSH EAX
     MOV EAX, [EBP-4]
     MOV EBX, EAX
@@ -505,7 +505,7 @@ __lbl6:
     CALL _FACTORIAL
     ADD ESP, 4
     MOV [EBP+165], EAX
-    LEA EAX, [EBP-0]
+    LEA EAX, [EBP]
     MOV [EBP+169], EAX
     MOV EAX, 0x1E
     PUSH EAX
@@ -518,7 +518,7 @@ __lbl6:
     PUSH EAX
     MOV EAX, 0x6
     PUSH EAX
-    LEA EAX, [EBP-0]
+    LEA EAX, [EBP]
     PUSH EAX
     CALL _APPLY_BINOP
     ADD ESP, 12
@@ -527,7 +527,7 @@ __lbl6:
     PUSH EAX
     MOV EAX, 0xFF
     PUSH EAX
-    LEA EAX, [EBP-0]
+    LEA EAX, [EBP]
     PUSH EAX
     CALL _APPLY_BINOP
     ADD ESP, 12
@@ -538,7 +538,7 @@ __lbl6:
     PUSH EAX
     MOV EAX, 0x1
     PUSH EAX
-    LEA EAX, [EBP-0]
+    LEA EAX, [EBP]
     PUSH EAX
     CALL _APPLY_BINOP
     ADD ESP, 12
@@ -547,7 +547,7 @@ __lbl6:
     MOV [EBP+177], EAX
     MOV EAX, 0x0
     MOV [EBP+181], EAX
-    MOV EAX, [EBP-0]
+    MOV EAX, [EBP]
     PUSH EAX
     MOV EAX, 0x64
     MOV EBX, EAX
@@ -563,7 +563,7 @@ __lbl6:
     MOV [EBP+181], EAX
     JMP __lbl8
 __lbl7:
-    MOV EAX, [EBP-0]
+    MOV EAX, [EBP]
     PUSH EAX
     MOV EAX, 0x32
     MOV EBX, EAX
@@ -579,7 +579,7 @@ __lbl7:
     MOV [EBP+181], EAX
     JMP __lbl10
 __lbl9:
-    MOV EAX, [EBP-0]
+    MOV EAX, [EBP]
     PUSH EAX
     MOV EAX, 0xA
     MOV EBX, EAX
@@ -722,9 +722,9 @@ TEST_LABEL:
 __lbl24:
 __lbl25:
 
-MOV EAX, [EBP-0]
-[EBP-0] EAX, [EBP-4]
-MOV [EBP-0], EAX
+MOV EAX, [EBP]
+[EBP] EAX, [EBP-4]
+MOV [EBP], EAX
 
     CALL _RESET_COUNTERS
     MOV EAX, [EBP+189]

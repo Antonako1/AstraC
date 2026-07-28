@@ -63,6 +63,8 @@ STATIC VOID GEN_IDENT(PCNODE n) {
     if (!s) { emit("    XOR EAX, EAX"); return; }
     if (s->is_global)
         AC_FPRINTF(outf, "    MOV EAX, [%s]\n", s->name);
+    else if (s->offset == 0)
+        AC_FPRINTF(outf, "    MOV EAX, [EBP]\n");
     else if (s->offset >= 8)
         AC_FPRINTF(outf, "    MOV EAX, [EBP+%u]\n", s->offset);
     else
@@ -81,10 +83,12 @@ STATIC VOID GEN_ASSIGN(PCNODE n) {
         emit("    POP EAX");
         if (s->is_global)
             AC_FPRINTF(outf, "    MOV [%s], EAX\n", s->name);
-            else if (s->offset >= 8)
-                AC_FPRINTF(outf, "    MOV [EBP+%u], EAX\n", s->offset);
-            else
-                AC_FPRINTF(outf, "    MOV [EBP-%u], EAX\n", s->offset);
+        else if (s->offset == 0)
+            AC_FPRINTF(outf, "    MOV [EBP], EAX\n");
+        else if (s->offset >= 8)
+            AC_FPRINTF(outf, "    MOV [EBP+%u], EAX\n", s->offset);
+        else
+            AC_FPRINTF(outf, "    MOV [EBP-%u], EAX\n", s->offset);
     } else if (lhs->ntype == CNODE_DEREF) {
         GEN_EXPR(lhs->children[0]); /* address in EAX */
         emit("    POP EBX");
@@ -156,6 +160,8 @@ STATIC VOID GEN_CALL(PCNODE n) {
         /* Indirect call through function pointer */
         if (cs->is_global)
             AC_FPRINTF(outf, "    CALL [%s]\n", cs->name);
+        else if (cs->offset == 0)
+            AC_FPRINTF(outf, "    CALL [EBP]\n");
         else if (cs->offset >= 8)
             AC_FPRINTF(outf, "    CALL [EBP+%u]\n", cs->offset);
         else
@@ -175,6 +181,8 @@ STATIC VOID GEN_ADDR(PCNODE n) {
         if (!s) { emit("    XOR EAX, EAX"); return; }
         if (s->is_global)
             AC_FPRINTF(outf, "    LEA EAX, [%s]\n", s->name);
+        else if (s->offset == 0)
+            AC_FPRINTF(outf, "    LEA EAX, [EBP]\n");
         else if (s->offset >= 8)
             AC_FPRINTF(outf, "    LEA EAX, [EBP+%u]\n", s->offset);
         else
@@ -366,12 +374,16 @@ STATIC VOID GEN_ASM_BLOCK(PCNODE n) {
                     }
                 }
                 U32 addr = s->offset + foff;
-                if (s->offset >= 8)
+                if (addr == 0)
+                    AC_FPRINTF(outf, "[EBP]");
+                else if (s->offset >= 8)
                     AC_FPRINTF(outf, "[EBP+%u]", addr);
                 else
                     AC_FPRINTF(outf, "[EBP-%u]", addr);
             } else {
-                if (s->offset >= 8)
+                if (s->offset == 0)
+                    AC_FPRINTF(outf, "[EBP]");
+                else if (s->offset >= 8)
                     AC_FPRINTF(outf, "[EBP+%u]", s->offset);
                 else
                     AC_FPRINTF(outf, "[EBP-%u]", s->offset);
