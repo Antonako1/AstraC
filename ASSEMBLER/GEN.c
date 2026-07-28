@@ -582,12 +582,12 @@ STATIC BOOL ENCODE_INSTRUCTION(FILE *f, PASM_NODE node) {
     case ENC_REG_OPCODE: {
         /* Opcode + register number in low 3 bits (+rb / +rw / +rd).
          * First (or only) operand is the register. */
-        U8 opc = tbl->opcode[0];
+        if (tbl->opcode_prefix == PFX_0F) EMIT_U8(f, 0x0F);
+        U8 opc = (tbl->opcode_prefix == PFX_0F) ? tbl->opcode[1] : tbl->opcode[0];
         if (node->instr.operand_count > 0 &&
             node->instr.operands[0].type == OP_REG) {
             opc += REG_NUM(node->instr.operands[0].reg);
         }
-        if (tbl->opcode_prefix == PFX_0F) EMIT_U8(f, 0x0F);
         EMIT_U8(f, opc);
 
         /* If there's a second immediate operand (e.g. MOV r32, imm32) */
@@ -610,7 +610,7 @@ STATIC BOOL ENCODE_INSTRUCTION(FILE *f, PASM_NODE node) {
         /* Opcode followed by immediate value(s).
          * Used for INT, PUSH imm, RET imm, and also relative jumps. */
         if (tbl->opcode_prefix == PFX_0F) EMIT_U8(f, 0x0F);
-        EMIT_U8(f, tbl->opcode[0]);
+        EMIT_U8(f, (tbl->opcode_prefix == PFX_0F) ? tbl->opcode[1] : tbl->opcode[0]);
 
         /* Emit each immediate / pointer operand */
         for (U32 k = 0; k < node->instr.operand_count; k++) {
@@ -685,7 +685,7 @@ STATIC BOOL ENCODE_INSTRUCTION(FILE *f, PASM_NODE node) {
          *   r/m only — operand[0]=r/m                   → encode /digit
          */
         if (tbl->opcode_prefix == PFX_0F) EMIT_U8(f, 0x0F);
-        EMIT_U8(f, tbl->opcode[0]);
+        EMIT_U8(f, (tbl->opcode_prefix == PFX_0F) ? tbl->opcode[1] : tbl->opcode[0]);
 
         /* Figure out which operand is the r/m side and which is the /r reg. */
         ASM_OPERAND *rm_op  = NULLPTR;

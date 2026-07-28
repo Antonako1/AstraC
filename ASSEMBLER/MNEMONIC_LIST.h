@@ -737,9 +737,21 @@ MNEM_0F(MNEM_SETL,   "setl",   0x9C, OPS_RM8, OPN_ONE, SZ_8BIT, MODRM_0, "Set by
 MNEM_0F(MNEM_SETNL,  "setnl",  0x9D, OPS_RM8, OPN_ONE, SZ_8BIT, MODRM_0, "Set byte if not less / greater or equal (SF=OF)")
 MNEM_0F(MNEM_SETLE,  "setle",  0x9E, OPS_RM8, OPN_ONE, SZ_8BIT, MODRM_0, "Set byte if less or equal (ZF=1 or SF!=OF)")
 MNEM_0F(MNEM_SETNLE, "setnle", 0x9F, OPS_RM8, OPN_ONE, SZ_8BIT, MODRM_0, "Set byte if greater (ZF=0 and SF=OF)")
-MNEM_0F(MNEM_SETG,   "setg",   0x9F, OPS_RM8, OPN_ONE, SZ_8BIT, MODRM_0, "Set byte if greater (ZF=0 and SF=OF)")
 
-// ??
+/* ── Common SETcc aliases ─────────────────────────────────────────────────── */
+MNEM_0F(MNEM_SETC,   "setc",   0x92, OPS_RM8, OPN_ONE, SZ_8BIT, MODRM_0, "Set byte if carry (CF=1)")
+MNEM_0F(MNEM_SETNAE, "setnae", 0x92, OPS_RM8, OPN_ONE, SZ_8BIT, MODRM_0, "Set byte if not above or equal (CF=1)")
+MNEM_0F(MNEM_SETNC,  "setnc",  0x93, OPS_RM8, OPN_ONE, SZ_8BIT, MODRM_0, "Set byte if not carry (CF=0)")
+MNEM_0F(MNEM_SETAE,  "setae",  0x93, OPS_RM8, OPN_ONE, SZ_8BIT, MODRM_0, "Set byte if above or equal (CF=0)")
+MNEM_0F(MNEM_SETE,   "sete",   0x94, OPS_RM8, OPN_ONE, SZ_8BIT, MODRM_0, "Set byte if equal (ZF=1)")
+MNEM_0F(MNEM_SETNE,  "setne",  0x95, OPS_RM8, OPN_ONE, SZ_8BIT, MODRM_0, "Set byte if not equal (ZF=0)")
+MNEM_0F(MNEM_SETNA,  "setna",  0x96, OPS_RM8, OPN_ONE, SZ_8BIT, MODRM_0, "Set byte if not above (CF=1 or ZF=1)")
+MNEM_0F(MNEM_SETA,   "seta",   0x97, OPS_RM8, OPN_ONE, SZ_8BIT, MODRM_0, "Set byte if above (CF=0 and ZF=0)")
+MNEM_0F(MNEM_SETPE,  "setpe",  0x9A, OPS_RM8, OPN_ONE, SZ_8BIT, MODRM_0, "Set byte if parity even (PF=1)")
+MNEM_0F(MNEM_SETPO,  "setpo",  0x9B, OPS_RM8, OPN_ONE, SZ_8BIT, MODRM_0, "Set byte if parity odd (PF=0)")
+MNEM_0F(MNEM_SETNGE, "setnge", 0x9C, OPS_RM8, OPN_ONE, SZ_8BIT, MODRM_0, "Set byte if not greater or equal (SF!=OF)")
+MNEM_0F(MNEM_SETNG,  "setng",  0x9E, OPS_RM8, OPN_ONE, SZ_8BIT, MODRM_0, "Set byte if not greater (ZF=1 or SF!=OF)")
+MNEM_0F(MNEM_SETG,   "setg",   0x9F, OPS_RM8, OPN_ONE, SZ_8BIT, MODRM_0, "Set byte if greater (ZF=0 and SF=OF)")
 MNEM_0F(MNEM_SETGE,  "setge",  0x9D, OPS_RM8, OPN_ONE, SZ_8BIT, MODRM_0, "Set byte if greater or equal (SF=OF)")
 
 
