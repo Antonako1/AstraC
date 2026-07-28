@@ -53,7 +53,7 @@ ASTRAC_RESULT START_WORKLOAD() {
         return ASTRAC_ERR_ARGS;
     }
     switch (args.build_type) {
-        // case BUILD_TYPE_DISASSEMBLE:    return START_DISSASEMBLER();
+        case BUILD_TYPE_DISASSEMBLE:    return START_DISSASEMBLER();
         case BUILD_TYPE_PREPROCESS_ONLY:
         case BUILD_TYPE_COMPILE:
         // case BUILD_TYPE_BUILD:          return (ASTRAC_RESULT)START_COMPILER();

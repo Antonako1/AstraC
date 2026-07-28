@@ -56,6 +56,19 @@ static BOOL FILE_CREATE_IMPL(const char* path) {
     return TRUE;
 }
 
+static const U8 *AC_GET_FULL_FILEDATA_IMPL(FILE *file) {
+    if (!file) return NULL;
+    U32 current_pos = ftell(file);
+    fseek(file, 0, SEEK_END);
+    U32 size = ftell(file);
+    fseek(file, current_pos, SEEK_SET);
+    U8 *data = (U8 *)AC_MAlloc((U32)size);
+    if (!data) return NULL;
+    fseek(file, 0, SEEK_SET);
+    fread(data, 1, (U32)size, file);
+    fseek(file, current_pos, SEEK_SET);
+    return data;
+}
 
 
 /* ── File mode flags (bit-combined, e.g. MODE_R | MODE_FAT32) ─────────── 
@@ -88,7 +101,7 @@ FILE* AC_FOPEN(const char* path, int mode_flags);
 #define AC_FCLOSE(f)    fclose(f)
 #define AC_FFLUSH(f)    fflush(f)
 #define AC_FEOF(f)      feof(f)
-
+#define AC_FPRINTF(f, fmt, ...) fprintf(f, fmt, ##__VA_ARGS__)
 /* ── File read / write ──────────────────────────────────────────────────── */
 /*
  * FWRITE(file, buf, len)  → writes `len` bytes from buf; returns TRUE on success.
@@ -111,7 +124,7 @@ FILE* AC_FOPEN(const char* path, int mode_flags);
 #define AC_FILE_EXISTS(path)                FILE_EXISTS_IMPL(path)
 #define AC_FILE_CREATE(path)                FILE_CREATE_IMPL(path)
 #define AC_FILE_DELETE(path)                ((BOOL)(remove(path) == 0))
-
+#define AC_GET_FULL_FILEDATA(file)    ((const U8 *)AC_GET_FULL_FILEDATA_IMPL(file))
 
 /* ── Standard streams ───────────────────────────────────────────────────── */
 /* stdin / stdout / stderr provided by stdio.h */
