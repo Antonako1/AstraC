@@ -1,0 +1,144 @@
+/* === Early 90s Terminal / Manpage Aesthetic === */
+/* No class names. Pure element-based styling. */
+
+:root {
+    --bg: #f3e7c3;      /* yellow-ish vintage */
+    --paper: #fff9d6;   /* pale yellow */
+    --ink: #000000;
+    --muted: #444444;
+    --accent: #0000ee;  /* early-90s default link blue */
+    --border: #000000;
+    --mono: "Courier New", Courier, monospace;
+}
+
+/* Base page */
+* { 
+    box-sizing: border-box;
+    margin: 0px;
+    padding: 0px;
+}
+
+html, body {
+    height: 100%;
+    margin: 0;
+    padding: 20px;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--mono);
+}
+
+/* Page container */
+body > main {
+    width: 90%;
+    max-width: 780px;
+    background: var(--paper);
+    border: 2px solid var(--ink);
+    padding: 15px 20px;
+    margin: 0 auto;
+}
+
+/* Header */
+header {
+    border-bottom: 2px solid var(--ink);
+    padding-bottom: 8px;
+    margin-bottom: 20px;
+    font-weight: bold;
+}
+
+nav {
+    padding: 10px;
+}
+
+/* Headings (blocky, uppercase, monospace) */
+h1, h2, h3, h4, h5, h6 {
+    text-transform: uppercase;
+    font-weight: bold;
+    margin: 20px 0 8px 0;
+}
+
+/* Links (classic blue, underline always) */
+a {
+    color: var(--accent);
+    text-decoration: underline;
+}
+
+/* Nav links */
+nav a {
+    margin-right: 15px;
+}
+
+/* Paragraphs */
+p {
+    margin: 10px 0;
+}
+
+/* Preformatted blocks */
+pre {
+    background: #fff;
+    padding: 10px;
+    border: 1px solid var(--ink);
+    overflow: auto;
+}
+
+/* Inline code */
+code {
+    background: #ffffff;
+    border: 1px solid #000;
+    padding: 2px 3px;
+}
+
+/* Blockquote */
+blockquote {
+    border-left: 4px solid var(--ink);
+    padding-left: 10px;
+    margin: 15px 0;
+}
+
+/* Lists */
+ul, ol {
+    margin-left: 25px;
+}
+li {
+    margin: 5px 0;
+}
+
+/* Tables (simple ASCII-style) */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 10px 0;
+    font-family: var(--mono);
+}
+th, td {
+    border: 1px solid var(--ink);
+    padding: 4px 6px;
+}
+th {
+    background: #eee8b8;
+}
+
+/* Forms (early plain look) */
+input, textarea, select, button {
+    font-family: var(--mono);
+    border: 1px solid var(--ink);
+    background: #fff;
+    padding: 3px 4px;
+}
+
+/* Figure */
+figure {
+    margin: 10px 0;
+}
+figcaption {
+    font-size: 0.9em;
+    color: var(--muted);
+}
+
+/* Footer */
+footer {
+    border-top: 2px solid var(--ink);
+    margin-top: 30px;
+    padding-top: 10px;
+    font-size: 0.9em;
+    text-align: right;
+}
