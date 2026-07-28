@@ -9318,6 +9318,370 @@ window.addEventListener("load", async () => {
   },
   {
     "mnemonic": 322,
+    "name": "setc",
+    "opcode": ["0F 92 /0"],
+    "prefix": "PF_NONE",
+    "opcode_prefix": "PFX_0F",
+    "encoding": "ENC_MODRM",
+    "operand": ["OP_MEM", "OP_NONE", "OP_NONE", "OP_NONE"],
+    "operand_count": "OPN_ONE",
+    "size": "SZ_8BIT",
+    "reg_fixed": "REG_NONE",
+    "modrm_ext": "MODRM_0",
+    "processor": "PROC_80386",
+    "status": "ST_DOCUMENTED",
+    "mode": "MODE_ANY",
+    "memory": "MEM_RW",
+    "rel_type": "RL_NONE",
+    "lock_type": "X_NONE",
+    "opcode_ext": "EX_PREFIX_0F",
+    "tested_flags": [],
+    "modified_flags": [],
+    "defined_flags": [],
+    "undefined_flags": [],
+    "flags_value": [],
+    "description": "Set byte if carry (CF=1)"
+  },
+  {
+    "mnemonic": 323,
+    "name": "setnae",
+    "opcode": ["0F 92 /0"],
+    "prefix": "PF_NONE",
+    "opcode_prefix": "PFX_0F",
+    "encoding": "ENC_MODRM",
+    "operand": ["OP_MEM", "OP_NONE", "OP_NONE", "OP_NONE"],
+    "operand_count": "OPN_ONE",
+    "size": "SZ_8BIT",
+    "reg_fixed": "REG_NONE",
+    "modrm_ext": "MODRM_0",
+    "processor": "PROC_80386",
+    "status": "ST_DOCUMENTED",
+    "mode": "MODE_ANY",
+    "memory": "MEM_RW",
+    "rel_type": "RL_NONE",
+    "lock_type": "X_NONE",
+    "opcode_ext": "EX_PREFIX_0F",
+    "tested_flags": [],
+    "modified_flags": [],
+    "defined_flags": [],
+    "undefined_flags": [],
+    "flags_value": [],
+    "description": "Set byte if not above or equal (CF=1)"
+  },
+  {
+    "mnemonic": 324,
+    "name": "setnc",
+    "opcode": ["0F 93 /0"],
+    "prefix": "PF_NONE",
+    "opcode_prefix": "PFX_0F",
+    "encoding": "ENC_MODRM",
+    "operand": ["OP_MEM", "OP_NONE", "OP_NONE", "OP_NONE"],
+    "operand_count": "OPN_ONE",
+    "size": "SZ_8BIT",
+    "reg_fixed": "REG_NONE",
+    "modrm_ext": "MODRM_0",
+    "processor": "PROC_80386",
+    "status": "ST_DOCUMENTED",
+    "mode": "MODE_ANY",
+    "memory": "MEM_RW",
+    "rel_type": "RL_NONE",
+    "lock_type": "X_NONE",
+    "opcode_ext": "EX_PREFIX_0F",
+    "tested_flags": [],
+    "modified_flags": [],
+    "defined_flags": [],
+    "undefined_flags": [],
+    "flags_value": [],
+    "description": "Set byte if not carry (CF=0)"
+  },
+  {
+    "mnemonic": 325,
+    "name": "setae",
+    "opcode": ["0F 93 /0"],
+    "prefix": "PF_NONE",
+    "opcode_prefix": "PFX_0F",
+    "encoding": "ENC_MODRM",
+    "operand": ["OP_MEM", "OP_NONE", "OP_NONE", "OP_NONE"],
+    "operand_count": "OPN_ONE",
+    "size": "SZ_8BIT",
+    "reg_fixed": "REG_NONE",
+    "modrm_ext": "MODRM_0",
+    "processor": "PROC_80386",
+    "status": "ST_DOCUMENTED",
+    "mode": "MODE_ANY",
+    "memory": "MEM_RW",
+    "rel_type": "RL_NONE",
+    "lock_type": "X_NONE",
+    "opcode_ext": "EX_PREFIX_0F",
+    "tested_flags": [],
+    "modified_flags": [],
+    "defined_flags": [],
+    "undefined_flags": [],
+    "flags_value": [],
+    "description": "Set byte if above or equal (CF=0)"
+  },
+  {
+    "mnemonic": 326,
+    "name": "sete",
+    "opcode": ["0F 94 /0"],
+    "prefix": "PF_NONE",
+    "opcode_prefix": "PFX_0F",
+    "encoding": "ENC_MODRM",
+    "operand": ["OP_MEM", "OP_NONE", "OP_NONE", "OP_NONE"],
+    "operand_count": "OPN_ONE",
+    "size": "SZ_8BIT",
+    "reg_fixed": "REG_NONE",
+    "modrm_ext": "MODRM_0",
+    "processor": "PROC_80386",
+    "status": "ST_DOCUMENTED",
+    "mode": "MODE_ANY",
+    "memory": "MEM_RW",
+    "rel_type": "RL_NONE",
+    "lock_type": "X_NONE",
+    "opcode_ext": "EX_PREFIX_0F",
+    "tested_flags": [],
+    "modified_flags": [],
+    "defined_flags": [],
+    "undefined_flags": [],
+    "flags_value": [],
+    "description": "Set byte if equal (ZF=1)"
+  },
+  {
+    "mnemonic": 327,
+    "name": "setne",
+    "opcode": ["0F 95 /0"],
+    "prefix": "PF_NONE",
+    "opcode_prefix": "PFX_0F",
+    "encoding": "ENC_MODRM",
+    "operand": ["OP_MEM", "OP_NONE", "OP_NONE", "OP_NONE"],
+    "operand_count": "OPN_ONE",
+    "size": "SZ_8BIT",
+    "reg_fixed": "REG_NONE",
+    "modrm_ext": "MODRM_0",
+    "processor": "PROC_80386",
+    "status": "ST_DOCUMENTED",
+    "mode": "MODE_ANY",
+    "memory": "MEM_RW",
+    "rel_type": "RL_NONE",
+    "lock_type": "X_NONE",
+    "opcode_ext": "EX_PREFIX_0F",
+    "tested_flags": [],
+    "modified_flags": [],
+    "defined_flags": [],
+    "undefined_flags": [],
+    "flags_value": [],
+    "description": "Set byte if not equal (ZF=0)"
+  },
+  {
+    "mnemonic": 328,
+    "name": "setna",
+    "opcode": ["0F 96 /0"],
+    "prefix": "PF_NONE",
+    "opcode_prefix": "PFX_0F",
+    "encoding": "ENC_MODRM",
+    "operand": ["OP_MEM", "OP_NONE", "OP_NONE", "OP_NONE"],
+    "operand_count": "OPN_ONE",
+    "size": "SZ_8BIT",
+    "reg_fixed": "REG_NONE",
+    "modrm_ext": "MODRM_0",
+    "processor": "PROC_80386",
+    "status": "ST_DOCUMENTED",
+    "mode": "MODE_ANY",
+    "memory": "MEM_RW",
+    "rel_type": "RL_NONE",
+    "lock_type": "X_NONE",
+    "opcode_ext": "EX_PREFIX_0F",
+    "tested_flags": [],
+    "modified_flags": [],
+    "defined_flags": [],
+    "undefined_flags": [],
+    "flags_value": [],
+    "description": "Set byte if not above (CF=1 or ZF=1)"
+  },
+  {
+    "mnemonic": 329,
+    "name": "seta",
+    "opcode": ["0F 97 /0"],
+    "prefix": "PF_NONE",
+    "opcode_prefix": "PFX_0F",
+    "encoding": "ENC_MODRM",
+    "operand": ["OP_MEM", "OP_NONE", "OP_NONE", "OP_NONE"],
+    "operand_count": "OPN_ONE",
+    "size": "SZ_8BIT",
+    "reg_fixed": "REG_NONE",
+    "modrm_ext": "MODRM_0",
+    "processor": "PROC_80386",
+    "status": "ST_DOCUMENTED",
+    "mode": "MODE_ANY",
+    "memory": "MEM_RW",
+    "rel_type": "RL_NONE",
+    "lock_type": "X_NONE",
+    "opcode_ext": "EX_PREFIX_0F",
+    "tested_flags": [],
+    "modified_flags": [],
+    "defined_flags": [],
+    "undefined_flags": [],
+    "flags_value": [],
+    "description": "Set byte if above (CF=0 and ZF=0)"
+  },
+  {
+    "mnemonic": 330,
+    "name": "setpe",
+    "opcode": ["0F 9A /0"],
+    "prefix": "PF_NONE",
+    "opcode_prefix": "PFX_0F",
+    "encoding": "ENC_MODRM",
+    "operand": ["OP_MEM", "OP_NONE", "OP_NONE", "OP_NONE"],
+    "operand_count": "OPN_ONE",
+    "size": "SZ_8BIT",
+    "reg_fixed": "REG_NONE",
+    "modrm_ext": "MODRM_0",
+    "processor": "PROC_80386",
+    "status": "ST_DOCUMENTED",
+    "mode": "MODE_ANY",
+    "memory": "MEM_RW",
+    "rel_type": "RL_NONE",
+    "lock_type": "X_NONE",
+    "opcode_ext": "EX_PREFIX_0F",
+    "tested_flags": [],
+    "modified_flags": [],
+    "defined_flags": [],
+    "undefined_flags": [],
+    "flags_value": [],
+    "description": "Set byte if parity even (PF=1)"
+  },
+  {
+    "mnemonic": 331,
+    "name": "setpo",
+    "opcode": ["0F 9B /0"],
+    "prefix": "PF_NONE",
+    "opcode_prefix": "PFX_0F",
+    "encoding": "ENC_MODRM",
+    "operand": ["OP_MEM", "OP_NONE", "OP_NONE", "OP_NONE"],
+    "operand_count": "OPN_ONE",
+    "size": "SZ_8BIT",
+    "reg_fixed": "REG_NONE",
+    "modrm_ext": "MODRM_0",
+    "processor": "PROC_80386",
+    "status": "ST_DOCUMENTED",
+    "mode": "MODE_ANY",
+    "memory": "MEM_RW",
+    "rel_type": "RL_NONE",
+    "lock_type": "X_NONE",
+    "opcode_ext": "EX_PREFIX_0F",
+    "tested_flags": [],
+    "modified_flags": [],
+    "defined_flags": [],
+    "undefined_flags": [],
+    "flags_value": [],
+    "description": "Set byte if parity odd (PF=0)"
+  },
+  {
+    "mnemonic": 332,
+    "name": "setnge",
+    "opcode": ["0F 9C /0"],
+    "prefix": "PF_NONE",
+    "opcode_prefix": "PFX_0F",
+    "encoding": "ENC_MODRM",
+    "operand": ["OP_MEM", "OP_NONE", "OP_NONE", "OP_NONE"],
+    "operand_count": "OPN_ONE",
+    "size": "SZ_8BIT",
+    "reg_fixed": "REG_NONE",
+    "modrm_ext": "MODRM_0",
+    "processor": "PROC_80386",
+    "status": "ST_DOCUMENTED",
+    "mode": "MODE_ANY",
+    "memory": "MEM_RW",
+    "rel_type": "RL_NONE",
+    "lock_type": "X_NONE",
+    "opcode_ext": "EX_PREFIX_0F",
+    "tested_flags": [],
+    "modified_flags": [],
+    "defined_flags": [],
+    "undefined_flags": [],
+    "flags_value": [],
+    "description": "Set byte if not greater or equal (SF!=OF)"
+  },
+  {
+    "mnemonic": 333,
+    "name": "setng",
+    "opcode": ["0F 9E /0"],
+    "prefix": "PF_NONE",
+    "opcode_prefix": "PFX_0F",
+    "encoding": "ENC_MODRM",
+    "operand": ["OP_MEM", "OP_NONE", "OP_NONE", "OP_NONE"],
+    "operand_count": "OPN_ONE",
+    "size": "SZ_8BIT",
+    "reg_fixed": "REG_NONE",
+    "modrm_ext": "MODRM_0",
+    "processor": "PROC_80386",
+    "status": "ST_DOCUMENTED",
+    "mode": "MODE_ANY",
+    "memory": "MEM_RW",
+    "rel_type": "RL_NONE",
+    "lock_type": "X_NONE",
+    "opcode_ext": "EX_PREFIX_0F",
+    "tested_flags": [],
+    "modified_flags": [],
+    "defined_flags": [],
+    "undefined_flags": [],
+    "flags_value": [],
+    "description": "Set byte if not greater (ZF=1 or SF!=OF)"
+  },
+  {
+    "mnemonic": 334,
+    "name": "setg",
+    "opcode": ["0F 9F /0"],
+    "prefix": "PF_NONE",
+    "opcode_prefix": "PFX_0F",
+    "encoding": "ENC_MODRM",
+    "operand": ["OP_MEM", "OP_NONE", "OP_NONE", "OP_NONE"],
+    "operand_count": "OPN_ONE",
+    "size": "SZ_8BIT",
+    "reg_fixed": "REG_NONE",
+    "modrm_ext": "MODRM_0",
+    "processor": "PROC_80386",
+    "status": "ST_DOCUMENTED",
+    "mode": "MODE_ANY",
+    "memory": "MEM_RW",
+    "rel_type": "RL_NONE",
+    "lock_type": "X_NONE",
+    "opcode_ext": "EX_PREFIX_0F",
+    "tested_flags": [],
+    "modified_flags": [],
+    "defined_flags": [],
+    "undefined_flags": [],
+    "flags_value": [],
+    "description": "Set byte if greater (ZF=0 and SF=OF)"
+  },
+  {
+    "mnemonic": 335,
+    "name": "setge",
+    "opcode": ["0F 9D /0"],
+    "prefix": "PF_NONE",
+    "opcode_prefix": "PFX_0F",
+    "encoding": "ENC_MODRM",
+    "operand": ["OP_MEM", "OP_NONE", "OP_NONE", "OP_NONE"],
+    "operand_count": "OPN_ONE",
+    "size": "SZ_8BIT",
+    "reg_fixed": "REG_NONE",
+    "modrm_ext": "MODRM_0",
+    "processor": "PROC_80386",
+    "status": "ST_DOCUMENTED",
+    "mode": "MODE_ANY",
+    "memory": "MEM_RW",
+    "rel_type": "RL_NONE",
+    "lock_type": "X_NONE",
+    "opcode_ext": "EX_PREFIX_0F",
+    "tested_flags": [],
+    "modified_flags": [],
+    "defined_flags": [],
+    "undefined_flags": [],
+    "flags_value": [],
+    "description": "Set byte if greater or equal (SF=OF)"
+  },
+  {
+    "mnemonic": 336,
     "name": "adc",
     "opcode": ["10"],
     "prefix": "PF_NONE",
@@ -9343,7 +9707,7 @@ window.addEventListener("load", async () => {
     "description": "Add r8 + CF to r/m8"
   },
   {
-    "mnemonic": 323,
+    "mnemonic": 337,
     "name": "adc",
     "opcode": ["12"],
     "prefix": "PF_NONE",
@@ -9369,7 +9733,7 @@ window.addEventListener("load", async () => {
     "description": "Add r/m8 + CF to r8"
   },
   {
-    "mnemonic": 324,
+    "mnemonic": 338,
     "name": "adc",
     "opcode": ["80 /2"],
     "prefix": "PF_NONE",
@@ -9395,7 +9759,7 @@ window.addEventListener("load", async () => {
     "description": "Add imm8 + CF to r/m8"
   },
   {
-    "mnemonic": 325,
+    "mnemonic": 339,
     "name": "adc",
     "opcode": ["11"],
     "prefix": "PF_66",
@@ -9421,7 +9785,7 @@ window.addEventListener("load", async () => {
     "description": "Add r16 + CF to r/m16"
   },
   {
-    "mnemonic": 326,
+    "mnemonic": 340,
     "name": "adc",
     "opcode": ["13"],
     "prefix": "PF_66",
@@ -9447,7 +9811,7 @@ window.addEventListener("load", async () => {
     "description": "Add r/m16 + CF to r16"
   },
   {
-    "mnemonic": 327,
+    "mnemonic": 341,
     "name": "adc",
     "opcode": ["83 /2"],
     "prefix": "PF_66",
@@ -9473,7 +9837,7 @@ window.addEventListener("load", async () => {
     "description": "Add sign-extended imm8 + CF to r/m16"
   },
   {
-    "mnemonic": 328,
+    "mnemonic": 342,
     "name": "adc",
     "opcode": ["81 /2"],
     "prefix": "PF_66",
@@ -9499,7 +9863,7 @@ window.addEventListener("load", async () => {
     "description": "Add imm16 + CF to r/m16"
   },
   {
-    "mnemonic": 329,
+    "mnemonic": 343,
     "name": "adc",
     "opcode": ["11"],
     "prefix": "PF_NONE",
@@ -9525,7 +9889,7 @@ window.addEventListener("load", async () => {
     "description": "Add r32 + CF to r/m32"
   },
   {
-    "mnemonic": 330,
+    "mnemonic": 344,
     "name": "adc",
     "opcode": ["13"],
     "prefix": "PF_NONE",
@@ -9551,7 +9915,7 @@ window.addEventListener("load", async () => {
     "description": "Add r/m32 + CF to r32"
   },
   {
-    "mnemonic": 331,
+    "mnemonic": 345,
     "name": "adc",
     "opcode": ["83 /2"],
     "prefix": "PF_NONE",
@@ -9577,7 +9941,7 @@ window.addEventListener("load", async () => {
     "description": "Add sign-extended imm8 + CF to r/m32"
   },
   {
-    "mnemonic": 332,
+    "mnemonic": 346,
     "name": "adc",
     "opcode": ["81 /2"],
     "prefix": "PF_NONE",
@@ -9603,7 +9967,7 @@ window.addEventListener("load", async () => {
     "description": "Add imm32 + CF to r/m32"
   },
   {
-    "mnemonic": 333,
+    "mnemonic": 347,
     "name": "sbb",
     "opcode": ["18"],
     "prefix": "PF_NONE",
@@ -9629,7 +9993,7 @@ window.addEventListener("load", async () => {
     "description": "Subtract r8 + CF from r/m8"
   },
   {
-    "mnemonic": 334,
+    "mnemonic": 348,
     "name": "sbb",
     "opcode": ["1A"],
     "prefix": "PF_NONE",
@@ -9655,7 +10019,7 @@ window.addEventListener("load", async () => {
     "description": "Subtract r/m8 + CF from r8"
   },
   {
-    "mnemonic": 335,
+    "mnemonic": 349,
     "name": "sbb",
     "opcode": ["80 /3"],
     "prefix": "PF_NONE",
@@ -9681,7 +10045,7 @@ window.addEventListener("load", async () => {
     "description": "Subtract imm8 + CF from r/m8"
   },
   {
-    "mnemonic": 336,
+    "mnemonic": 350,
     "name": "sbb",
     "opcode": ["19"],
     "prefix": "PF_66",
@@ -9707,7 +10071,7 @@ window.addEventListener("load", async () => {
     "description": "Subtract r16 + CF from r/m16"
   },
   {
-    "mnemonic": 337,
+    "mnemonic": 351,
     "name": "sbb",
     "opcode": ["1B"],
     "prefix": "PF_66",
@@ -9733,7 +10097,7 @@ window.addEventListener("load", async () => {
     "description": "Subtract r/m16 + CF from r16"
   },
   {
-    "mnemonic": 338,
+    "mnemonic": 352,
     "name": "sbb",
     "opcode": ["83 /3"],
     "prefix": "PF_66",
@@ -9759,7 +10123,7 @@ window.addEventListener("load", async () => {
     "description": "Subtract sign-extended imm8 + CF from r/m16"
   },
   {
-    "mnemonic": 339,
+    "mnemonic": 353,
     "name": "sbb",
     "opcode": ["81 /3"],
     "prefix": "PF_66",
@@ -9785,7 +10149,7 @@ window.addEventListener("load", async () => {
     "description": "Subtract imm16 + CF from r/m16"
   },
   {
-    "mnemonic": 340,
+    "mnemonic": 354,
     "name": "sbb",
     "opcode": ["19"],
     "prefix": "PF_NONE",
@@ -9811,7 +10175,7 @@ window.addEventListener("load", async () => {
     "description": "Subtract r32 + CF from r/m32"
   },
   {
-    "mnemonic": 341,
+    "mnemonic": 355,
     "name": "sbb",
     "opcode": ["1B"],
     "prefix": "PF_NONE",
@@ -9837,7 +10201,7 @@ window.addEventListener("load", async () => {
     "description": "Subtract r/m32 + CF from r32"
   },
   {
-    "mnemonic": 342,
+    "mnemonic": 356,
     "name": "sbb",
     "opcode": ["83 /3"],
     "prefix": "PF_NONE",
@@ -9863,7 +10227,7 @@ window.addEventListener("load", async () => {
     "description": "Subtract sign-extended imm8 + CF from r/m32"
   },
   {
-    "mnemonic": 343,
+    "mnemonic": 357,
     "name": "sbb",
     "opcode": ["81 /3"],
     "prefix": "PF_NONE",
@@ -9889,7 +10253,7 @@ window.addEventListener("load", async () => {
     "description": "Subtract imm32 + CF from r/m32"
   },
   {
-    "mnemonic": 344,
+    "mnemonic": 358,
     "name": "rcl",
     "opcode": ["D0 /2"],
     "prefix": "PF_NONE",
@@ -9915,7 +10279,7 @@ window.addEventListener("load", async () => {
     "description": "Rotate r/m8 left through carry by 1"
   },
   {
-    "mnemonic": 345,
+    "mnemonic": 359,
     "name": "rcl",
     "opcode": ["D2 /2"],
     "prefix": "PF_NONE",
@@ -9941,7 +10305,7 @@ window.addEventListener("load", async () => {
     "description": "Rotate r/m8 left through carry by CL bits"
   },
   {
-    "mnemonic": 346,
+    "mnemonic": 360,
     "name": "rcl",
     "opcode": ["C0 /2"],
     "prefix": "PF_NONE",
@@ -9967,7 +10331,7 @@ window.addEventListener("load", async () => {
     "description": "Rotate r/m8 left through carry by imm8 bits"
   },
   {
-    "mnemonic": 347,
+    "mnemonic": 361,
     "name": "rcl",
     "opcode": ["D1 /2"],
     "prefix": "PF_66",
@@ -9993,7 +10357,7 @@ window.addEventListener("load", async () => {
     "description": "Rotate r/m16 left through carry by 1"
   },
   {
-    "mnemonic": 348,
+    "mnemonic": 362,
     "name": "rcl",
     "opcode": ["D3 /2"],
     "prefix": "PF_66",
@@ -10019,7 +10383,7 @@ window.addEventListener("load", async () => {
     "description": "Rotate r/m16 left through carry by CL bits"
   },
   {
-    "mnemonic": 349,
+    "mnemonic": 363,
     "name": "rcl",
     "opcode": ["C1 /2"],
     "prefix": "PF_66",
@@ -10045,7 +10409,7 @@ window.addEventListener("load", async () => {
     "description": "Rotate r/m16 left through carry by imm8 bits"
   },
   {
-    "mnemonic": 350,
+    "mnemonic": 364,
     "name": "rcl",
     "opcode": ["D1 /2"],
     "prefix": "PF_NONE",
@@ -10071,7 +10435,7 @@ window.addEventListener("load", async () => {
     "description": "Rotate r/m32 left through carry by 1"
   },
   {
-    "mnemonic": 351,
+    "mnemonic": 365,
     "name": "rcl",
     "opcode": ["D3 /2"],
     "prefix": "PF_NONE",
@@ -10097,7 +10461,7 @@ window.addEventListener("load", async () => {
     "description": "Rotate r/m32 left through carry by CL bits"
   },
   {
-    "mnemonic": 352,
+    "mnemonic": 366,
     "name": "rcl",
     "opcode": ["C1 /2"],
     "prefix": "PF_NONE",
@@ -10123,7 +10487,7 @@ window.addEventListener("load", async () => {
     "description": "Rotate r/m32 left through carry by imm8 bits"
   },
   {
-    "mnemonic": 353,
+    "mnemonic": 367,
     "name": "rcr",
     "opcode": ["D0 /3"],
     "prefix": "PF_NONE",
@@ -10149,7 +10513,7 @@ window.addEventListener("load", async () => {
     "description": "Rotate r/m8 right through carry by 1"
   },
   {
-    "mnemonic": 354,
+    "mnemonic": 368,
     "name": "rcr",
     "opcode": ["D2 /3"],
     "prefix": "PF_NONE",
@@ -10175,7 +10539,7 @@ window.addEventListener("load", async () => {
     "description": "Rotate r/m8 right through carry by CL bits"
   },
   {
-    "mnemonic": 355,
+    "mnemonic": 369,
     "name": "rcr",
     "opcode": ["C0 /3"],
     "prefix": "PF_NONE",
@@ -10201,7 +10565,7 @@ window.addEventListener("load", async () => {
     "description": "Rotate r/m8 right through carry by imm8 bits"
   },
   {
-    "mnemonic": 356,
+    "mnemonic": 370,
     "name": "rcr",
     "opcode": ["D1 /3"],
     "prefix": "PF_66",
@@ -10227,7 +10591,7 @@ window.addEventListener("load", async () => {
     "description": "Rotate r/m16 right through carry by 1"
   },
   {
-    "mnemonic": 357,
+    "mnemonic": 371,
     "name": "rcr",
     "opcode": ["D3 /3"],
     "prefix": "PF_66",
@@ -10253,7 +10617,7 @@ window.addEventListener("load", async () => {
     "description": "Rotate r/m16 right through carry by CL bits"
   },
   {
-    "mnemonic": 358,
+    "mnemonic": 372,
     "name": "rcr",
     "opcode": ["C1 /3"],
     "prefix": "PF_66",
@@ -10279,7 +10643,7 @@ window.addEventListener("load", async () => {
     "description": "Rotate r/m16 right through carry by imm8 bits"
   },
   {
-    "mnemonic": 359,
+    "mnemonic": 373,
     "name": "rcr",
     "opcode": ["D1 /3"],
     "prefix": "PF_NONE",
@@ -10305,7 +10669,7 @@ window.addEventListener("load", async () => {
     "description": "Rotate r/m32 right through carry by 1"
   },
   {
-    "mnemonic": 360,
+    "mnemonic": 374,
     "name": "rcr",
     "opcode": ["D3 /3"],
     "prefix": "PF_NONE",
@@ -10331,7 +10695,7 @@ window.addEventListener("load", async () => {
     "description": "Rotate r/m32 right through carry by CL bits"
   },
   {
-    "mnemonic": 361,
+    "mnemonic": 375,
     "name": "rcr",
     "opcode": ["C1 /3"],
     "prefix": "PF_NONE",
@@ -10357,7 +10721,7 @@ window.addEventListener("load", async () => {
     "description": "Rotate r/m32 right through carry by imm8 bits"
   },
   {
-    "mnemonic": 362,
+    "mnemonic": 376,
     "name": "movsb",
     "opcode": ["A4"],
     "prefix": "PF_NONE",
@@ -10383,7 +10747,7 @@ window.addEventListener("load", async () => {
     "description": "Move byte [DS:ESI] to [ES:EDI], update ESI/EDI"
   },
   {
-    "mnemonic": 363,
+    "mnemonic": 377,
     "name": "movsd",
     "opcode": ["A5"],
     "prefix": "PF_NONE",
@@ -10409,7 +10773,7 @@ window.addEventListener("load", async () => {
     "description": "Move dword [DS:ESI] to [ES:EDI], update ESI/EDI"
   },
   {
-    "mnemonic": 364,
+    "mnemonic": 378,
     "name": "movsw",
     "opcode": ["A5"],
     "prefix": "PF_66",
@@ -10435,7 +10799,7 @@ window.addEventListener("load", async () => {
     "description": "Move word [DS:ESI] to [ES:EDI], update ESI/EDI"
   },
   {
-    "mnemonic": 365,
+    "mnemonic": 379,
     "name": "cmpsb",
     "opcode": ["A6"],
     "prefix": "PF_NONE",
@@ -10461,7 +10825,7 @@ window.addEventListener("load", async () => {
     "description": "Compare byte [DS:ESI] with [ES:EDI], set flags"
   },
   {
-    "mnemonic": 366,
+    "mnemonic": 380,
     "name": "cmpsd",
     "opcode": ["A7"],
     "prefix": "PF_NONE",
@@ -10487,7 +10851,7 @@ window.addEventListener("load", async () => {
     "description": "Compare dword [DS:ESI] with [ES:EDI], set flags"
   },
   {
-    "mnemonic": 367,
+    "mnemonic": 381,
     "name": "cmpsw",
     "opcode": ["A7"],
     "prefix": "PF_66",
@@ -10513,7 +10877,7 @@ window.addEventListener("load", async () => {
     "description": "Compare word [DS:ESI] with [ES:EDI], set flags"
   },
   {
-    "mnemonic": 368,
+    "mnemonic": 382,
     "name": "stosb",
     "opcode": ["AA"],
     "prefix": "PF_NONE",
@@ -10539,7 +10903,7 @@ window.addEventListener("load", async () => {
     "description": "Store AL to [ES:EDI], update EDI"
   },
   {
-    "mnemonic": 369,
+    "mnemonic": 383,
     "name": "stosd",
     "opcode": ["AB"],
     "prefix": "PF_NONE",
@@ -10565,7 +10929,7 @@ window.addEventListener("load", async () => {
     "description": "Store EAX to [ES:EDI], update EDI"
   },
   {
-    "mnemonic": 370,
+    "mnemonic": 384,
     "name": "stosw",
     "opcode": ["AB"],
     "prefix": "PF_66",
@@ -10591,7 +10955,7 @@ window.addEventListener("load", async () => {
     "description": "Store AX to [ES:EDI], update EDI"
   },
   {
-    "mnemonic": 371,
+    "mnemonic": 385,
     "name": "lodsb",
     "opcode": ["AC"],
     "prefix": "PF_NONE",
@@ -10617,7 +10981,7 @@ window.addEventListener("load", async () => {
     "description": "Load byte [DS:ESI] into AL, update ESI"
   },
   {
-    "mnemonic": 372,
+    "mnemonic": 386,
     "name": "lodsd",
     "opcode": ["AD"],
     "prefix": "PF_NONE",
@@ -10643,7 +11007,7 @@ window.addEventListener("load", async () => {
     "description": "Load dword [DS:ESI] into EAX, update ESI"
   },
   {
-    "mnemonic": 373,
+    "mnemonic": 387,
     "name": "lodsw",
     "opcode": ["AD"],
     "prefix": "PF_66",
@@ -10669,7 +11033,7 @@ window.addEventListener("load", async () => {
     "description": "Load word [DS:ESI] into AX, update ESI"
   },
   {
-    "mnemonic": 374,
+    "mnemonic": 388,
     "name": "scasb",
     "opcode": ["AE"],
     "prefix": "PF_NONE",
@@ -10695,7 +11059,7 @@ window.addEventListener("load", async () => {
     "description": "Compare AL with [ES:EDI], set flags, update EDI"
   },
   {
-    "mnemonic": 375,
+    "mnemonic": 389,
     "name": "scasd",
     "opcode": ["AF"],
     "prefix": "PF_NONE",
@@ -10721,7 +11085,7 @@ window.addEventListener("load", async () => {
     "description": "Compare EAX with [ES:EDI], set flags, update EDI"
   },
   {
-    "mnemonic": 376,
+    "mnemonic": 390,
     "name": "scasw",
     "opcode": ["AF"],
     "prefix": "PF_66",
@@ -10747,7 +11111,7 @@ window.addEventListener("load", async () => {
     "description": "Compare AX with [ES:EDI], set flags, update EDI"
   },
   {
-    "mnemonic": 377,
+    "mnemonic": 391,
     "name": "insb",
     "opcode": ["6C"],
     "prefix": "PF_NONE",
@@ -10773,7 +11137,7 @@ window.addEventListener("load", async () => {
     "description": "Input byte from port DX to [ES:EDI], update EDI"
   },
   {
-    "mnemonic": 378,
+    "mnemonic": 392,
     "name": "insd",
     "opcode": ["6D"],
     "prefix": "PF_NONE",
@@ -10799,7 +11163,7 @@ window.addEventListener("load", async () => {
     "description": "Input dword from port DX to [ES:EDI], update EDI"
   },
   {
-    "mnemonic": 379,
+    "mnemonic": 393,
     "name": "insw",
     "opcode": ["6D"],
     "prefix": "PF_66",
@@ -10825,7 +11189,7 @@ window.addEventListener("load", async () => {
     "description": "Input word from port DX to [ES:EDI], update EDI"
   },
   {
-    "mnemonic": 380,
+    "mnemonic": 394,
     "name": "outsb",
     "opcode": ["6E"],
     "prefix": "PF_NONE",
@@ -10851,7 +11215,7 @@ window.addEventListener("load", async () => {
     "description": "Output byte [DS:ESI] to port DX, update ESI"
   },
   {
-    "mnemonic": 381,
+    "mnemonic": 395,
     "name": "outsd",
     "opcode": ["6F"],
     "prefix": "PF_NONE",
@@ -10877,7 +11241,7 @@ window.addEventListener("load", async () => {
     "description": "Output dword [DS:ESI] to port DX, update ESI"
   },
   {
-    "mnemonic": 382,
+    "mnemonic": 396,
     "name": "outsw",
     "opcode": ["6F"],
     "prefix": "PF_66",
@@ -10903,7 +11267,7 @@ window.addEventListener("load", async () => {
     "description": "Output word [DS:ESI] to port DX, update ESI"
   },
   {
-    "mnemonic": 383,
+    "mnemonic": 397,
     "name": "rep",
     "opcode": ["F3"],
     "prefix": "PF_NONE",
@@ -10929,7 +11293,7 @@ window.addEventListener("load", async () => {
     "description": "Repeat string operation CX/ECX times"
   },
   {
-    "mnemonic": 384,
+    "mnemonic": 398,
     "name": "repe",
     "opcode": ["F3"],
     "prefix": "PF_NONE",
@@ -10955,7 +11319,7 @@ window.addEventListener("load", async () => {
     "description": "Repeat string operation while equal (ZF=1)"
   },
   {
-    "mnemonic": 385,
+    "mnemonic": 399,
     "name": "repne",
     "opcode": ["F2"],
     "prefix": "PF_NONE",
@@ -10981,7 +11345,7 @@ window.addEventListener("load", async () => {
     "description": "Repeat string operation while not equal (ZF=0)"
   },
   {
-    "mnemonic": 386,
+    "mnemonic": 400,
     "name": "repz",
     "opcode": ["F3"],
     "prefix": "PF_NONE",
@@ -11007,7 +11371,7 @@ window.addEventListener("load", async () => {
     "description": "Repeat string operation while zero (ZF=1)"
   },
   {
-    "mnemonic": 387,
+    "mnemonic": 401,
     "name": "repnz",
     "opcode": ["F2"],
     "prefix": "PF_NONE",
@@ -11033,7 +11397,7 @@ window.addEventListener("load", async () => {
     "description": "Repeat string operation while not zero (ZF=0)"
   },
   {
-    "mnemonic": 388,
+    "mnemonic": 402,
     "name": "lock",
     "opcode": ["F0"],
     "prefix": "PF_NONE",
@@ -11059,7 +11423,7 @@ window.addEventListener("load", async () => {
     "description": "Assert LOCK# signal for next instruction"
   },
   {
-    "mnemonic": 389,
+    "mnemonic": 403,
     "name": "in",
     "opcode": ["E4"],
     "prefix": "PF_NONE",
@@ -11085,7 +11449,7 @@ window.addEventListener("load", async () => {
     "description": "Input byte from port imm8 into AL"
   },
   {
-    "mnemonic": 390,
+    "mnemonic": 404,
     "name": "in",
     "opcode": ["E5"],
     "prefix": "PF_NONE",
@@ -11111,7 +11475,7 @@ window.addEventListener("load", async () => {
     "description": "Input dword from port imm8 into EAX"
   },
   {
-    "mnemonic": 391,
+    "mnemonic": 405,
     "name": "in",
     "opcode": ["E5"],
     "prefix": "PF_66",
@@ -11137,7 +11501,7 @@ window.addEventListener("load", async () => {
     "description": "Input word from port imm8 into AX"
   },
   {
-    "mnemonic": 392,
+    "mnemonic": 406,
     "name": "in",
     "opcode": ["EC"],
     "prefix": "PF_NONE",
@@ -11163,7 +11527,7 @@ window.addEventListener("load", async () => {
     "description": "Input byte from port DX into AL"
   },
   {
-    "mnemonic": 393,
+    "mnemonic": 407,
     "name": "in",
     "opcode": ["ED"],
     "prefix": "PF_NONE",
@@ -11189,7 +11553,7 @@ window.addEventListener("load", async () => {
     "description": "Input dword from port DX into EAX"
   },
   {
-    "mnemonic": 394,
+    "mnemonic": 408,
     "name": "in",
     "opcode": ["ED"],
     "prefix": "PF_66",
@@ -11215,7 +11579,7 @@ window.addEventListener("load", async () => {
     "description": "Input word from port DX into AX"
   },
   {
-    "mnemonic": 395,
+    "mnemonic": 409,
     "name": "out",
     "opcode": ["E6"],
     "prefix": "PF_NONE",
@@ -11241,7 +11605,7 @@ window.addEventListener("load", async () => {
     "description": "Output AL to port imm8"
   },
   {
-    "mnemonic": 396,
+    "mnemonic": 410,
     "name": "out",
     "opcode": ["E7"],
     "prefix": "PF_NONE",
@@ -11267,7 +11631,7 @@ window.addEventListener("load", async () => {
     "description": "Output EAX to port imm8"
   },
   {
-    "mnemonic": 397,
+    "mnemonic": 411,
     "name": "out",
     "opcode": ["E7"],
     "prefix": "PF_66",
@@ -11293,7 +11657,7 @@ window.addEventListener("load", async () => {
     "description": "Output AX to port imm8"
   },
   {
-    "mnemonic": 398,
+    "mnemonic": 412,
     "name": "out",
     "opcode": ["EE"],
     "prefix": "PF_NONE",
@@ -11319,7 +11683,7 @@ window.addEventListener("load", async () => {
     "description": "Output AL to port DX"
   },
   {
-    "mnemonic": 399,
+    "mnemonic": 413,
     "name": "out",
     "opcode": ["EF"],
     "prefix": "PF_NONE",
@@ -11345,7 +11709,7 @@ window.addEventListener("load", async () => {
     "description": "Output EAX to port DX"
   },
   {
-    "mnemonic": 400,
+    "mnemonic": 414,
     "name": "out",
     "opcode": ["EF"],
     "prefix": "PF_66",
@@ -11371,7 +11735,7 @@ window.addEventListener("load", async () => {
     "description": "Output AX to port DX"
   },
   {
-    "mnemonic": 401,
+    "mnemonic": 415,
     "name": "mov",
     "opcode": ["8C"],
     "prefix": "PF_NONE",
@@ -11397,7 +11761,7 @@ window.addEventListener("load", async () => {
     "description": "Move segment register to r/m16"
   },
   {
-    "mnemonic": 402,
+    "mnemonic": 416,
     "name": "mov",
     "opcode": ["8E"],
     "prefix": "PF_NONE",
@@ -11423,7 +11787,7 @@ window.addEventListener("load", async () => {
     "description": "Move r/m16 to segment register"
   },
   {
-    "mnemonic": 403,
+    "mnemonic": 417,
     "name": "push",
     "opcode": ["06"],
     "prefix": "PF_NONE",
@@ -11449,7 +11813,7 @@ window.addEventListener("load", async () => {
     "description": "Push ES onto stack"
   },
   {
-    "mnemonic": 404,
+    "mnemonic": 418,
     "name": "pop",
     "opcode": ["07"],
     "prefix": "PF_NONE",
@@ -11475,7 +11839,7 @@ window.addEventListener("load", async () => {
     "description": "Pop ES from stack"
   },
   {
-    "mnemonic": 405,
+    "mnemonic": 419,
     "name": "push",
     "opcode": ["0E"],
     "prefix": "PF_NONE",
@@ -11501,7 +11865,7 @@ window.addEventListener("load", async () => {
     "description": "Push CS onto stack"
   },
   {
-    "mnemonic": 406,
+    "mnemonic": 420,
     "name": "push",
     "opcode": ["16"],
     "prefix": "PF_NONE",
@@ -11527,7 +11891,7 @@ window.addEventListener("load", async () => {
     "description": "Push SS onto stack"
   },
   {
-    "mnemonic": 407,
+    "mnemonic": 421,
     "name": "pop",
     "opcode": ["17"],
     "prefix": "PF_NONE",
@@ -11553,7 +11917,7 @@ window.addEventListener("load", async () => {
     "description": "Pop SS from stack"
   },
   {
-    "mnemonic": 408,
+    "mnemonic": 422,
     "name": "push",
     "opcode": ["1E"],
     "prefix": "PF_NONE",
@@ -11579,7 +11943,7 @@ window.addEventListener("load", async () => {
     "description": "Push DS onto stack"
   },
   {
-    "mnemonic": 409,
+    "mnemonic": 423,
     "name": "pop",
     "opcode": ["1F"],
     "prefix": "PF_NONE",
@@ -11605,7 +11969,7 @@ window.addEventListener("load", async () => {
     "description": "Pop DS from stack"
   },
   {
-    "mnemonic": 410,
+    "mnemonic": 424,
     "name": "push",
     "opcode": ["0F A0"],
     "prefix": "PF_NONE",
@@ -11631,7 +11995,7 @@ window.addEventListener("load", async () => {
     "description": "Push FS onto stack"
   },
   {
-    "mnemonic": 411,
+    "mnemonic": 425,
     "name": "pop",
     "opcode": ["0F A1"],
     "prefix": "PF_NONE",
@@ -11657,7 +12021,7 @@ window.addEventListener("load", async () => {
     "description": "Pop FS from stack"
   },
   {
-    "mnemonic": 412,
+    "mnemonic": 426,
     "name": "push",
     "opcode": ["0F A8"],
     "prefix": "PF_NONE",
@@ -11683,7 +12047,7 @@ window.addEventListener("load", async () => {
     "description": "Push GS onto stack"
   },
   {
-    "mnemonic": 413,
+    "mnemonic": 427,
     "name": "pop",
     "opcode": ["0F A9"],
     "prefix": "PF_NONE",
@@ -11709,7 +12073,7 @@ window.addEventListener("load", async () => {
     "description": "Pop GS from stack"
   },
   {
-    "mnemonic": 414,
+    "mnemonic": 428,
     "name": "cwd",
     "opcode": ["99"],
     "prefix": "PF_66",
@@ -11735,7 +12099,7 @@ window.addEventListener("load", async () => {
     "description": "Sign-extend AX into DX:AX (16-bit)"
   },
   {
-    "mnemonic": 415,
+    "mnemonic": 429,
     "name": "enter",
     "opcode": ["C8"],
     "prefix": "PF_NONE",
@@ -11761,7 +12125,7 @@ window.addEventListener("load", async () => {
     "description": "Create stack frame (imm16=frame size, imm8=nesting level)"
   },
   {
-    "mnemonic": 416,
+    "mnemonic": 430,
     "name": "bound",
     "opcode": ["62"],
     "prefix": "PF_NONE",
@@ -11787,7 +12151,7 @@ window.addEventListener("load", async () => {
     "description": "Check r32 against array bounds in memory"
   },
   {
-    "mnemonic": 417,
+    "mnemonic": 431,
     "name": "bound",
     "opcode": ["62"],
     "prefix": "PF_66",
@@ -11813,7 +12177,7 @@ window.addEventListener("load", async () => {
     "description": "Check r16 against array bounds in memory"
   },
   {
-    "mnemonic": 418,
+    "mnemonic": 432,
     "name": "pushad",
     "opcode": ["60"],
     "prefix": "PF_NONE",
@@ -11839,7 +12203,7 @@ window.addEventListener("load", async () => {
     "description": "Push all 32-bit general-purpose registers"
   },
   {
-    "mnemonic": 419,
+    "mnemonic": 433,
     "name": "popad",
     "opcode": ["61"],
     "prefix": "PF_NONE",
@@ -11865,7 +12229,7 @@ window.addEventListener("load", async () => {
     "description": "Pop all 32-bit general-purpose registers"
   },
   {
-    "mnemonic": 420,
+    "mnemonic": 434,
     "name": "pushfd",
     "opcode": ["9C"],
     "prefix": "PF_NONE",
@@ -11891,7 +12255,7 @@ window.addEventListener("load", async () => {
     "description": "Push 32-bit EFLAGS onto stack"
   },
   {
-    "mnemonic": 421,
+    "mnemonic": 435,
     "name": "popfd",
     "opcode": ["9D"],
     "prefix": "PF_NONE",
@@ -11917,7 +12281,7 @@ window.addEventListener("load", async () => {
     "description": "Pop 32-bit EFLAGS from stack"
   },
   {
-    "mnemonic": 422,
+    "mnemonic": 436,
     "name": "lds",
     "opcode": ["C5"],
     "prefix": "PF_NONE",
@@ -11943,7 +12307,7 @@ window.addEventListener("load", async () => {
     "description": "Load far pointer into r32 and DS"
   },
   {
-    "mnemonic": 423,
+    "mnemonic": 437,
     "name": "les",
     "opcode": ["C4"],
     "prefix": "PF_NONE",
@@ -11969,7 +12333,7 @@ window.addEventListener("load", async () => {
     "description": "Load far pointer into r32 and ES"
   },
   {
-    "mnemonic": 424,
+    "mnemonic": 438,
     "name": "lds",
     "opcode": ["C5"],
     "prefix": "PF_66",
@@ -11995,7 +12359,7 @@ window.addEventListener("load", async () => {
     "description": "Load far pointer into r16 and DS"
   },
   {
-    "mnemonic": 425,
+    "mnemonic": 439,
     "name": "les",
     "opcode": ["C4"],
     "prefix": "PF_66",
@@ -12021,7 +12385,7 @@ window.addEventListener("load", async () => {
     "description": "Load far pointer into r16 and ES"
   },
   {
-    "mnemonic": 426,
+    "mnemonic": 440,
     "name": "clts",
     "opcode": ["0F 06"],
     "prefix": "PF_NONE",
@@ -12047,7 +12411,7 @@ window.addEventListener("load", async () => {
     "description": "Clear task-switched flag in CR0"
   },
   {
-    "mnemonic": 427,
+    "mnemonic": 441,
     "name": "lmsw",
     "opcode": ["0F 01 /6"],
     "prefix": "PF_NONE",
@@ -12073,7 +12437,7 @@ window.addEventListener("load", async () => {
     "description": "Load machine status word from r/m16"
   },
   {
-    "mnemonic": 428,
+    "mnemonic": 442,
     "name": "smsw",
     "opcode": ["0F 01 /4"],
     "prefix": "PF_NONE",
@@ -12099,7 +12463,7 @@ window.addEventListener("load", async () => {
     "description": "Store machine status word to r/m16"
   },
   {
-    "mnemonic": 429,
+    "mnemonic": 443,
     "name": "lldt",
     "opcode": ["0F /2"],
     "prefix": "PF_NONE",
@@ -12125,7 +12489,7 @@ window.addEventListener("load", async () => {
     "description": "Load LDTR from r/m16"
   },
   {
-    "mnemonic": 430,
+    "mnemonic": 444,
     "name": "sldt",
     "opcode": ["0F /0"],
     "prefix": "PF_NONE",
@@ -12151,7 +12515,7 @@ window.addEventListener("load", async () => {
     "description": "Store LDTR to r/m16"
   },
   {
-    "mnemonic": 431,
+    "mnemonic": 445,
     "name": "ltr",
     "opcode": ["0F /3"],
     "prefix": "PF_NONE",
@@ -12177,7 +12541,7 @@ window.addEventListener("load", async () => {
     "description": "Load task register from r/m16"
   },
   {
-    "mnemonic": 432,
+    "mnemonic": 446,
     "name": "str",
     "opcode": ["0F /1"],
     "prefix": "PF_NONE",
@@ -12203,7 +12567,7 @@ window.addEventListener("load", async () => {
     "description": "Store task register to r/m16"
   },
   {
-    "mnemonic": 433,
+    "mnemonic": 447,
     "name": "lar",
     "opcode": ["0F 02"],
     "prefix": "PF_NONE",
@@ -12229,7 +12593,7 @@ window.addEventListener("load", async () => {
     "description": "Load access rights byte into r32"
   },
   {
-    "mnemonic": 434,
+    "mnemonic": 448,
     "name": "lsl",
     "opcode": ["0F 03"],
     "prefix": "PF_NONE",
@@ -12255,7 +12619,7 @@ window.addEventListener("load", async () => {
     "description": "Load segment limit into r32"
   },
   {
-    "mnemonic": 435,
+    "mnemonic": 449,
     "name": "lar",
     "opcode": ["0F 02"],
     "prefix": "PF_66",
@@ -12281,7 +12645,7 @@ window.addEventListener("load", async () => {
     "description": "Load access rights byte into r16"
   },
   {
-    "mnemonic": 436,
+    "mnemonic": 450,
     "name": "lsl",
     "opcode": ["0F 03"],
     "prefix": "PF_66",
@@ -12307,7 +12671,7 @@ window.addEventListener("load", async () => {
     "description": "Load segment limit into r16"
   },
   {
-    "mnemonic": 437,
+    "mnemonic": 451,
     "name": "verr",
     "opcode": ["0F /4"],
     "prefix": "PF_NONE",
@@ -12333,7 +12697,7 @@ window.addEventListener("load", async () => {
     "description": "Verify segment for reading (sets ZF)"
   },
   {
-    "mnemonic": 438,
+    "mnemonic": 452,
     "name": "verw",
     "opcode": ["0F /5"],
     "prefix": "PF_NONE",
@@ -12359,7 +12723,7 @@ window.addEventListener("load", async () => {
     "description": "Verify segment for writing (sets ZF)"
   },
   {
-    "mnemonic": 439,
+    "mnemonic": 453,
     "name": "arpl",
     "opcode": ["63"],
     "prefix": "PF_NONE",
@@ -12385,7 +12749,7 @@ window.addEventListener("load", async () => {
     "description": "Adjust RPL field of selector (sets ZF)"
   },
   {
-    "mnemonic": 440,
+    "mnemonic": 454,
     "name": "bt",
     "opcode": ["0F A3"],
     "prefix": "PF_NONE",
@@ -12411,7 +12775,7 @@ window.addEventListener("load", async () => {
     "description": "Bit test r/m32 by r32, copy to CF"
   },
   {
-    "mnemonic": 441,
+    "mnemonic": 455,
     "name": "bt",
     "opcode": ["0F BA /4"],
     "prefix": "PF_NONE",
@@ -12437,7 +12801,7 @@ window.addEventListener("load", async () => {
     "description": "Bit test r/m32 by imm8, copy to CF"
   },
   {
-    "mnemonic": 442,
+    "mnemonic": 456,
     "name": "bt",
     "opcode": ["0F A3"],
     "prefix": "PF_66",
@@ -12463,7 +12827,7 @@ window.addEventListener("load", async () => {
     "description": "Bit test r/m16 by r16, copy to CF"
   },
   {
-    "mnemonic": 443,
+    "mnemonic": 457,
     "name": "bt",
     "opcode": ["0F BA /4"],
     "prefix": "PF_66",
@@ -12489,7 +12853,7 @@ window.addEventListener("load", async () => {
     "description": "Bit test r/m16 by imm8, copy to CF"
   },
   {
-    "mnemonic": 444,
+    "mnemonic": 458,
     "name": "bts",
     "opcode": ["0F AB"],
     "prefix": "PF_NONE",
@@ -12515,7 +12879,7 @@ window.addEventListener("load", async () => {
     "description": "Bit test and set r/m32 by r32"
   },
   {
-    "mnemonic": 445,
+    "mnemonic": 459,
     "name": "bts",
     "opcode": ["0F BA /5"],
     "prefix": "PF_NONE",
@@ -12541,7 +12905,7 @@ window.addEventListener("load", async () => {
     "description": "Bit test and set r/m32 by imm8"
   },
   {
-    "mnemonic": 446,
+    "mnemonic": 460,
     "name": "bts",
     "opcode": ["0F AB"],
     "prefix": "PF_66",
@@ -12567,7 +12931,7 @@ window.addEventListener("load", async () => {
     "description": "Bit test and set r/m16 by r16"
   },
   {
-    "mnemonic": 447,
+    "mnemonic": 461,
     "name": "bts",
     "opcode": ["0F BA /5"],
     "prefix": "PF_66",
@@ -12593,7 +12957,7 @@ window.addEventListener("load", async () => {
     "description": "Bit test and set r/m16 by imm8"
   },
   {
-    "mnemonic": 448,
+    "mnemonic": 462,
     "name": "btr",
     "opcode": ["0F B3"],
     "prefix": "PF_NONE",
@@ -12619,7 +12983,7 @@ window.addEventListener("load", async () => {
     "description": "Bit test and reset r/m32 by r32"
   },
   {
-    "mnemonic": 449,
+    "mnemonic": 463,
     "name": "btr",
     "opcode": ["0F BA /6"],
     "prefix": "PF_NONE",
@@ -12645,7 +13009,7 @@ window.addEventListener("load", async () => {
     "description": "Bit test and reset r/m32 by imm8"
   },
   {
-    "mnemonic": 450,
+    "mnemonic": 464,
     "name": "btr",
     "opcode": ["0F B3"],
     "prefix": "PF_66",
@@ -12671,7 +13035,7 @@ window.addEventListener("load", async () => {
     "description": "Bit test and reset r/m16 by r16"
   },
   {
-    "mnemonic": 451,
+    "mnemonic": 465,
     "name": "btr",
     "opcode": ["0F BA /6"],
     "prefix": "PF_66",
@@ -12697,7 +13061,7 @@ window.addEventListener("load", async () => {
     "description": "Bit test and reset r/m16 by imm8"
   },
   {
-    "mnemonic": 452,
+    "mnemonic": 466,
     "name": "btc",
     "opcode": ["0F BB"],
     "prefix": "PF_NONE",
@@ -12723,7 +13087,7 @@ window.addEventListener("load", async () => {
     "description": "Bit test and complement r/m32 by r32"
   },
   {
-    "mnemonic": 453,
+    "mnemonic": 467,
     "name": "btc",
     "opcode": ["0F BA /7"],
     "prefix": "PF_NONE",
@@ -12749,7 +13113,7 @@ window.addEventListener("load", async () => {
     "description": "Bit test and complement r/m32 by imm8"
   },
   {
-    "mnemonic": 454,
+    "mnemonic": 468,
     "name": "btc",
     "opcode": ["0F BB"],
     "prefix": "PF_66",
@@ -12775,7 +13139,7 @@ window.addEventListener("load", async () => {
     "description": "Bit test and complement r/m16 by r16"
   },
   {
-    "mnemonic": 455,
+    "mnemonic": 469,
     "name": "btc",
     "opcode": ["0F BA /7"],
     "prefix": "PF_66",
@@ -12801,7 +13165,7 @@ window.addEventListener("load", async () => {
     "description": "Bit test and complement r/m16 by imm8"
   },
   {
-    "mnemonic": 456,
+    "mnemonic": 470,
     "name": "shld",
     "opcode": ["0F A5"],
     "prefix": "PF_NONE",
@@ -12827,7 +13191,7 @@ window.addEventListener("load", async () => {
     "description": "Shift left double r/m32,r32 by CL"
   },
   {
-    "mnemonic": 457,
+    "mnemonic": 471,
     "name": "shld",
     "opcode": ["0F A4"],
     "prefix": "PF_NONE",
@@ -12853,7 +13217,7 @@ window.addEventListener("load", async () => {
     "description": "Shift left double r/m32,r32 by imm8"
   },
   {
-    "mnemonic": 458,
+    "mnemonic": 472,
     "name": "shld",
     "opcode": ["0F A5"],
     "prefix": "PF_66",
@@ -12879,7 +13243,7 @@ window.addEventListener("load", async () => {
     "description": "Shift left double r/m16,r16 by CL"
   },
   {
-    "mnemonic": 459,
+    "mnemonic": 473,
     "name": "shld",
     "opcode": ["0F A4"],
     "prefix": "PF_66",
@@ -12905,7 +13269,7 @@ window.addEventListener("load", async () => {
     "description": "Shift left double r/m16,r16 by imm8"
   },
   {
-    "mnemonic": 460,
+    "mnemonic": 474,
     "name": "shrd",
     "opcode": ["0F AD"],
     "prefix": "PF_NONE",
@@ -12931,7 +13295,7 @@ window.addEventListener("load", async () => {
     "description": "Shift right double r/m32,r32 by CL"
   },
   {
-    "mnemonic": 461,
+    "mnemonic": 475,
     "name": "shrd",
     "opcode": ["0F AC"],
     "prefix": "PF_NONE",
@@ -12957,7 +13321,7 @@ window.addEventListener("load", async () => {
     "description": "Shift right double r/m32,r32 by imm8"
   },
   {
-    "mnemonic": 462,
+    "mnemonic": 476,
     "name": "shrd",
     "opcode": ["0F AD"],
     "prefix": "PF_66",
@@ -12983,7 +13347,7 @@ window.addEventListener("load", async () => {
     "description": "Shift right double r/m16,r16 by CL"
   },
   {
-    "mnemonic": 463,
+    "mnemonic": 477,
     "name": "shrd",
     "opcode": ["0F AC"],
     "prefix": "PF_66",
@@ -13009,7 +13373,7 @@ window.addEventListener("load", async () => {
     "description": "Shift right double r/m16,r16 by imm8"
   },
   {
-    "mnemonic": 464,
+    "mnemonic": 478,
     "name": "imul",
     "opcode": ["0F AF"],
     "prefix": "PF_NONE",
@@ -13035,7 +13399,7 @@ window.addEventListener("load", async () => {
     "description": "Signed multiply r32 = r32 * r/m32 (low 32 bits)"
   },
   {
-    "mnemonic": 465,
+    "mnemonic": 479,
     "name": "imul",
     "opcode": ["0F AF"],
     "prefix": "PF_66",
@@ -13061,7 +13425,7 @@ window.addEventListener("load", async () => {
     "description": "Signed multiply r16 = r16 * r/m16 (low 16 bits)"
   },
   {
-    "mnemonic": 466,
+    "mnemonic": 480,
     "name": "imul",
     "opcode": ["69"],
     "prefix": "PF_NONE",
@@ -13087,7 +13451,7 @@ window.addEventListener("load", async () => {
     "description": "Signed multiply r32 = r/m32 * imm32"
   },
   {
-    "mnemonic": 467,
+    "mnemonic": 481,
     "name": "imul",
     "opcode": ["6B"],
     "prefix": "PF_NONE",
@@ -13113,7 +13477,7 @@ window.addEventListener("load", async () => {
     "description": "Signed multiply r32 = r/m32 * sign-extended imm8"
   },
   {
-    "mnemonic": 468,
+    "mnemonic": 482,
     "name": "imul",
     "opcode": ["69"],
     "prefix": "PF_66",
@@ -13139,7 +13503,7 @@ window.addEventListener("load", async () => {
     "description": "Signed multiply r16 = r/m16 * imm16"
   },
   {
-    "mnemonic": 469,
+    "mnemonic": 483,
     "name": "imul",
     "opcode": ["6B"],
     "prefix": "PF_66",
@@ -13165,7 +13529,7 @@ window.addEventListener("load", async () => {
     "description": "Signed multiply r16 = r/m16 * sign-extended imm8"
   },
   {
-    "mnemonic": 470,
+    "mnemonic": 484,
     "name": "lfs",
     "opcode": ["0F B4"],
     "prefix": "PF_NONE",
@@ -13191,7 +13555,7 @@ window.addEventListener("load", async () => {
     "description": "Load far pointer into r32 and FS"
   },
   {
-    "mnemonic": 471,
+    "mnemonic": 485,
     "name": "lgs",
     "opcode": ["0F B5"],
     "prefix": "PF_NONE",
@@ -13217,7 +13581,7 @@ window.addEventListener("load", async () => {
     "description": "Load far pointer into r32 and GS"
   },
   {
-    "mnemonic": 472,
+    "mnemonic": 486,
     "name": "lss",
     "opcode": ["0F B2"],
     "prefix": "PF_NONE",
@@ -13243,7 +13607,7 @@ window.addEventListener("load", async () => {
     "description": "Load far pointer into r32 and SS"
   },
   {
-    "mnemonic": 473,
+    "mnemonic": 487,
     "name": "lfs",
     "opcode": ["0F B4"],
     "prefix": "PF_66",
@@ -13269,7 +13633,7 @@ window.addEventListener("load", async () => {
     "description": "Load far pointer into r16 and FS"
   },
   {
-    "mnemonic": 474,
+    "mnemonic": 488,
     "name": "lgs",
     "opcode": ["0F B5"],
     "prefix": "PF_66",
@@ -13295,7 +13659,7 @@ window.addEventListener("load", async () => {
     "description": "Load far pointer into r16 and GS"
   },
   {
-    "mnemonic": 475,
+    "mnemonic": 489,
     "name": "lss",
     "opcode": ["0F B2"],
     "prefix": "PF_66",
@@ -13321,7 +13685,7 @@ window.addEventListener("load", async () => {
     "description": "Load far pointer into r16 and SS"
   },
   {
-    "mnemonic": 476,
+    "mnemonic": 490,
     "name": "mov",
     "opcode": ["0F 20"],
     "prefix": "PF_NONE",
@@ -13347,7 +13711,7 @@ window.addEventListener("load", async () => {
     "description": "Move control register CRn to r32"
   },
   {
-    "mnemonic": 477,
+    "mnemonic": 491,
     "name": "mov",
     "opcode": ["0F 22"],
     "prefix": "PF_NONE",
@@ -13373,7 +13737,7 @@ window.addEventListener("load", async () => {
     "description": "Move r32 to control register CRn"
   },
   {
-    "mnemonic": 478,
+    "mnemonic": 492,
     "name": "mov",
     "opcode": ["0F 21"],
     "prefix": "PF_NONE",
@@ -13399,7 +13763,7 @@ window.addEventListener("load", async () => {
     "description": "Move debug register DRn to r32"
   },
   {
-    "mnemonic": 479,
+    "mnemonic": 493,
     "name": "mov",
     "opcode": ["0F 23"],
     "prefix": "PF_NONE",
@@ -13425,6 +13789,7 @@ window.addEventListener("load", async () => {
     "description": "Move r32 to debug register DRn"
   }
 ]
+
 
 </script>
 
