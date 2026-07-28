@@ -14,6 +14,7 @@ ASTRAC/
 out/
 build/
 CMakeFiles/
+*.exe
 
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
