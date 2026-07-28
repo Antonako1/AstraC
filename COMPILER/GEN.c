@@ -487,7 +487,10 @@ BOOL COMP_GEN(PCNODE root, PCOMP_CTX c) {
 
     ASTRAC_ARGS *cfg = GET_ARGS();
     BOOL bits16 = (cfg && cfg->dsm_bits == 16);
+    BOOL bootloader = (cfg && cfg->org > 0);
 
+    if (bootloader)
+        AC_FPRINTF(outf, ".org 0x%X\n", cfg->org);
     emit((bits16 ? ".use16" : ".use32"));
     emit(".code");
 
@@ -504,9 +507,11 @@ BOOL COMP_GEN(PCNODE root, PCOMP_CTX c) {
             if (n->children[j]->ntype != CNODE_PARAM) { has_body = TRUE; break; }
         if (!has_body) continue;
 
-        AC_FPRINTF(outf, "\n_%s:\n", fs->name);
-        emit("    PUSH EBP");
-        emit("    MOV EBP, ESP");
+        if (!bootloader) {
+            AC_FPRINTF(outf, "\n_%s:\n", fs->name);
+            emit("    PUSH EBP");
+            emit("    MOV EBP, ESP");
+        }
 
         /* Assign positive EBP offsets to parameters (EBP+8, EBP+12, ...) */
         {
@@ -524,7 +529,7 @@ BOOL COMP_GEN(PCNODE root, PCOMP_CTX c) {
         local_offset = 4; /* account for return address at EBP+4 */
         ASSIGN_LOCAL_OFFSETS(n);
         /* Make space for locals */
-        if (local_offset < 4)
+        if (!bootloader && local_offset < 4)
             AC_FPRINTF(outf, "    SUB ESP, %u\n", (U32)(4 - local_offset));
 
         /* Generate body */
@@ -534,26 +539,30 @@ BOOL COMP_GEN(PCNODE root, PCOMP_CTX c) {
         }
 
         /* Default return */
-        AC_FPRINTF(outf, "__%s_ret:\n", fs->name);
-        if (local_offset < 4)
-            AC_FPRINTF(outf, "    ADD ESP, %u\n", (U32)(4 - local_offset));
-        emit("    POP EBP");
-        emit("    RET");
+        if (!bootloader) {
+            AC_FPRINTF(outf, "__%s_ret:\n", fs->name);
+            if (local_offset < 4)
+                AC_FPRINTF(outf, "    ADD ESP, %u\n", (U32)(4 - local_offset));
+            emit("    POP EBP");
+            emit("    RET");
+        }
     }
 
-    /* Emit string literals in .rodata */
-    if (ctx->rodata_string_count > 0) {
+    /* Emit string literals in .rodata (skip in bootloader mode) */
+    if (!bootloader && ctx->rodata_string_count > 0) {
         emit("\n.rodata");
         EMIT_RODATA_STRINGS();
     }
 
-    /* Emit global variables in .data */
-    BOOL has_globals = FALSE;
-    for (U32 i = 0; i < sym->count; i++) {
-        SYMBOL *s = &sym->entries[i];
-        if (s->kind == SYM_VARIABLE && s->is_global && !s->is_defined) {
-            if (!has_globals) { emit("\n.data"); has_globals = TRUE; }
-            AC_FPRINTF(outf, "%s DD 0\n", s->name);
+    /* Emit global variables in .data (skip in bootloader mode) */
+    if (!bootloader) {
+        BOOL has_globals = FALSE;
+        for (U32 i = 0; i < sym->count; i++) {
+            SYMBOL *s = &sym->entries[i];
+            if (s->kind == SYM_VARIABLE && s->is_global && !s->is_defined) {
+                if (!has_globals) { emit("\n.data"); has_globals = TRUE; }
+                AC_FPRINTF(outf, "%s DD 0\n", s->name);
+            }
         }
     }
 

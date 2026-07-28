@@ -1,31 +1,24 @@
-; Bootloader — prints "HELLO WORLD" to the screen via BIOS INT 0x10
 .org 0x7C00
 .use16
 .code
 
-    ; Initialise segment registers
-    XOR AX, AX
-    MOV DS, AX
-    MOV ES, AX
-    MOV SS, AX
-    MOV SP, 0x7C00
+XOR AX, AX
+MOV DS, AX
+MOV ES, AX
+MOV SS, AX
+MOV SP, 0X7C00
+LEA SI, MSG
+MOV AH, 0X0E
+.LOOP:
+LODSB
+OR AL, AL
+JZ .DONE
+INT 0X10
+JMP .LOOP
+.DONE:
+HLT
+JMP .DONE
+MSG DB "HELLO WORLD", 0
+.TIMES 510-($-$$) DB 0
+0XAA55
 
-    ; Print string via BIOS teletype
-    LEA SI, msg
-    MOV AH, 0x0E
-
-.loop:
-    LODSB
-    OR AL, AL
-    JZ .done
-    INT 0x10
-    JMP .loop
-
-.done:
-    HLT
-    JMP .done
-
-msg DB "HELLO WORLD", 0
-
-.times 510-($-$$) DB 0
-0xAA55
