@@ -50,12 +50,12 @@
 /* ══════════════════════════════════════════════════════════════════════
  *  Compiler pipeline
  * ══════════════════════════════════════════════════════════════════════ */
-// #include "COMPILER/AST.c"
-// #include "COMPILER/LEX.c"
-// #include "COMPILER/PARSER.c"
-// #include "COMPILER/VERIFY_AST.c"
-// #include "COMPILER/GEN.c"
-// #include "COMPILER/COMPMAIN.c"
+#include "COMPILER/AST.c"
+#include "COMPILER/LEX.c"
+#include "COMPILER/PARSER.c"
+#include "COMPILER/VERIFY_AST.c"
+#include "COMPILER/GEN.c"
+#include "COMPILER/COMPMAIN.c"
 
 /* ══════════════════════════════════════════════════════════════════════
  *  Top-level: full-build orchestrator + argument parsing / main()

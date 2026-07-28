@@ -37,6 +37,7 @@ typedef enum _COMP_TOK_TYPE {
 
     CTOK_KW_F32,
     CTOK_KW_U0,
+    CTOK_KW_VOID,
     CTOK_KW_BOOL,
     CTOK_KW_TRUE,
     CTOK_KW_FALSE,
@@ -53,6 +54,7 @@ typedef enum _COMP_TOK_TYPE {
     /* Declarations */
     CTOK_KW_STRUCT,  CTOK_KW_UNION,
     CTOK_KW_ENUM,    CTOK_KW_SIZEOF,
+    CTOK_KW_TYPEDEF, CTOK_KW_STATIC, CTOK_KW_LOCAL,
 
     CTOK_KW_ASM,
 
@@ -139,6 +141,60 @@ typedef struct _COMP_TYPE {
 U32 COMP_TYPE_SIZE(COMP_TYPE t);
 
 /* ════════════════════════════════════════════════════════════════════════════
+ *  SYMBOL TABLE
+ * ════════════════════════════════════════════════════════════════════════════ */
+typedef enum _SYM_KIND {
+    SYM_VARIABLE,
+    SYM_FUNCTION,
+    SYM_STRUCT,
+    SYM_UNION,
+    SYM_ENUM,
+    SYM_TYPEDEF,
+} SYM_KIND;
+
+typedef struct _TYPE_FIELD {
+    PU8 name;
+    COMP_TYPE type;
+    U32 offset;
+    U32 size;
+} TYPE_FIELD;
+
+typedef struct _SYMBOL {
+    PU8 name;
+    SYM_KIND kind;
+    COMP_TYPE type;           /* for variables/functions/typedefs */
+    COMP_TYPE ret_type;       /* for functions */
+    U32  offset;              /* stack offset for locals, 0 for globals */
+    U32  ival;                /* enum constant value */
+    BOOL is_global;           /* TRUE = .data/.rodata, FALSE = stack */
+    BOOL is_defined;          /* function has body (not just forward decl) */
+    BOOL is_variadic;
+    BOOL is_union;            /* for struct/unions */
+
+    /* Function params */
+    U32   param_count;
+    COMP_TYPE param_types[16];
+    PU8       param_names[16];
+
+    /* Struct/union fields */
+    TYPE_FIELD fields[64];
+    U32  field_count;
+    U32  total_size;
+
+    /* Enum values: enum constant name -> U32 value stored via type */
+} SYMBOL;
+
+typedef struct _SYM_TABLE {
+    SYMBOL entries[512];
+    U32    count;
+} SYM_TABLE;
+
+typedef struct {
+    COMP_TOK_TYPE key;
+    PU8           kw_str;
+} COMP_KW_MAP;
+
+/* ════════════════════════════════════════════════════════════════════════════
  *  AST NODE TYPES
  * ════════════════════════════════════════════════════════════════════════════ */
 typedef enum _CNODE_TYPE {
@@ -199,12 +255,16 @@ typedef struct _COMP_CTX {
     PU8 out_asm;
 
     U32 label_counter;
-
     U32 loop_label_stack[32];
     U32 loop_label_stack_top;
 
     RODATA_STR rodata_strings[256];
     U32        rodata_string_count;
+
+    SYM_TABLE  symtab;       /* symbol table for parser/verifier/codegen */
+    BOOL       in_func;      /* inside a function body */
+    BOOL       verbose;      /* verbose output */
+    PCNODE     cur_func;     /* current function node */
 
     U32 errors;
     U32 warnings;

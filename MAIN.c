@@ -54,9 +54,8 @@ ASTRAC_RESULT START_WORKLOAD() {
     }
     switch (args.build_type) {
         case BUILD_TYPE_DISASSEMBLE:    return START_DISSASEMBLER();
-        case BUILD_TYPE_PREPROCESS_ONLY:
-        case BUILD_TYPE_COMPILE:
-        // case BUILD_TYPE_BUILD:          return (ASTRAC_RESULT)START_COMPILER();
+        case BUILD_TYPE_PREPROCESS_ONLY: return ASTRAC_OK;
+        case BUILD_TYPE_COMPILE:       return (ASTRAC_RESULT)START_COMPILER();
         case BUILD_TYPE_ASSEMBLE:       return START_ASSEMBLING();
         default:
             AC_PRINTF("[ASTRAC] Error: unknown build mode 0x%X\n", args.build_type);
