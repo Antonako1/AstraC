@@ -181,18 +181,32 @@ STATIC PCNODE parse_atom() {
     /* Parenthesized */
     if (MATCH(CTOK_LPAREN)) {
         ADV();
-        /* Cast: (type)expr */
+        /* Cast: (type)expr — only attempt if next is a known type keyword
+         * or a typedef name, to avoid misleading "unknown type" diagnostics
+         * on ordinary parenthesized expressions like (a + b). */
         U32 save = pos;
-        COMP_TYPE ct = parse_type();
-        if (ct.base != CTYPE_NONE && MATCH(CTOK_RPAREN)) {
-            ADV();
-            PCNODE e = parse_expr();
-            PCNODE n = CNODE_NEW(CNODE_CAST, t->line, t->col);
-            n->dtype = ct;
-            if (e) CNODE_ADD_CHILD(n, e);
-            return n;
+        COMP_TOK_TYPE next = PEEK()->type;
+        BOOL try_cast = (next >= CTOK_KW_U8 && next <= CTOK_KW_PPI32)
+                     || next == CTOK_KW_F32 || next == CTOK_KW_BOOL
+                     || next == CTOK_KW_U0 || next == CTOK_KW_VOIDPTR
+                     || next == CTOK_KW_VOID || next == CTOK_KW_STRUCT
+                     || next == CTOK_KW_UNION || next == CTOK_KW_ENUM;
+        if (next == CTOK_IDENT) {
+            SYMBOL *ts = SYM_LOOKUP(PEEK()->txt);
+            try_cast = (ts && ts->kind == SYM_TYPEDEF);
         }
-        pos = save;
+        if (try_cast) {
+            COMP_TYPE ct = parse_type();
+            if (ct.base != CTYPE_NONE && MATCH(CTOK_RPAREN)) {
+                ADV();
+                PCNODE e = parse_expr();
+                PCNODE n = CNODE_NEW(CNODE_CAST, t->line, t->col);
+                n->dtype = ct;
+                if (e) CNODE_ADD_CHILD(n, e);
+                return n;
+            }
+            pos = save; /* backtrack: not a cast */
+        }
         PCNODE e = parse_expr();
         EXPECT(CTOK_RPAREN);
         return e;
