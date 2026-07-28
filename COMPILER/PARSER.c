@@ -709,6 +709,17 @@ STATIC PCNODE parse_toplevel() {
                 if (MATCH(CTOK_COMMA)) ADV();
             }
             EXPECT(CTOK_RBRACE);
+            /* Handle typedef chain after enum body: } TYPE, *PTYPE; */
+            while (MATCH(CTOK_IDENT) || MATCH(CTOK_STAR)) {
+                U8 pd = 0;
+                while (MATCH(CTOK_STAR)) { ADV(); pd++; }
+                if (MATCH(CTOK_IDENT)) {
+                    PCOMP_TOK tn = ADV();
+                    SYMBOL *ts = SYM_ADD(tn->txt, SYM_TYPEDEF);
+                    ts->type = COMP_MAKE_TYPE(CTYPE_ENUM, pd, NULLPTR);
+                }
+                if (MATCH(CTOK_COMMA)) ADV(); else break;
+            }
             EXPECT(CTOK_SEMICOLON);
             return CNODE_NEW(CNODE_ENUM_DECL, sl, sc);
         }

@@ -29,6 +29,7 @@ U32 main(U32 argc, PPU8 argv) {
     if (student.id > 12345) {
         for (U32 i = 0; i < 5; i++) {
             asm {
+                nop
                 mov eax, student.id
                 add eax, i
                 mov student.id, eax

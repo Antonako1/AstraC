@@ -66,6 +66,7 @@ __lbl4:
     TEST EAX, EAX
     JZ __lbl5
 
+NOP
 MOV EAX, [EBP-0]
 ADD EAX, [EBP+9]
 MOV [EBP-0], EAX

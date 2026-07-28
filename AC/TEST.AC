@@ -1,0 +1,232 @@
+// ═══════════════════════════════════════════════════════════════════════════════
+//  TEST.AC — Comprehensive compiler test exercising every AC language feature
+//  Compile: AstraC.exe comp TEST.AC verbose
+// ═══════════════════════════════════════════════════════════════════════════════
+
+#include "./AC/TEST.AH"
+
+
+/* ── Global variables (.data, default-zero) ──────────────────────────────── */
+
+static U32      g_counter;
+static COUNTER  g_ticks;
+local  PU8      g_message = "AC Compiler Test";     /* string in .rodata */
+static POINT    g_origin;
+static COLOR    g_color;
+static BOOL     g_ready = TRUE;
+
+
+/* ── Helper: add two numbers ─────────────────────────────────────────────── */
+
+U32 add(U32 a, U32 b) {
+    return a + b;
+}
+
+
+/* ── Helper: subtract ────────────────────────────────────────────────────── */
+
+I32 subtract(I32 a, I32 b) {
+    return a - b;
+}
+
+
+/* ── Factorial (recursive, uses forward declaration from TEST.AH) ────────── */
+
+U32 factorial(U32 n) {
+    if (n <= 1) {
+        return 1;
+    }
+    return n * factorial(n - 1);
+}
+
+
+/* ── Void function ───────────────────────────────────────────────────────── */
+
+VOID reset_counters() {
+    g_counter = 0;
+    g_ticks   = 0;
+    g_ready   = FALSE;
+    return;
+}
+
+
+/* ── Function pointer application ────────────────────────────────────────── */
+
+U32 apply_binop(BINOP op, U32 a, U32 b) {
+    return op(a, b);
+}
+
+
+/* ── Binary operation implementations ────────────────────────────────────── */
+
+U32 mul_op(U32 a, U32 b) { return a * b; }
+U32 xor_op(U32 a, U32 b) { return a ^ b; }
+U32 shl_op(U32 a, U32 b) { return a << b; }
+
+
+/* ── Main entry point ────────────────────────────────────────────────────── */
+
+U32 main(U32 argc, PPU8 argv) {
+    /* ── Variable declarations with initializers ────────────────────────── */
+    U32   a = 10;
+    I32   b = -5;
+    BOOL  flag = TRUE;
+    PU8   str = "Hello";
+    U8    ch  = 'A';
+
+    /* ── sizeof ─────────────────────────────────────────────────────────── */
+    U32 sz_u32 = sizeof(U32);       /* 4 */
+    U32 sz_ptr = sizeof(PU8);       /* 4 (all pointers are 32-bit) */
+
+    /* ── Implicit conversions ───────────────────────────────────────────── */
+    U8  u8_val  = 100;
+    U16 u16_val = 1000;
+    U32 u32_val = u8_val;           /* U8 -> U32 (widening, safe) */
+
+    /* ── Explicit casting ───────────────────────────────────────────────── */
+    PU8 screen = (PU8)0xB8000;      /* integer -> pointer */
+    U32 addr   = (U32)screen;       /* pointer -> integer */
+    U8  byte   = (U8)0x1234;        /* narrowing cast */
+
+    /* ── Arithmetic operators ───────────────────────────────────────────── */
+    U32 arith = a + b + (a - b) * (a * 2) / (a % 3);
+
+    /* ── Bitwise operators ──────────────────────────────────────────────── */
+    U32 bit_and = a & 0xFF;
+    U32 bit_or  = a | 0xFF00;
+    U32 bit_xor = a ^ 0xAAAA;
+    U32 bit_not = ~a;
+    U32 shl     = a << 2;
+    U32 shr     = a >> 2;
+
+    /* ── Relational / logical operators ─────────────────────────────────── */
+    BOOL eq  = (a == b);
+    BOOL neq = (a != b);
+    BOOL lt  = (a < b);
+    BOOL gt  = (a > b);
+    BOOL le  = (a <= b);
+    BOOL ge  = (a >= b);
+    BOOL land = flag && (a > 0);
+    BOOL lor  = flag || (b < 0);
+    BOOL lnot = !flag;
+
+    /* ── Assignment as expression (chainable) ───────────────────────────── */
+    U32 x = 1;
+    U32 y = 2;
+    U32 z = 3;
+    x = y = z = 0;
+
+    /* ── Compound assignment ────────────────────────────────────────────── */
+    U32 ca = 10;
+    ca += 5;
+    ca -= 3;
+    ca *= 2;
+    ca /= 4;
+    ca <<= 1;
+    ca >>= 2;
+    ca &= 2;
+    ca |= 1;
+    ca ^= 3;
+
+    /* ── Postfix / prefix increment ─────────────────────────────────────── */
+    U32 pre  = 0;
+    U32 post = 0;
+    U32 pre_val  = ++pre;           /* pre_val = 1, pre = 1 */
+    U32 post_val = post++;          /* post_val = 0, post = 1 */
+
+    /* ── Ternary operator ───────────────────────────────────────────────── */
+    U32 max = (a > (U32)b) ? a : (U32)b;
+
+    /* ── Struct usage ───────────────────────────────────────────────────── */
+    POINT pt;
+    pt.x = 100;
+    pt.y = 200;
+
+    PPOINT ppt = &pt;
+    ppt->x = 300;                   /* member access via pointer */
+    ppt->y = 400;
+
+    RECT r;
+    r.top_left.x = 0;
+    r.top_left.y = 0;
+    r.bottom_right.x = 640;
+    r.bottom_right.y = 480;
+
+    /* ── Enum ───────────────────────────────────────────────────────────── */
+    COLOR c = COLOR_RED;
+    if (c == COLOR_RED) {
+        c = COLOR_BLUE;
+    }
+
+    /* ── Function calls ─────────────────────────────────────────────────── */
+    U32 sum_a_b  = add(a, b);
+    I32 diff     = subtract((I32)a, b);
+    U32 fact     = factorial(5);     /* 120 */
+
+    /* ── Function pointer ───────────────────────────────────────────────── */
+    BINOP fp = &add;
+    U32 fp_result = fp(50, 30);      /* 80 via function pointer */
+
+    U32 app = apply_binop(&mul_op, 6, 7);  /* 42 */
+    app     = apply_binop(&xor_op, 0xFF, 0x0F);
+    app     = apply_binop(&shl_op, 1, 5);  /* 32 */
+
+    /* ── if / else if / else ────────────────────────────────────────────── */
+    U32 cond_val = 0;
+    if (a > 100) {
+        cond_val = 1;
+    } else if (a > 50) {
+        cond_val = 2;
+    } else if (a > 10) {
+        cond_val = 3;
+    } else {
+        cond_val = 4;
+        U32 only_here = 99;
+        cond_val = only_here;
+    }
+
+    /* ── for loop (scoped counter, full C-style) ───────────────────────── */
+    U32 loop_sum = 0;
+    for (U32 i = 0; i < 10; i++) {
+        loop_sum += i;
+        if (i == 5) continue;
+        if (loop_sum > 30) break;
+    }
+
+    /* ── while loop ─────────────────────────────────────────────────────── */
+    U32 w_val = 5;
+    U32 w_sum = 0;
+    while (w_val > 0) {
+        w_sum += w_val;
+        w_val--;
+    }
+
+    /* ── do-while loop ─────────────────────────────────────────────────── */
+    U32 dw_val = 0;
+    U32 dw_sum = 0;
+    do {
+        dw_sum += dw_val;
+        dw_val++;
+    } while (dw_val < 5);
+
+    /* ── goto and labels ────────────────────────────────────────────────── */
+    U32 goto_val = 0;
+    goto_val++;
+test_label:
+    goto_val++;
+    if (goto_val < 3) goto test_label;
+
+    /* ── Assembly block ─────────────────────────────────────────────────── */
+    asm {
+        mov eax, a
+        add eax, b
+        mov a, eax
+    }
+
+    /* ── Return with expression ─────────────────────────────────────────── */
+    reset_counters();
+    g_counter = loop_sum + w_sum + dw_sum + goto_val;
+    g_ticks   = g_counter;
+
+    return g_counter;
+}

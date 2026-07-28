@@ -486,6 +486,11 @@ BOOL COMP_GEN(PCNODE root, PCOMP_CTX c) {
         if (!n->txt) continue;
         SYMBOL *fs = FIND_SYM(n->txt);
         if (!fs || !fs->is_defined) continue;
+        /* Skip forward declarations (no body) */
+        BOOL has_body = FALSE;
+        for (U32 j = 0; j < n->child_count; j++)
+            if (n->children[j]->ntype != CNODE_PARAM) { has_body = TRUE; break; }
+        if (!has_body) continue;
 
         AC_FPRINTF(outf, "\n_%s:\n", fs->name);
         emit("    PUSH EBP");

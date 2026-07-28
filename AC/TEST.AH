@@ -1,0 +1,59 @@
+#ifndef TEST_AH
+#define TEST_AH
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  TEST.AH — Shared definitions for TEST.AC
+//  Demonstrates: #ifndef, #define, #endif, typedef, struct, enum, forward decl
+// ═══════════════════════════════════════════════════════════════════════════════
+
+#ifdef ARCH_I386
+    #define ARCH_NAME "i386"
+#elif ARCH_I286
+    #define ARCH_NAME "i286"
+#else
+    #define ARCH_NAME "unknown"
+#endif
+
+#define MAGIC_NUMBER 42
+#define BUFFER_SIZE  256
+
+/* ── Struct definitions ──────────────────────────────────────────────────── */
+
+typedef struct _POINT {
+    U32 x;
+    U32 y;
+} POINT, *PPOINT;
+
+typedef struct _RECT {
+    POINT top_left;
+    POINT bottom_right;
+} RECT;
+
+typedef struct _NODE {
+    U32 value;
+    PU8 label;
+} NODE, *PNODE;
+
+/* ── Enum ─────────────────────────────────────────────────────────────────── */
+
+typedef enum _COLOR {
+    COLOR_RED,
+    COLOR_GREEN,
+    COLOR_BLUE
+} COLOR;
+
+/* ── Typedef aliases ──────────────────────────────────────────────────────── */
+
+typedef U32   COUNTER;
+typedef PU8   STRING;
+typedef I32   RESULT;
+
+/* ── Function pointer type ────────────────────────────────────────────────── */
+
+typedef U32 (*BINOP)(U32, U32);
+
+/* ── Forward declaration ──────────────────────────────────────────────────── */
+
+U32 factorial(U32 n);
+
+#endif /* TEST_AH */

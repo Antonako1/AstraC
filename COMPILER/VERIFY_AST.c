@@ -84,9 +84,10 @@ STATIC COMP_TYPE VERIFY_NODE(PCNODE n) {
         case CNODE_VAR_DECL: {
             SYMBOL *vs = V_FIND_SYM(n->txt);
             if (!vs) { ERR("variable not in symbol table", n->line, n->col); break; }
-            if (n->child_count > 0 && vs->is_global) {
+            /* Only flag array children (CNODE_INT_LIT size), not initializers */
+            if (n->child_count > 0 && vs->is_global
+                && n->children[0]->ntype == CNODE_INT_LIT)
                 ERR("arrays not supported for globals", n->line, n->col);
-            }
             break;
         }
 
