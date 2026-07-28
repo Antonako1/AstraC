@@ -430,6 +430,8 @@ STATIC U32 parse_single_num(PU8 *pp) {
         while (*p == '0' || *p == '1') { val = val * 2u + (U32)(*p - '0'); p++; }
     } else if (*p >= '0' && *p <= '9') {
         while (*p >= '0' && *p <= '9') { val = val * 10u + (U32)(*p - '0'); p++; }
+    } else if (*p == '$') {
+        val = 0; p++;
     }
     *pp = p;
     return val;
@@ -736,7 +738,6 @@ STATIC BOOL PARSE_OPERAND(TOK_CURSOR *cur, ASM_OPERAND *out) {
     {
         PU8 txt = COLLECT_VALUE_TEXT(cur);
         if (!txt) return FALSE;
-
         if (t && t->type == TOK_NUMBER) {
             out->type      = OP_IMM;
             out->immediate = eval_imm_text(txt);  /* evaluate full expression */
@@ -755,7 +756,33 @@ STATIC BOOL PARSE_OPERAND(TOK_CURSOR *cur, ASM_OPERAND *out) {
                     out->immediate = (seg << 16) | (off & 0xFFFF);
                 }
             }
-        } else {
+        } 
+        
+        else if(t && t->type == TOK_IDENTIFIER) {
+            // If the token is a single character, treat it as an immediate value (ASCII code)
+            if (AC_STRLEN(t->txt) == 1 || (AC_STRLEN(t->txt) == 3 && t->txt[0] == '\'' && t->txt[2] == '\'')) {
+                out->type      = OP_IMM;
+                if (AC_STRLEN(t->txt) == 1) {
+                    out->immediate = (U32)(t->txt[0]);  /* ASCII value of the character */
+                } else {
+                    out->immediate = (U32)(t->txt[1]);  /* ASCII value of the character literal */
+                }
+                AC_MFree(txt);
+            } else {
+                /* symbol / label reference — store as mem with symbol name */
+                ASM_NODE_MEM *mem = AC_MAlloc(sizeof(ASM_NODE_MEM));
+                if (!mem) { AC_MFree(txt); return FALSE; }
+                AC_MEMSET(mem, 0, sizeof(ASM_NODE_MEM));
+                mem->base_reg  = REG_NONE;
+                mem->index_reg = REG_NONE;
+                mem->segment   = REG_NONE;
+                mem->scale     = 1;
+                mem->symbol_name = txt;
+                out->type    = OP_PTR;
+                out->mem_ref = mem;
+            }
+        }
+        else {
             /* symbol / label reference — store as mem with symbol name */
             ASM_NODE_MEM *mem = AC_MAlloc(sizeof(ASM_NODE_MEM));
             if (!mem) { AC_MFree(txt); return FALSE; }

@@ -24,8 +24,8 @@ _start:
     MOV EBP, ESP
 
     ; Register operations
-    MOV EAX, 10
-    MOV EBX, 20
+    MOV EAX, 0xDEAD
+    MOV EBX, 0b10101010
     ADD EAX, EBX
     SUB EAX, 5
     XOR ECX, ECX

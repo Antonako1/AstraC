@@ -89,12 +89,13 @@ typedef PI32*               PPI32;
 #define U32_MAX  MAX_U32
 
 /* ── Character classification ──────────────────────────────────────────── */
-#define IS_DIGIT(c)   ((U8)(c) >= '0' && (U8)(c) <= '9')
-#define IS_UPPER(c)   ((U8)(c) >= 'A' && (U8)(c) <= 'Z')
-#define IS_LOWER(c)   ((U8)(c) >= 'a' && (U8)(c) <= 'z')
-#define IS_ALPHA(c)   (IS_UPPER(c) || IS_LOWER(c) || (U8)(c) == '_')
-#define IS_ALNUM(c)   (IS_ALPHA(c) || IS_DIGIT(c))
-#define IS_HEXDIG(c)  (IS_DIGIT(c) || ((U8)(c)>='A'&&(U8)(c)<='F') || ((U8)(c)>='a'&&(U8)(c)<='f'))
-#define IS_SPACE(c)   ((U8)(c) == ' ' || (U8)(c) == '\t' || (U8)(c) == '\n' || (U8)(c) == '\r')
+#define AC_IS_DIGIT(c)   ((U8)(c) >= '0' && (U8)(c) <= '9')
+#define AC_IS_UPPER(c)   ((U8)(c) >= 'A' && (U8)(c) <= 'Z')
+#define AC_IS_LOWER(c)   ((U8)(c) >= 'a' && (U8)(c) <= 'z')
+#define AC_IS_ALPHA(c)   (AC_IS_UPPER(c) || AC_IS_LOWER(c) || (U8)(c) == '_')
+#define AC_IS_ASCII(c)   ((U8)(c) >= 0x20 && (U8)(c) <= 0x7E)
+#define AC_IS_ALNUM(c)   (AC_IS_ALPHA(c) || AC_IS_DIGIT(c))
+#define AC_IS_HEXDIG(c)  (AC_IS_DIGIT(c) || ((U8)(c)>='A'&&(U8)(c)<='F') || ((U8)(c)>='a'&&(U8)(c)<='f'))
+#define AC_IS_SPACE(c)   ((U8)(c) == ' ' || (U8)(c) == '\t' || (U8)(c) == '\n' || (U8)(c) == '\r')
 
 #endif /* TYPEDEF_H */

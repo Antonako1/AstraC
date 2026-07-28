@@ -67,4 +67,29 @@ static BOOL AC_ATOI_BIN_E(const char* str, U32* out) {
     return TRUE;
 }
 
+/**
+ * ATOI_HEX_EP(str, out)
+ *  Parse a hexadecimal string (with 0x prefix) into *out.
+ * Returns TRUE on success.
+ */
+static BOOL AC_ATOI_HEX_EP(const char* str, U32* out) {
+    if (!str || !*str) return FALSE;
+    const char* p = str;
+    if (p[0] != '0' || (p[1] != 'x' && p[1] != 'X')) return FALSE;
+    p += 2;
+    return AC_ATOI_HEX_E(p, out);
+}
+
+/**
+ * ATOI_BIN_EP(str, out)
+ *  Parse a binary string (with 0b prefix) into *out.
+ * Returns TRUE on success.
+ */
+static BOOL AC_ATOI_BIN_EP(const char* str, U32* out) {
+    if (!str || !*str) return FALSE;
+    const char* p = str;
+    if (p[0] != '0' || (p[1] != 'b' && p[1] != 'B')) return FALSE;
+    p += 2;
+    return AC_ATOI_BIN_E(p, out);
+}
 #endif /* STDLIB_BINARY_H */

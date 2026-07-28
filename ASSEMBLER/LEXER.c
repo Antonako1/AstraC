@@ -162,9 +162,9 @@ STATIC BOOL lex_parse_num(PU8 p, U32 *val_out) {
             v=(v<<1)|(*p-'0');
         }
     } else {
-        if (!IS_DIGIT(*p)) return FALSE;
+        if (!AC_IS_DIGIT(*p)) return FALSE;
         for (; *p; p++) {
-            if (!IS_DIGIT(*p)) return FALSE;
+            if (!AC_IS_DIGIT(*p)) return FALSE;
             v = v*10 + (*p-'0');
         }
     }
@@ -309,7 +309,7 @@ ASM_TOK_ARRAY *LEX(PASM_INFO info) {
                 /* leading dot: section directive (.code, .data, .use32 …) */
                 if (c == '.' && tok_len == 0) {
                     i++; tok_len = 0;
-                    while (i < len && (IS_ALPHA(linebuf[i])||IS_DIGIT(linebuf[i]))) {
+                    while (i < len && (AC_IS_ALPHA(linebuf[i])||AC_IS_DIGIT(linebuf[i]))) {
                         if (tok_len < BUF_SZ-1) tokbuf[tok_len++] = linebuf[i++];
                     }
                     tokbuf[tok_len] = '\0';

@@ -79,7 +79,6 @@ ASTRAC_RESULT START_ASSEMBLING() {
         result = ASTRAC_ERR_AST;
         goto cleanup;
     }
-    goto cleanup;
 
     if (cfg->verbose) AC_PRINTF("[AS] Stage 4/6: Verifying AST...\n");
     if (!VERIFY_AST(ast_arr, info)) {
@@ -87,6 +86,7 @@ ASTRAC_RESULT START_ASSEMBLING() {
         result = ASTRAC_ERR_VERIFY;
         goto cleanup;
     }
+    goto cleanup;
 
     if (cfg->verbose) AC_PRINTF("[AS] Stage 5/6: Optimizing...\n");
     if (!OPTIMIZE(ast_arr)) {
