@@ -800,7 +800,7 @@ VOID FREE_PREPROCESSING_UNITS() {
  * ════════════════════════════════════════════════════════════════════════════
  *  PREPROCESS_ASM — top-level entry point
  * ════════════════════════════════════════════════════════════════════════════
- *  1. Create /TMP/00.ASM
+ *  1. Create /TMP/00.AS
  *  2. Open the input file
  *  3. Run PREPROCESS_FILE (recursive for includes)
  *  4. Store the temp path in info->tmp_files[0]
@@ -828,7 +828,7 @@ PASM_INFO PREPROCESS_ASM() {
 
     /* ── Build temp file path ── */
     U8 tmp_path[32];
-    AC_SPRINTF(tmp_path, "/TMP/00.ASM");
+    AC_SPRINTF(tmp_path, "/TMP/00.AS");
     if (AC_FILE_EXISTS(tmp_path)) {
         if (!AC_FILE_DELETE(tmp_path)) {
             AC_PRINTF("[PP] Cannot delete existing temp file: %s\n", tmp_path);

@@ -65,7 +65,9 @@ ASTRAC_RESULT START_WORKLOAD() {
 }
 
 VOID FREE_ARGS() {
-    /* TODO: free heap strings in args */
+    FREE_MACROS(&args.macros);
+    AC_MFree(args.outfile);
+    AC_MEMSET(&args, 0, sizeof(ASTRAC_ARGS));
 }
 
 U32 main(U32 argc, PPU8 argv) {
@@ -225,13 +227,28 @@ U32 main(U32 argc, PPU8 argv) {
         }
     }
 
-if (args.build_type == BUILD_TYPE_NONE) {
+    if (args.build_type == BUILD_TYPE_NONE) {
         AC_PRINTF("[ASTRAC] Error: no build mode selected (use asm, comp, disasm, or preproc)\n");
         return ASTRAC_ERR_ARGS;
     }
+    
     if (!args.input_file) {
         AC_PRINTF("[ASTRAC] Error: no input file specified.\n");
         return ASTRAC_ERR_ARGS;
+    }
+    // create output file name if not specified
+    if (!args.outfile) {
+        args.outfile = AC_MAlloc(AC_STRLEN(args.input_file) + 5); // +5 for ".bin" and null terminator
+        if (!args.outfile) {
+            AC_PRINTF("[ASTRAC] Error: failed to allocate memory for output file name.\n");
+            return ASTRAC_ERR_INTERNAL;
+        }
+        AC_STRCPY(args.outfile, args.input_file);
+        PU8 dot = AC_STRRCHR(args.outfile, '.');
+        if (dot) {
+            *dot = '\0'; // remove existing extension
+        }
+        AC_STRCAT(args.outfile, ".BIN");
     }
     if (args.dsm_bits == 0) args.dsm_bits = 32;
     if (!args.entry_point) args.entry_point = "main";

@@ -86,7 +86,6 @@ ASTRAC_RESULT START_ASSEMBLING() {
         result = ASTRAC_ERR_VERIFY;
         goto cleanup;
     }
-    goto cleanup;
 
     if (cfg->verbose) AC_PRINTF("[AS] Stage 5/6: Optimizing...\n");
     if (!OPTIMIZE(ast_arr)) {
@@ -101,7 +100,7 @@ ASTRAC_RESULT START_ASSEMBLING() {
         result = ASTRAC_ERR_CODEGEN;
         goto cleanup;
     }
-
+    
 cleanup:
     DESTROY_AST_ARR(ast_arr);
     DESTROY_TOK_ARR(tok_arr);

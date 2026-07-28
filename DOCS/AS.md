@@ -11,6 +11,7 @@ Key characteristics of AstraC Assembly include:
 - Local labels (@@n:, @f, @b) scoped to enclosing global label
 - BYTE/WORD/DWORD/REAL4 PTR size overrides
 - FUll ModR/M + SIB encoding with displacement and immediate support.
+- Everything is case-insensitive!
 
 ## Assembler pipeline 
 

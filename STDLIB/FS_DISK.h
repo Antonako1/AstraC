@@ -31,9 +31,7 @@ static BOOL FILE_EXISTS_IMPL(const char* path) {
     fclose(f);
     return TRUE;
 }
-#define AC_FILE_EXISTS(path)  FILE_EXISTS_IMPL(path)
 
-#define AC_FILE_DELETE(path)  ((BOOL)(remove(path) == 0))
 
 static BOOL FILE_CREATE_IMPL(const char* path) {
     FILE* f = fopen(path, "wb");
@@ -57,16 +55,27 @@ static BOOL FILE_CREATE_IMPL(const char* path) {
     fclose(f);
     return TRUE;
 }
-#define AC_FILE_CREATE(path)  FILE_CREATE_IMPL(path)
 
 
 
-/* ── File mode flags (bit-combined, e.g. MODE_R | MODE_FAT32) ─────────── */
-#define MODE_R      0x01    /* read                                          */
-#define MODE_W      0x02    /* write / create-truncate                       */
-#define MODE_RA     0x04    /* random access  (read + write, file must exist) */
-#define MODE_FA     0x08    /* full access    (read + write, file must exist) */
-#define MODE_FAT32  0x00    /* filesystem type flag — ignored on host        */
+/* ── File mode flags (bit-combined, e.g. MODE_R | MODE_FAT32) ─────────── 
+    These are copied from atOS/STD/FS_DISK.h.
+    Do not modify them here, modify them inside wrapper functions if needed for your OS.
+*/
+typedef enum {
+    MODE_R        = 0x0001,  // Read
+    MODE_W        = 0x0002,  // Write
+    MODE_RW       = MODE_R | MODE_W,   // Read & Write
+    MODE_A        = 0x0008,  // Append
+    MODE_RA       = MODE_R | MODE_A,
+    MODE_FAT32    = 0x0100,  // FAT32 backend
+    MODE_ISO9660  = 0x0200,  // ISO9660 backend
+    MODE_FR       = MODE_R | MODE_FAT32, // FAT32 Read
+    MODE_FW       = MODE_W | MODE_FAT32, // FAT32 Write
+    MODE_FRW      = MODE_RW| MODE_FAT32, // FAT32 Read & Write
+    MODE_FA       = MODE_A | MODE_FAT32, // FAT32 Append
+    MODE_FRA      = MODE_RA| MODE_FAT32, // FAT32 Read & Append
+} FILEMODES;
 
 /* ── File open / close ──────────────────────────────────────────────────── */
 /*
@@ -76,7 +85,6 @@ static BOOL FILE_CREATE_IMPL(const char* path) {
  *   Declared here; defined in FS_DISK.c.
  */
 FILE* AC_FOPEN(const char* path, int mode_flags);
-
 #define AC_FCLOSE(f)    fclose(f)
 #define AC_FFLUSH(f)    fflush(f)
 #define AC_FEOF(f)      feof(f)
@@ -90,6 +98,20 @@ FILE* AC_FOPEN(const char* path, int mode_flags);
 #define AC_FWRITE(file, buf, len)          ((I32)(fwrite((buf), 1, (len), (file)) == (size_t)(len)))
 #define AC_FREAD(file, buf, len)           ((U32)fread((buf), 1, (len), (file)))
 #define AC_FILE_GET_LINE(file, buf, sz)    (fgets((char*)(buf), (int)(sz), (file)) != NULL)
+
+/** ── File size / existence ─────────────────────────────────────────────────────
+ *
+ * AC_FSIZE(file)       — returns the current file position (size in bytes).
+ * AC_FILE_EXISTS(path) — TRUE if the file can be opened for reading.
+ * AC_FILE_CREATE(path) — create an empty file (truncates if exists)
+ *  Returns TRUE on success. 
+ * AC_FILE_DELETE(path) — remove the file; returns TRUE on success.
+ */
+#define AC_FSIZE(file)                      ((U32)ftell(file))
+#define AC_FILE_EXISTS(path)                FILE_EXISTS_IMPL(path)
+#define AC_FILE_CREATE(path)                FILE_CREATE_IMPL(path)
+#define AC_FILE_DELETE(path)                ((BOOL)(remove(path) == 0))
+
 
 /* ── Standard streams ───────────────────────────────────────────────────── */
 /* stdin / stdout / stderr provided by stdio.h */

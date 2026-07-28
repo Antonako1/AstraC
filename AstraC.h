@@ -99,6 +99,7 @@ typedef struct _ASTRAC_ARGS {
     BOOL verbose;
 
     PU8 input_file;
+    PU8 outfile;
 
     BUILD_TYPE build_type;
 

@@ -67,10 +67,32 @@ typedef PI32*               PPI32;
 #define ATTRIB_RODATA
 
 /* Packed struct: GCC/Clang attribute; MSVC uses #pragma pack elsewhere.   */
+// Windows MSVC does not support __attribute__((packed)), so we define it as empty for MSVC. For GCC/Clang, we use the packed attribute.
 #ifdef _MSC_VER
 #  define ATTRIB_PACKED
+#  define ATTRIB_DATA
+#  define ATTRIB_RODATA
+
+// atOS build system defines __USER__, __PROCESS__, and __UP__ for user-space processes
+#elif defined(__USER__) && defined(__PROCESS__) && defined(__UP__)
+
+/*
+    These are needed for the atOS build system
+        since gcc and ld place raw binary data in the .bss section, 
+        which is not included in the final binary.
+    The ATTRIB_DATA and ATTRIB_RODATA attributes force 
+        the compiler to place the data in the .data and .rodata sections, 
+        respectively, which are included in the final binary file.
+*/
+#  define ATTRIB_PACKED __attribute__((packed))
+#  define ATTRIB_DATA __attribute__((section(".data")))
+#  define ATTRIB_RODATA __attribute__((section(".rodata")))
+
+// Else use GCC/Clang attributes for packed and section placement
 #else
 #  define ATTRIB_PACKED __attribute__((packed))
+#  define ATTRIB_DATA __attribute__((section(".data")))
+#  define ATTRIB_RODATA __attribute__((section(".rodata")))
 #endif
 
 /* ── Numeric limits ────────────────────────────────────────────────────── */

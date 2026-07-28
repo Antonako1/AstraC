@@ -4,8 +4,10 @@
 ; ==========================================================
 
 #define SCREEN 0xB8000
-
+#include "./AS/INCLUDE.AS"
 .use32
+
+.org BL_ORG
 
 .data
 counter     DD 0
@@ -85,9 +87,6 @@ test_proc:
 
 ; ----------------------------------------------------------
 
-.code
 
-; Raw bytes
-0x55
+.times 510-($-$$) db 0
 0xAA55
-0xDEADBEEF

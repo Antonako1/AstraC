@@ -13,7 +13,7 @@ STATIC PU8 COLLECT_VALUE_TEXT(TOK_CURSOR *cur);
 
 /* Current code mode — tracked by the AST builder so that RESOLVE_MNEMONIC
  * can prefer the native operand size when no register constrains it. */
-STATIC ASM_DIRECTIVE ast_code_mode = DIR_CODE_TYPE_32;
+STATIC ASM_DIRECTIVE ast_code_mode ATTRIB_DATA = DIR_CODE_TYPE_32;
 
 /*
  * ════════════════════════════════════════════════════════════════════════════
@@ -325,7 +325,7 @@ STATIC PASM_NODE PARSE_SECTION(TOK_CURSOR *cur) {
         PASM_NODE n = ALLOC_NODE(NODE_ORG, dir_tok);
         if (!n) return NULLPTR;
         n->org.origin = val_tok->num_val;
-        n->type = NODE_SECTION;
+        n->type = NODE_ORG;
         return n;
     }
 
@@ -385,13 +385,16 @@ STATIC PASM_NODE PARSE_SECTION(TOK_CURSOR *cur) {
 
         /* Collect fill value text */
         PU8 fill_raw = COLLECT_VALUE_TEXT(cur);
-
+        AC_PRINTF("[AST] .times count_expr='%s' fill_type=%u fill_raw='%s'\n",
+            (expr_len > 0) ? expr_buf : "(none)",
+            fill_type,
+            fill_raw ? fill_raw : "(none)");
         PASM_NODE n = ALLOC_NODE(NODE_TIMES, dir_tok);
         if (!n) return NULLPTR;
         n->times.count_expr = (expr_len > 0) ? AC_STRDUP(expr_buf) : NULLPTR;
         n->times.fill_type  = fill_type;
         n->times.fill_raw   = fill_raw;
-        n->type = NODE_SECTION;
+        n->type = NODE_TIMES;
         return n;
     }
 
@@ -966,6 +969,20 @@ STATIC PASM_NODE PARSE_DATA_VAR(TOK_CURSOR *cur) {
                 first = FALSE;
                 continue;
             }
+        }
+
+        /* String literal: re-wrap in quotes so ENCODE_DATA_VAR can detect it */
+        if (t->type == TOK_STRING) {
+            if (!first && val_len + 1 < BUF_SZ) val_buf[val_len++] = ' ';
+            if (val_len + 1 < BUF_SZ) val_buf[val_len++] = '"';
+            U32 tlen = AC_STRLEN(t->txt);
+            if (val_len + tlen < BUF_SZ) {
+                AC_STRNCPY(val_buf + val_len, t->txt, BUF_SZ - val_len - 1);
+                val_len += tlen;
+            }
+            if (val_len + 1 < BUF_SZ) val_buf[val_len++] = '"';
+            first = FALSE;
+            continue;
         }
 
         if (!first && val_len + 1 < BUF_SZ) val_buf[val_len++] = ' ';

@@ -1,0 +1,1 @@
+#define BL_ORG 0x7c00
