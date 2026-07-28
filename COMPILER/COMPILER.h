@@ -57,6 +57,7 @@ typedef enum _COMP_TOK_TYPE {
     CTOK_KW_TYPEDEF, CTOK_KW_STATIC, CTOK_KW_LOCAL,
 
     CTOK_KW_ASM,
+    CTOK_ASM_BODY, /* raw text inside asm { ... } */
 
     /* Arithmetic */
     CTOK_PLUS, CTOK_MINUS, CTOK_STAR, CTOK_SLASH, CTOK_PERCENT,

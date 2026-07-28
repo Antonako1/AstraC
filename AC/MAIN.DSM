@@ -39,83 +39,87 @@
 00000052  58                                               pop eax                          |X|
 00000053  39 D8                                            cmp eax, ebx                     |9.|
 00000055  0F 0F                                            db 0x0F                          |..|
-00000057  C0 85 C0 74 2E C7 C0                             rol [ebp-0x38D18B40], 0xC0       |...t...|
-0000005E  00 00                                            add [eax], al                    |..|
-00000060  00 00                                            add [eax], al                    |..|
-00000062  89 45 09                                         mov [ebp+0x09], eax              |.E.|
-00000065  8B 45 09                                         mov eax, [ebp+0x09]              |.E.|
-00000068  50                                               push eax                         |P|
-00000069  C7 C0 05 00 00 00                                mov eax, 0x00000005              |......|
-0000006F  89 C3                                            mov ebx, eax                     |..|
-00000071  58                                               pop eax                          |X|
-00000072  39 D8                                            cmp eax, ebx                     |9.|
-00000074  0F 0F                                            db 0x0F                          |..|
-00000076  C0 0F 0F                                         ror [edi], 0x0F                  |...|
-00000079  C0 85 C0 74 07 31 C0                             rol [ebp+0x310774C0], 0xC0       |...t.1.|
-00000080  E9 E0 FF FF FF                                   jmp 0x00000065                   |.....|
-00000085  E9 0A 00 00 00                                   jmp 0x00000094                   |.....|
-0000008A  C7 C0 00 00 00 00                                mov eax, 0x00000000              |......|
-00000090  50                                               push eax                         |P|
-00000091  58                                               pop eax                          |X|
-00000092  31 C0                                            xor eax, eax                     |1.|
-00000094  31 C0                                            xor eax, eax                     |1.|
+00000057  C0 0F 0F                                         ror [edi], 0x0F                  |...|
+0000005A  C0 85 C0 74 37 C7 C0                             rol [ebp-0x38C88B40], 0xC0       |...t7..|
+00000061  00 00                                            add [eax], al                    |..|
+00000063  00 00                                            add [eax], al                    |..|
+00000065  89 45 09                                         mov [ebp+0x09], eax              |.E.|
+00000068  8B 45 09                                         mov eax, [ebp+0x09]              |.E.|
+0000006B  50                                               push eax                         |P|
+0000006C  C7 C0 05 00 00 00                                mov eax, 0x00000005              |......|
+00000072  89 C3                                            mov ebx, eax                     |..|
+00000074  58                                               pop eax                          |X|
+00000075  39 D8                                            cmp eax, ebx                     |9.|
+00000077  0F 0F                                            db 0x0F                          |..|
+00000079  C0 0F 0F                                         ror [edi], 0x0F                  |...|
+0000007C  C0 85 C0 74 10 8B 45                             rol [ebp-0x74EF8B40], 0x45       |...t..E|
+00000083  00 03                                            add [ebx], al                    |..|
+00000085  45                                               inc ebp                          |E|
+00000086  09 89 45 00 31 C0                                or [ecx-0x3FCEFFBB], ecx         |..E.1.|
+0000008C  E9 D7 FF FF FF                                   jmp 0x00000068                   |.....|
+00000091  E9 0A 00 00 00                                   jmp 0x000000A0                   |.....|
 00000096  C7 C0 00 00 00 00                                mov eax, 0x00000000              |......|
-0000009C  89 C3                                            mov ebx, eax                     |..|
-0000009E  58                                               pop eax                          |X|
-0000009F  39 D8                                            cmp eax, ebx                     |9.|
-000000A1  75 0A                                            jnz 0x000000AD                   |u.|
-000000A3  50                                               push eax                         |P|
-000000A4  C7 C0 00 00 00 00                                mov eax, 0x00000000              |......|
-000000AA  5D                                               pop ebp                          |]|
-000000AB  C3                                               ret                              |.|
-000000AC  58                                               pop eax                          |X|
-000000AD  C7 C0 32 00 00 00                                mov eax, 0x00000032              |..2...|
-000000B3  89 C3                                            mov ebx, eax                     |..|
-000000B5  58                                               pop eax                          |X|
-000000B6  39 D8                                            cmp eax, ebx                     |9.|
-000000B8  75 0A                                            jnz 0x000000C4                   |u.|
-000000BA  50                                               push eax                         |P|
-000000BB  C7 C0 32 00 00 00                                mov eax, 0x00000032              |..2...|
-000000C1  5D                                               pop ebp                          |]|
-000000C2  C3                                               ret                              |.|
-000000C3  58                                               pop eax                          |X|
-000000C4  C7 C0 00 00 00 00                                mov eax, 0x00000000              |......|
-000000CA  89 45 0D                                         mov [ebp+0x0D], eax              |.E.|
-000000CD  8B 45 0D                                         mov eax, [ebp+0x0D]              |.E.|
-000000D0  50                                               push eax                         |P|
-000000D1  31 C0                                            xor eax, eax                     |1.|
-000000D3  89 C3                                            mov ebx, eax                     |..|
-000000D5  58                                               pop eax                          |X|
-000000D6  39 D8                                            cmp eax, ebx                     |9.|
-000000D8  0F 0F                                            db 0x0F                          |..|
-000000DA  C0 0F 0F                                         ror [edi], 0x0F                  |...|
-000000DD  C0 85 C0 74 27 31 C0                             rol [ebp+0x312774C0], 0xC0       |...t'1.|
-000000E4  8B 45 0D                                         mov eax, [ebp+0x0D]              |.E.|
-000000E7  50                                               push eax                         |P|
-000000E8  C7 C0 0A 00 00 00                                mov eax, 0x0000000A              |......|
-000000EE  89 C3                                            mov ebx, eax                     |..|
-000000F0  58                                               pop eax                          |X|
-000000F1  39 D8                                            cmp eax, ebx                     |9.|
-000000F3  0F 0F                                            db 0x0F                          |..|
-000000F5  C0 85 C0 74 0A E9 0A                             rol [ebp-0x16F58B40], 0x0A       |...t...|
-000000FC  00 00                                            add [eax], al                    |..|
-000000FE  00 E9                                            add cl, ch                       |..|
-00000100  00 00                                            add [eax], al                    |..|
-00000102  00 00                                            add [eax], al                    |..|
-00000104  E9 C4 FF FF FF                                   jmp 0x000000CD                   |.....|
-00000109  8D 45 00                                         lea eax, [ebp+0x00]              |.E.|
-0000010C  50                                               push eax                         |P|
-0000010D  E8 EE FE FF FF                                   call 0x00000000                  |.....|
-00000112  83 C4 04                                         add esp, 0x04                    |...|
-00000115  89 45 11                                         mov [ebp+0x11], eax              |.E.|
-00000118  31 C0                                            xor eax, eax                     |1.|
-0000011A  5D                                               pop ebp                          |]|
-0000011B  C3                                               ret                              |.|
-0000011C  83 C4 EB                                         add esp, 0xEB                    |...|
-0000011F  5D                                               pop ebp                          |]|
-00000120  C3                                               ret                              |.|
-00000121  4A                                               dec edx                          |J|
-00000122  6F                                               outsd                            |o|
-00000123  68 6E 20 44 6F                                   push 0x6F44206E                  |hn Do|
-00000128  65                                               db 0x65                          |e|
-00000129  00                                               add [eax], al                    |.|
+0000009C  50                                               push eax                         |P|
+0000009D  58                                               pop eax                          |X|
+0000009E  31 C0                                            xor eax, eax                     |1.|
+000000A0  31 C0                                            xor eax, eax                     |1.|
+000000A2  C7 C0 00 00 00 00                                mov eax, 0x00000000              |......|
+000000A8  89 C3                                            mov ebx, eax                     |..|
+000000AA  58                                               pop eax                          |X|
+000000AB  39 D8                                            cmp eax, ebx                     |9.|
+000000AD  75 0A                                            jnz 0x000000B9                   |u.|
+000000AF  50                                               push eax                         |P|
+000000B0  C7 C0 00 00 00 00                                mov eax, 0x00000000              |......|
+000000B6  5D                                               pop ebp                          |]|
+000000B7  C3                                               ret                              |.|
+000000B8  58                                               pop eax                          |X|
+000000B9  C7 C0 32 00 00 00                                mov eax, 0x00000032              |..2...|
+000000BF  89 C3                                            mov ebx, eax                     |..|
+000000C1  58                                               pop eax                          |X|
+000000C2  39 D8                                            cmp eax, ebx                     |9.|
+000000C4  75 0A                                            jnz 0x000000D0                   |u.|
+000000C6  50                                               push eax                         |P|
+000000C7  C7 C0 32 00 00 00                                mov eax, 0x00000032              |..2...|
+000000CD  5D                                               pop ebp                          |]|
+000000CE  C3                                               ret                              |.|
+000000CF  58                                               pop eax                          |X|
+000000D0  C7 C0 00 00 00 00                                mov eax, 0x00000000              |......|
+000000D6  89 45 0D                                         mov [ebp+0x0D], eax              |.E.|
+000000D9  8B 45 0D                                         mov eax, [ebp+0x0D]              |.E.|
+000000DC  50                                               push eax                         |P|
+000000DD  31 C0                                            xor eax, eax                     |1.|
+000000DF  89 C3                                            mov ebx, eax                     |..|
+000000E1  58                                               pop eax                          |X|
+000000E2  39 D8                                            cmp eax, ebx                     |9.|
+000000E4  0F 0F                                            db 0x0F                          |..|
+000000E6  C0 0F 0F                                         ror [edi], 0x0F                  |...|
+000000E9  C0 85 C0 74 27 31 C0                             rol [ebp+0x312774C0], 0xC0       |...t'1.|
+000000F0  8B 45 0D                                         mov eax, [ebp+0x0D]              |.E.|
+000000F3  50                                               push eax                         |P|
+000000F4  C7 C0 0A 00 00 00                                mov eax, 0x0000000A              |......|
+000000FA  89 C3                                            mov ebx, eax                     |..|
+000000FC  58                                               pop eax                          |X|
+000000FD  39 D8                                            cmp eax, ebx                     |9.|
+000000FF  0F 0F                                            db 0x0F                          |..|
+00000101  C0 85 C0 74 0A E9 0A                             rol [ebp-0x16F58B40], 0x0A       |...t...|
+00000108  00 00                                            add [eax], al                    |..|
+0000010A  00 E9                                            add cl, ch                       |..|
+0000010C  00 00                                            add [eax], al                    |..|
+0000010E  00 00                                            add [eax], al                    |..|
+00000110  E9 C4 FF FF FF                                   jmp 0x000000D9                   |.....|
+00000115  8D 45 00                                         lea eax, [ebp+0x00]              |.E.|
+00000118  50                                               push eax                         |P|
+00000119  E8 E2 FE FF FF                                   call 0x00000000                  |.....|
+0000011E  83 C4 04                                         add esp, 0x04                    |...|
+00000121  89 45 11                                         mov [ebp+0x11], eax              |.E.|
+00000124  31 C0                                            xor eax, eax                     |1.|
+00000126  5D                                               pop ebp                          |]|
+00000127  C3                                               ret                              |.|
+00000128  83 C4 EB                                         add esp, 0xEB                    |...|
+0000012B  5D                                               pop ebp                          |]|
+0000012C  C3                                               ret                              |.|
+0000012D  4A                                               dec edx                          |J|
+0000012E  6F                                               outsd                            |o|
+0000012F  68 6E 20 44 6F                                   push 0x6F44206E                  |hn Do|
+00000134  65                                               db 0x65                          |e|
+00000135  00                                               add [eax], al                    |.|

@@ -519,23 +519,12 @@ STATIC PCNODE parse_stmt() {
 
     /* asm block */
     if (MATCH(CTOK_KW_ASM)) {
-        ADV(); EXPECT(CTOK_LBRACE);
-        U8 asm_buf[4096] = {0};
-        U32 ai = 0;
-        while (PEEK() && !MATCH(CTOK_RBRACE) && !MATCH(CTOK_EOF) && ai < 4090) {
-            PCOMP_TOK ct = ADV();
-            if (ct->txt) {
-                U32 tl = AC_STRLEN(ct->txt);
-                for (U32 ti = 0; ti < tl && ai < 4090; ti++)
-                    asm_buf[ai++] = ct->txt[ti];
-            } else {
-                asm_buf[ai++] = ' ';
-            }
-        }
-        asm_buf[ai] = '\0';
-        EXPECT(CTOK_RBRACE);
+        ADV();
         PCNODE n = CNODE_NEW(CNODE_ASM_BLOCK, sl, sc);
-        n->txt = AC_STRDUP(asm_buf);
+        if (MATCH(CTOK_ASM_BODY)) {
+            PCOMP_TOK body = ADV();
+            if (body->txt) n->txt = AC_STRDUP(body->txt);
+        }
         return n;
     }
 

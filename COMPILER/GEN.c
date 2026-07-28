@@ -14,7 +14,12 @@ STATIC FILE      *outf;
 
 STATIC U32 new_label()     { return ++ctx->label_counter; }
 STATIC VOID emit(PU8 s)    { AC_FPRINTF(outf, "%s\n", s); }
-STATIC U32  local_offset;  /* growing negative for local vars */
+STATIC I32  local_offset;  /* growing negative for local vars */
+
+/* Helpers for asm block variable substitution */
+STATIC BOOL II_START(U8 c) { return (c>='A'&&c<='Z')||(c>='a'&&c<='z')||c=='_'; }
+STATIC BOOL II_CONT(U8 c)  { return II_START(c)||(c>='0'&&c<='9'); }
+STATIC VOID II_UPPER(PU8 s, U32 n) { for(U32 i=0;i<n;i++) if(s[i]>='a'&&s[i]<='z') s[i]-=32; }
 
 STATIC SYMBOL *FIND_SYM(PU8 name) {
     for (U32 i = 0; i < sym->count; i++)
@@ -61,7 +66,7 @@ STATIC VOID GEN_IDENT(PCNODE n) {
     else if (s->offset >= 8)
         AC_FPRINTF(outf, "    MOV EAX, [EBP+%u]\n", s->offset);
     else
-        AC_FPRINTF(outf, "    MOV EAX, [EBP-%u]\n", (U32)(-(I32)s->offset));
+        AC_FPRINTF(outf, "    MOV EAX, [EBP-%u]\n", s->offset);
 }
 
 STATIC VOID GEN_ASSIGN(PCNODE n) {
@@ -76,10 +81,10 @@ STATIC VOID GEN_ASSIGN(PCNODE n) {
         emit("    POP EAX");
         if (s->is_global)
             AC_FPRINTF(outf, "    MOV [%s], EAX\n", s->name);
-        else if (s->offset >= 8)
-            AC_FPRINTF(outf, "    MOV [EBP+%u], EAX\n", s->offset);
-        else
-            AC_FPRINTF(outf, "    MOV [EBP-%u], EAX\n", (U32)(-(I32)s->offset));
+            else if (s->offset >= 8)
+                AC_FPRINTF(outf, "    MOV [EBP+%u], EAX\n", s->offset);
+            else
+                AC_FPRINTF(outf, "    MOV [EBP-%u], EAX\n", s->offset);
     } else if (lhs->ntype == CNODE_DEREF) {
         GEN_EXPR(lhs->children[0]); /* address in EAX */
         emit("    POP EBX");
@@ -154,7 +159,7 @@ STATIC VOID GEN_CALL(PCNODE n) {
         else if (cs->offset >= 8)
             AC_FPRINTF(outf, "    CALL [EBP+%u]\n", cs->offset);
         else
-            AC_FPRINTF(outf, "    CALL [EBP-%u]\n", (U32)(-(I32)cs->offset));
+            AC_FPRINTF(outf, "    CALL [EBP-%u]\n", cs->offset);
     } else {
         AC_FPRINTF(outf, "    CALL _%s\n", n->txt ? n->txt : (PU8)"_unknown");
     }
@@ -173,7 +178,7 @@ STATIC VOID GEN_ADDR(PCNODE n) {
         else if (s->offset >= 8)
             AC_FPRINTF(outf, "    LEA EAX, [EBP+%u]\n", s->offset);
         else
-            AC_FPRINTF(outf, "    LEA EAX, [EBP-%u]\n", (U32)(-(I32)s->offset));
+            AC_FPRINTF(outf, "    LEA EAX, [EBP-%u]\n", s->offset);
     } else {
         GEN_EXPR(target);
     }
@@ -336,7 +341,48 @@ STATIC VOID GEN_CONTINUE() {
 }
 
 STATIC VOID GEN_ASM_BLOCK(PCNODE n) {
-    if (n->txt) AC_FPRINTF(outf, "%s\n", n->txt);
+    if (!n->txt) return;
+    U8 *p = n->txt;
+    while (*p) {
+        if (!II_START(*p)) { AC_FPRINTF(outf, "%c", *p); p++; continue; }
+        U8 name[128]; U32 ni = 0;
+        while (*p && II_CONT(*p) && ni < 126) name[ni++] = *p++;
+        name[ni] = '\0';
+        II_UPPER(name, ni);
+        SYMBOL *s = FIND_SYM(name);
+        if (s && !s->is_global) {
+            if (*p == '.') {
+                p++;
+                U8 fname[64]; U32 fi = 0;
+                while (*p && II_CONT(*p) && fi < 62) fname[fi++] = *p++;
+                fname[fi] = '\0';
+                II_UPPER(fname, fi);
+                SYMBOL *ts = FIND_SYM(s->type.name);
+                U32 foff = 0;
+                if (ts) {
+                    for (U32 j = 0; j < ts->field_count; j++) {
+                        if (ts->fields[j].name && AC_STRCMP(ts->fields[j].name, fname) == 0)
+                            { foff = ts->fields[j].offset; break; }
+                    }
+                }
+                U32 addr = s->offset + foff;
+                if (s->offset >= 8)
+                    AC_FPRINTF(outf, "[EBP+%u]", addr);
+                else
+                    AC_FPRINTF(outf, "[EBP-%u]", addr);
+            } else {
+                if (s->offset >= 8)
+                    AC_FPRINTF(outf, "[EBP+%u]", s->offset);
+                else
+                    AC_FPRINTF(outf, "[EBP-%u]", s->offset);
+            }
+        } else if (s && s->is_global) {
+            AC_FPRINTF(outf, "[%s]", s->name);
+        } else {
+            AC_FPRINTF(outf, "%s", name);
+        }
+    }
+    AC_FPRINTF(outf, "\n");
 }
 
 STATIC VOID GEN_STMT(PCNODE n) {
@@ -355,14 +401,15 @@ STATIC VOID GEN_STMT(PCNODE n) {
         case CNODE_CONTINUE: GEN_CONTINUE(); break;
         case CNODE_ASM_BLOCK: GEN_ASM_BLOCK(n); break;
         case CNODE_VAR_DECL:
-            /* Emit initializer if present */
             if (n->child_count > 0) {
-                GEN_EXPR(n->children[0]); /* value in EAX */
+                GEN_EXPR(n->children[0]);
                 SYMBOL *s = FIND_SYM(n->txt);
                 if (s && s->is_global)
                     AC_FPRINTF(outf, "    MOV [%s], EAX\n", s->name);
+                else if (s && s->offset >= 8)
+                    AC_FPRINTF(outf, "    MOV [EBP+%u], EAX\n", s->offset);
                 else if (s)
-                    AC_FPRINTF(outf, "    MOV [EBP-%u], EAX\n", (U32)(-(I32)s->offset));
+                    AC_FPRINTF(outf, "    MOV [EBP-%u], EAX\n", s->offset);
             }
             break;
         case CNODE_EXPR_STMT:
@@ -457,11 +504,11 @@ BOOL COMP_GEN(PCNODE root, PCOMP_CTX c) {
         }
 
         /* Assign stack offsets to local variables */
-        local_offset = 4; /* 4 = return address on stack */
+        local_offset = 4; /* account for return address at EBP+4 */
         ASSIGN_LOCAL_OFFSETS(n);
         /* Make space for locals */
-        if (local_offset > 4)
-            AC_FPRINTF(outf, "    SUB ESP, %u\n", (local_offset - 4));
+        if (local_offset < 4)
+            AC_FPRINTF(outf, "    SUB ESP, %u\n", (U32)(4 - local_offset));
 
         /* Generate body */
         for (U32 j = 0; j < n->child_count; j++) {
@@ -469,10 +516,10 @@ BOOL COMP_GEN(PCNODE root, PCOMP_CTX c) {
             if (child->ntype != CNODE_PARAM) GEN_STMT(child);
         }
 
-        /* Default return for void functions that don't have explicit return */
+        /* Default return */
         AC_FPRINTF(outf, "__%s_ret:\n", fs->name);
-        if (local_offset > 4)
-            AC_FPRINTF(outf, "    ADD ESP, %u\n", (local_offset - 4));
+        if (local_offset < 4)
+            AC_FPRINTF(outf, "    ADD ESP, %u\n", (U32)(4 - local_offset));
         emit("    POP EBP");
         emit("    RET");
     }

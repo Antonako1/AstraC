@@ -737,6 +737,10 @@ MNEM_0F(MNEM_SETL,   "setl",   0x9C, OPS_RM8, OPN_ONE, SZ_8BIT, MODRM_0, "Set by
 MNEM_0F(MNEM_SETNL,  "setnl",  0x9D, OPS_RM8, OPN_ONE, SZ_8BIT, MODRM_0, "Set byte if not less / greater or equal (SF=OF)")
 MNEM_0F(MNEM_SETLE,  "setle",  0x9E, OPS_RM8, OPN_ONE, SZ_8BIT, MODRM_0, "Set byte if less or equal (ZF=1 or SF!=OF)")
 MNEM_0F(MNEM_SETNLE, "setnle", 0x9F, OPS_RM8, OPN_ONE, SZ_8BIT, MODRM_0, "Set byte if greater (ZF=0 and SF=OF)")
+MNEM_0F(MNEM_SETG,   "setg",   0x9F, OPS_RM8, OPN_ONE, SZ_8BIT, MODRM_0, "Set byte if greater (ZF=0 and SF=OF)")
+
+// ??
+MNEM_0F(MNEM_SETGE,  "setge",  0x9D, OPS_RM8, OPN_ONE, SZ_8BIT, MODRM_0, "Set byte if greater or equal (SF=OF)")
 
 
 /* ════════════════════════════════════════════════════════════════════════════

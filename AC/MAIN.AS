@@ -25,7 +25,7 @@ __INCREMENT_STUDENT_ID_ret:
 _MAIN:
     PUSH EBP
     MOV EBP, ESP
-    SUB ESP, 4294967275
+    SUB ESP, 21
     MOV EAX, 0x3039
     PUSH EAX
     POP EAX
@@ -35,13 +35,13 @@ _MAIN:
     POP EAX
     XOR EAX, EAX
     LEA EAX, [EBP-0]
-    MOV [EBP-4294967292], EAX
+    MOV [EBP-4], EAX
     LEA EAX, [EBP-0]
     PUSH EAX
-    CALL [EBP-4294967292]
+    CALL [EBP-4]
     ADD ESP, 4
     MOV EAX, 0x10
-    MOV [EBP-4294967291], EAX
+    MOV [EBP-5], EAX
     XOR EAX, EAX
     PUSH EAX
     MOV EAX, 0x3039
@@ -53,7 +53,7 @@ _MAIN:
     TEST EAX, EAX
     JZ __lbl2
     MOV EAX, 0x0
-    MOV [EBP-4294967287], EAX
+    MOV [EBP+9], EAX
 __lbl4:
     MOV EAX, [EBP+9]
     PUSH EAX
@@ -65,7 +65,11 @@ __lbl4:
     MOVZX EAX, AL
     TEST EAX, EAX
     JZ __lbl5
-MOVEAX STUDENT IDADDEAX IMOVSTUDENT ID EAX
+
+MOV EAX, [EBP-0]
+ADD EAX, [EBP+9]
+MOV [EBP-0], EAX
+
 __lbl6:
     XOR EAX, EAX
     JMP __lbl4
@@ -102,7 +106,7 @@ __lbl8:
 __lbl9:
 __lbl7:
     MOV EAX, 0x0
-    MOV [EBP-4294967283], EAX
+    MOV [EBP+13], EAX
 __lbl10:
     MOV EAX, [EBP+13]
     PUSH EAX
@@ -135,12 +139,12 @@ __lbl11:
     PUSH EAX
     CALL _GET_STUDENT_NAME
     ADD ESP, 4
-    MOV [EBP-4294967279], EAX
+    MOV [EBP+17], EAX
     XOR EAX, EAX
     POP EBP
     RET
 __MAIN_ret:
-    ADD ESP, 4294967275
+    ADD ESP, 21
     POP EBP
     RET
 

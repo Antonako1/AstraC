@@ -101,6 +101,7 @@ PCOMP_TOK_ARRAY COMP_LEX(PCOMP_CTX ctx) {
 
     PU8 src = ctx->tmp_src;
     U32 line = 1, col = 1;
+    BOOL saw_asm = FALSE;
 
     while (*src) {
         U8 c = (U8)*src;
@@ -140,6 +141,7 @@ PCOMP_TOK_ARRAY COMP_LEX(PCOMP_CTX ctx) {
             buf[i] = '\0';
             STR_UPPER(buf);
             COMP_TOK_TYPE kw = COMP_KW_LOOKUP(buf);
+            if (kw == CTOK_KW_ASM) saw_asm = TRUE;
             TOK_ARR_APPEND(arr, TOK_NEW(kw, buf, sl, sc));
             continue;
         }
@@ -280,7 +282,31 @@ single_char:
             case '~':  st = CTOK_TILDE;    break;
             case '(':  st = CTOK_LPAREN;   break;
             case ')':  st = CTOK_RPAREN;   break;
-            case '{':  st = CTOK_LBRACE;   break;
+            case '{':
+                if (saw_asm) {
+                    saw_asm = FALSE;
+                    /* Read raw asm body until matching } */
+                    U32 asm_sl = sl, asm_sc = sc;
+                    src++; col++; /* skip { */
+                    U8 asm_buf[4096] = {0};
+                    U32 ai = 0;
+                    U32 depth = 1;
+                    while (*src && depth > 0 && ai < 4094) {
+                        if (*src == '{') depth++;
+                        else if (*src == '}') { depth--; if (depth == 0) break; }
+                        if (*src == '\n') { asm_buf[ai++] = '\n'; line++; col = 1; src++; continue; }
+                        asm_buf[ai++] = *src;
+                        src++; col++;
+                    }
+                    asm_buf[ai] = '\0';
+                    if (*src == '}') { src++; col++; }
+                    TOK_ARR_APPEND(arr, TOK_NEW(CTOK_ASM_BODY, asm_buf, asm_sl, asm_sc));
+                } else {
+                    st = CTOK_LBRACE;
+                    src++; col++;
+                    TOK_ARR_APPEND(arr, TOK_NEW(st, NULLPTR, sl, sc));
+                }
+                continue;
             case '}':  st = CTOK_RBRACE;   break;
             case '[':  st = CTOK_LBRACKET; break;
             case ']':  st = CTOK_RBRACKET; break;
