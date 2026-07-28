@@ -262,6 +262,19 @@ STATIC U32 eval_atom(PU8 *pp) {
         return pos;
     }
 
+    /* Identifier — resolve via symbol table */
+    if ((**pp >= 'A' && **pp <= 'Z') || (**pp >= 'a' && **pp <= 'z') || **pp == '_') {
+        U8 name[128] = { 0 };
+        U32 n = 0;
+        while (((**pp >= 'A' && **pp <= 'Z') || (**pp >= 'a' && **pp <= 'z')
+                || (**pp >= '0' && **pp <= '9') || **pp == '_') && n < 127) {
+            name[n++] = **pp;
+            (*pp)++;
+        }
+        name[n] = '\0';
+        return RESOLVE_SYMBOL_ADDR(name);
+    }
+
     /* Number literal */
     return parse_num_expr(pp);
 }
@@ -792,7 +805,7 @@ STATIC BOOL ENCODE_DATA_VAR(FILE *f, PASM_NODE node) {
     ADD_ASM_PTR(var->name, CURRENT_OFFSET(), ptrs.current_section);
 
     AC_DEBUG_PRINTF("[ASM GEN] Variable '%s' at offset 0x%X with raw value: %s\n",
-                 var->name, CURRENT_OFFSET(), var->raw_value ? var->raw_value : "(null)");
+                 var->name ? var->name : "(null)", CURRENT_OFFSET(), var->raw_value ? var->raw_value : "(null)");
 
     if (!var->raw_value) return TRUE;  /* no initialiser */
 
@@ -1247,6 +1260,8 @@ STATIC BOOL GEN_EMIT_PASS(FILE *f, ASM_AST_ARRAY *ast, ASTRAC_ARGS *cfg) {
                 if (vp) vp->byte_size = after - before;
             }
             break;
+
+
 
         /* ── Raw number in .code ──────────────────────────────────────── */
         case NODE_RAW_NUM: {

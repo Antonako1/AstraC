@@ -398,44 +398,21 @@ STATIC BOOL verify_data_variable(PASM_NODE node, ASM_AST_ARRAY *ast, U32 node_id
                 return FALSE;
             }
             /* Non-BYTE types must have numeric initializers, not string literals.
-             * Allow $VARNAME references (variable byte-size) as valid. */
+             * Allow $VARNAME references (variable byte-size) as valid.
+             * Allow identifiers and label expressions (resolved at codegen via eval_atom). */
             if (var->raw_value[0] != '$' && !is_numeric_value(var->raw_value)) {
-
-                // Check if raw_value is a valid numerical list (e.g., "1, 2, 3" or "0x1, 0x2, 0x3")
-                BOOL is_list = FALSE;
-                if (var->is_list) {
-                    PU8 p = var->raw_value;
-                    while (*p) {
-                        while (*p && AC_IS_SPACE(*p)) p++;  // Skip whitespace
-                        if (!*p) break;
-
-                        // List is defined as "number, number, ..." so check for numeric value
-                        PU8 start = p;
-                        PU8 end = p;
-                        while (*end && *end != ',') end++;  // Move to next comma or end
-                        U8 temp = *end;  // Save the character at the end of the number
-                        *end = '\0';     // Temporarily null-terminate to check the number
-                        
-
-                        if (!is_numeric_value(start)) {
-                            // Revert the null-termination and break if not numeric
-                            *end = temp;
-                            is_list = FALSE;
-                            break;
-                        }
-                        // Revert the null-termination
-                        *end = temp;
-                        is_list = TRUE;
-                        p = end;
-                        if (*p == ',') p++;  // Skip comma
-                    }
+                /* Check if this is a label identifier or expression (starts with letter/underscore) */
+                U8 c = var->raw_value[0];
+                if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_')
+                {
+                    /* Label reference or expression — allow, codegen will resolve via eval_atom */
                 }
-                if(!is_list) {
+                else
+                {
                     AC_PRINTF("[AS VERIFY] Line %u: Non-BYTE variable '%s' has non-numeric initializer\n",
                            node->line, var->name);
                     return FALSE;
                 }
-                
             }
             break;
 
