@@ -25,7 +25,8 @@ U32 START_COMPILER() {
     COMP_CTX *comp_ctx = (COMP_CTX *)AC_MAlloc(sizeof(COMP_CTX));
     if (!comp_ctx) { AC_PRINTF("[COMP] Out of memory\n"); return ASTRAC_ERR_INTERNAL; }
     AC_MEMZERO(comp_ctx, sizeof(COMP_CTX));
-    comp_ctx->verbose = cfg->verbose;
+    comp_ctx->verbose    = cfg->verbose;
+    comp_ctx->file_scope = 1;
 
     /* ── Stage 1: Preprocessing ────────────────────────────────────────── */
     if (cfg->verbose) AC_PRINTF("[COMP] Stage 1/5: Preprocessing...\n");

@@ -1,12 +1,31 @@
 .use32
 .code
 
+_A_MERE_TEST:
+    PUSH EBP
+    MOV EBP, ESP
+    MOV EAX, 0x42
+    PUSH EAX
+    POP EAX
+    XOR EAX, EAX
+    MOV EAX, 0x2A
+    POP EBP
+    RET
+__A_MERE_TEST_ret:
+    POP EBP
+    RET
+
 _ADD:
     PUSH EBP
     MOV EBP, ESP
     MOV EAX, [EBP+8]
     PUSH EAX
     MOV EAX, [EBP+12]
+    MOV EBX, EAX
+    POP EAX
+    ADD EAX, EBX
+    PUSH EAX
+    CALL _A_MERE_TEST
     MOV EBX, EAX
     POP EAX
     ADD EAX, EBX

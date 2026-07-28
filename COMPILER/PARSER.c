@@ -30,8 +30,12 @@ STATIC VOID SKIP_TO_SEMI() {
 
 STATIC SYMBOL *SYM_ADD(PU8 name, SYM_KIND kind) {
     for (U32 i = 0; i < sym->count; i++)
-        if (sym->entries[i].name && AC_STRCMP(sym->entries[i].name, name) == 0)
+        if (sym->entries[i].name && AC_STRCMP(sym->entries[i].name, name) == 0) {
+            /* File-local symbols from different scopes don't collide */
+            if (sym->entries[i].is_file_local && sym->entries[i].file_scope != ctx->file_scope)
+                continue;
             return &sym->entries[i];
+        }
     if (sym->count >= 512) return NULLPTR;
     SYMBOL *s = &sym->entries[sym->count++];
     AC_MEMZERO(s, sizeof(SYMBOL));
@@ -42,8 +46,11 @@ STATIC SYMBOL *SYM_ADD(PU8 name, SYM_KIND kind) {
 
 STATIC SYMBOL *SYM_LOOKUP(PU8 name) {
     for (U32 i = 0; i < sym->count; i++)
-        if (sym->entries[i].name && AC_STRCMP(sym->entries[i].name, name) == 0)
+        if (sym->entries[i].name && AC_STRCMP(sym->entries[i].name, name) == 0) {
+            if (sym->entries[i].is_file_local && sym->entries[i].file_scope != ctx->file_scope)
+                return NULLPTR; /* file-local from another file — invisible */
             return &sym->entries[i];
+        }
     return NULLPTR;
 }
 
@@ -890,6 +897,8 @@ STATIC PCNODE parse_toplevel() {
         SYMBOL *vs = SYM_ADD(it->txt, SYM_VARIABLE);
         vs->type = vt;
         vs->is_global = TRUE;
+        vs->is_file_local = is_local;
+        if (is_local) vs->file_scope = ctx->file_scope;
         if (MATCH(CTOK_ASSIGN)) {
             ADV();
             PCNODE init = parse_expr();

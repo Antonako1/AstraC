@@ -12,8 +12,11 @@ STATIC SYM_TABLE *sym;
 
 STATIC SYMBOL *V_FIND_SYM(PU8 name) {
     for (U32 i = 0; i < sym->count; i++)
-        if (sym->entries[i].name && AC_STRCMP(sym->entries[i].name, name) == 0)
+        if (sym->entries[i].name && AC_STRCMP(sym->entries[i].name, name) == 0) {
+            if (sym->entries[i].is_file_local && sym->entries[i].file_scope != ctx->file_scope)
+                return NULLPTR; /* file-local symbol from another file — invisible */
             return &sym->entries[i];
+        }
     return NULLPTR;
 }
 

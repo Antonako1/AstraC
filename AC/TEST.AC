@@ -15,11 +15,12 @@ static POINT    g_origin;
 static COLOR    g_color;
 static BOOL     g_ready = TRUE;
 
+#include "./AC/TEST2.AC"  /* Include another source file to test multi-file compilation */
 
 /* ── Helper: add two numbers ─────────────────────────────────────────────── */
 
 U32 add(U32 a, U32 b) {
-    return a + b;
+    return a + b + a_mere_test();
 }
 
 

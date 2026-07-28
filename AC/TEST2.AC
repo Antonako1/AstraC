@@ -1,0 +1,4 @@
+U32 a_mere_test() {
+    g_message[0] = 'B';
+    return 42;
+}

@@ -171,6 +171,8 @@ typedef struct _SYMBOL {
     BOOL is_defined;          /* function has body (not just forward decl) */
     BOOL is_variadic;
     BOOL is_union;            /* for struct/unions */
+    BOOL is_file_local;       /* 'local' keyword — only visible in defining file */
+    U32  file_scope;          /* scope depth for file-local visibility */
 
     /* Function params */
     U32   param_count;
@@ -265,6 +267,7 @@ typedef struct _COMP_CTX {
     SYM_TABLE  symtab;       /* symbol table for parser/verifier/codegen */
     BOOL       in_func;      /* inside a function body */
     BOOL       verbose;      /* verbose output */
+    U32        file_scope;   /* incrementing scope for file-local visibility */
     PCNODE     cur_func;     /* current function node */
 
     U32 errors;
