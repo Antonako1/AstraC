@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>ASTRAC Disassembler Reference</title>
+<style>
+:root {
+    --bg: #f3e7c3;
+    --paper: #fff9d6;
+    --ink: #000000;
+    --muted: #444444;
+    --accent: #0000ee;
+    --border: #000000;
+    --hover: #eee8b8;
+    --mono: "Courier New", Courier, monospace;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+    background: var(--bg); color: var(--ink);
+    font-family: var(--mono); min-height: 100%; padding: 20px;
+}
+main {
+    max-width: 1200px; margin: auto;
+    background: var(--paper); border: 2px solid var(--border); padding: 20px 30px;
+}
+nav { text-align: center; margin-bottom: 16px; }
+nav a { color: var(--accent); margin: 0 8px; }
+h1 { text-align: center; font-size: 1.6em; margin-bottom: 4px; }
+h2 { margin: 28px 0 10px; border-bottom: 2px solid var(--border); padding-bottom: 4px; }
+h3 { margin: 18px 0 8px; }
+p { margin: 6px 0; line-height: 1.5; }
+pre, code { font-family: var(--mono); }
+pre {
+    background: #fff; border: 1px solid var(--border);
+    padding: 10px; margin: 8px 0; overflow-x: auto;
+}
+table {
+    width: 100%; border-collapse: collapse; margin: 8px 0;
+}
+th, td {
+    border: 1px solid var(--border); padding: 5px 8px;
+    text-align: left; vertical-align: top;
+}
+th { background: #000; color: #fff; }
+tr:nth-child(even) { background: var(--hover); }
+code { background: #fff; padding: 1px 3px; }
+ul, ol { margin: 6px 0 6px 24px; }
+li { margin: 2px 0; }
+hr { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
+.output-line {
+    white-space: pre;
+    background: #fff;
+    border: 1px solid var(--border);
+    padding: 6px 10px;
+    margin: 4px 0;
+    font-size: 0.85em;
+    overflow-x: auto;
+}
+</style>
+</head>
+<body>
+<main>
+
+<nav>
+    <a href="index.html">Home</a> |
+    <a href="AS.html">Assembler</a> |
+    <a href="DSM.html">Disassembler</a> |
+    <a href="MNEMS.html">Instruction Reference</a> |
+    <a href="PREPROCESSOR.md">Preprocessor</a>
+</nav>
+
+<h1>AstraC Disassembler</h1>
+
+<p>
+The AstraC disassembler converts raw x86 binary files into human-readable
+assembly listings. It performs <b>linear-sweep disassembly</b> in both 16-bit and
+32-bit x86 modes.
+</p>
+
+<h2>Quick Start</h2>
+<pre>AstraC.exe disasm file.BIN
+AstraC.exe disasm file.BIN bits 16 org 7C00 verbose</pre>
+
+<h2>CLI Reference</h2>
+<pre>AstraC.exe disasm &lt;file.BIN&gt; [flags]
+
+Flags:
+    bits &lt;16|32&gt;    ; Disassembly mode (default: 32)
+    org &lt;address&gt;   ; Origin offset for displayed addresses (hex, no 0x prefix)
+    verbose         ; Print progress information</pre>
+
+<table>
+<tr><th>Flag</th><th>Default</th><th>Description</th></tr>
+<tr><td><code>bits 16</code></td><td><code>bits 32</code></td><td>Interpret binary as 16-bit code (real mode, 16-bit addressing)</td></tr>
+<tr><td><code>bits 32</code></td><td>&mdash;</td><td>Interpret binary as 32-bit code (protected mode, 32-bit addressing)</td></tr>
+<tr><td><code>org 7C00</code></td><td><code>org 0</code></td><td>Add constant offset to all displayed addresses. Useful for bootloaders loaded at 0x7C00. Value is hex <b>without</b> <code>0x</code> prefix.</td></tr>
+<tr><td><code>verbose</code></td><td>off</td><td>Print progress and diagnostic information</td></tr>
+</table>
+
+<p>Output is written to <code>&lt;input&gt;.DSM</code> by default (e.g. <code>MAIN.BIN</code> &rarr; <code>MAIN.DSM</code>).</p>
+
+<hr>
+
+<h2>How It Works</h2>
+
+<p>
+The disassembler uses <b>linear-sweep disassembly</b> &mdash; it walks the binary
+from start to end, decoding each instruction sequentially without following
+control flow. No symbol table or relocation information is consumed; all
+addresses and immediates are rendered as hex constants.
+</p>
+
+<h3>Pipeline</h3>
+<ol>
+<li><b>Read</b> &mdash; The entire binary is loaded into memory.</li>
+<li><b>Prefix scan</b> &mdash; Legacy prefixes (<code>66h</code>, <code>F2h</code>, <code>F3h</code>) and the address-size override (<code>67h</code>) are consumed before each instruction.</li>
+<li><b>Opcode lookup</b> &mdash; The mnemonic table (shared with the assembler) is searched for a match on prefix, opcode byte(s), and ModRM <code>/digit</code> extension.</li>
+<li><b>Operand decode</b> &mdash; ModRM, SIB, displacement, and immediate bytes are consumed according to the matched table entry. Register names and addressing modes adapt to the selected <code>bits</code> mode.</li>
+<li><b>Format &amp; emit</b> &mdash; One line per instruction in a fixed-layout hex dump.</li>
+</ol>
+
+<hr>
+
+<h2>16-bit vs 32-bit Mode</h2>
+
+<p>
+The <code>bits</code> flag controls two independent concerns: default operand size
+and default address size.
+</p>
+
+<table>
+<tr><th>Concern</th><th><code>bits 32</code> (default)</th><th><code>bits 16</code></th></tr>
+<tr><td>Default operand size</td><td>32-bit (<code>eax</code>, <code>ecx</code>, &hellip;)</td><td>16-bit (<code>ax</code>, <code>cx</code>, &hellip;)</td></tr>
+<tr><td>Default address size</td><td>32-bit (<code>[esi]</code>, <code>[ebp+8]</code>, &hellip;)</td><td>16-bit (<code>[si]</code>, <code>[bp+di]</code>, &hellip;)</td></tr>
+<tr><td><code>66h</code> prefix meaning</td><td>Switch to 16-bit operand</td><td>Switch to 32-bit operand</td></tr>
+<tr><td><code>67h</code> prefix meaning</td><td>Switch to 16-bit address</td><td>Switch to 32-bit address</td></tr>
+<tr><td>ModRM/SIB encoding</td><td>32-bit ModRM + SIB</td><td>16-bit ModRM (no SIB)</td></tr>
+</table>
+
+<h3>Prefix Inversion Logic</h3>
+<p>
+In the assembler's mnemonic table, 16-bit instruction entries carry
+<code>PF_66</code> and 32-bit entries carry <code>PF_NONE</code>. In 16-bit
+disassembly mode the meaning of the <code>66h</code> prefix byte is inverted:
+</p>
+<ul>
+<li>No <code>66h</code> in the binary &rarr; match <code>PF_66</code> entries (16-bit operands are default).</li>
+<li><code>66h</code> present &rarr; match <code>PF_NONE</code> entries (prefix enabled 32-bit operands).</li>
+</ul>
+<p><code>F2h</code> and <code>F3h</code> (REP/REPNE) are mode-independent.</p>
+
+<hr>
+
+<h2>Output Format</h2>
+<p>
+Each line follows a fixed layout:
+</p>
+<pre>OOOOOOOO  HH HH HH HH HH HH HH HH  HH HH HH HH HH HH HH HH  MNEMONIC OPS     |ASCII........|</pre>
+
+<table>
+<tr><th>Field</th><th>Width</th><th>Description</th></tr>
+<tr><td>Offset</td><td>8 hex digits</td><td>Address in the binary (<code>org</code> offset applied)</td></tr>
+<tr><td>Hex dump</td><td>16 bytes (48 chars)</td><td>Raw bytes of the instruction, padded with spaces</td></tr>
+<tr><td>Disassembly</td><td>32 chars (left-aligned)</td><td>Decoded mnemonic and operands</td></tr>
+<tr><td>ASCII</td><td>16 chars</td><td>Printable representation (<code>.</code> for non-printable)</td></tr>
+</table>
+
+<p>Unrecognised opcode bytes are emitted as <code>db 0xNN</code>.</p>
+
+<h3>Example</h3>
+<div class="output-line">00007C00  55                                               push ebp                         |U|
+00007C01  89 E5                                            mov ebp, esp                     |..|
+00007C03  B8 01 00 00 00                                   mov eax, 0x00000001              |.....|
+00007C08  74 05                                            jz 0x00007C0F                    |t.|
+00007C0A  55 AA                                            db 0x55                          |U.|</div>
+
+<hr>
+
+<h2>Limitations</h2>
+<ul>
+<li><b>Linear sweep</b> &mdash; The disassembler does not follow control flow, so data embedded in code sections is decoded as instructions.</li>
+<li><b>No symbol resolution</b> &mdash; Labels and variable names are not recovered from the binary.</li>
+<li><b>Data as code</b> &mdash; The binary is treated as a flat code stream. Separate <code>.data</code> and <code>.rodata</code> sections from the assembler appear at the start of the binary and will be decoded as instructions.</li>
+</ul>
+
+<hr>
+
+<h2>Return Codes</h2>
+<table>
+<tr><th>Code</th><th>Meaning</th></tr>
+<tr><td>0</td><td>Success</td></tr>
+<tr><td>1</td><td>Bad or missing arguments</td></tr>
+<tr><td>8</td><td>Disassembly failed (I/O error)</td></tr>
+</table>
+
+<hr>
+
+<h2>Example Session</h2>
+
+<h3>Disassemble a 32-bit binary</h3>
+<pre>$ AstraC.exe disasm kernel.BIN verbose
+
+AstraC Compiler, Assembler and Disassembler
+[DISASM] Disassembling kernel.BIN -&gt; kernel.DSM
+[DISASM] Disassembly completed successfully.</pre>
+
+<h3>Disassemble a bootloader (16-bit, org 0x7C00)</h3>
+<pre>$ AstraC.exe disasm boot.BIN bits 16 org 7C00 verbose
+
+AstraC Compiler, Assembler and Disassembler
+[DISASM] Disassembling boot.BIN -&gt; boot.DSM
+[DISASM] Disassembly completed successfully.</pre>
+
+<p>Then inspect the output:</p>
+<pre>$ head -20 boot.DSM
+
+00007C00  FA                                               cli                              |.|
+00007C01  31 C0                                            xor ax, ax                       |1.|
+00007C03  8E D8                                            mov ds, ax                       |..|
+00007C05  8E C0                                            mov es, ax                       |..|
+00007C07  BC 00 7C                                         mov sp, 0x7C00                   |..||
+00007C0A  BE 20 7C                                         mov si, 0x7C20                   |.||
+00007C0D  E8 08 00                                         call 0x00007C18                  |....|
+00007C10  F4                                               hlt                              |.|
+00007C11  AC                                               lodsb                            |.|
+00007C12  84 C0                                            test al, al                      |..|
+00007C14  74 06                                            jz 0x00007C1C                    |t.|
+00007C16  B4 0E                                            mov ah, 0x0E                     |..|
+00007C18  CD 10                                            int 0x10                         |..|
+00007C1A  EB F5                                            jmp 0x00007C11                   |..|
+00007C1C  C3                                               ret                              |.|
+...</pre>
+
+</main>
+</body>
+</html>

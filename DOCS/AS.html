@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>ASTRAC Assembler Reference</title>
+<style>
+:root {
+    --bg: #f3e7c3;
+    --paper: #fff9d6;
+    --ink: #000000;
+    --muted: #444444;
+    --accent: #0000ee;
+    --border: #000000;
+    --hover: #eee8b8;
+    --mono: "Courier New", Courier, monospace;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+    background: var(--bg); color: var(--ink);
+    font-family: var(--mono); min-height: 100%; padding: 20px;
+}
+main {
+    max-width: 1200px; margin: auto;
+    background: var(--paper); border: 2px solid var(--border); padding: 20px 30px;
+}
+nav { text-align: center; margin-bottom: 16px; }
+nav a { color: var(--accent); margin: 0 8px; }
+h1 { text-align: center; font-size: 1.6em; margin-bottom: 4px; }
+h2 { margin: 28px 0 10px; border-bottom: 2px solid var(--border); padding-bottom: 4px; }
+h3 { margin: 18px 0 8px; }
+p { margin: 6px 0; line-height: 1.5; }
+pre, code { font-family: var(--mono); }
+pre {
+    background: #fff; border: 1px solid var(--border);
+    padding: 10px; margin: 8px 0; overflow-x: auto;
+}
+table {
+    width: 100%; border-collapse: collapse; margin: 8px 0;
+}
+th, td {
+    border: 1px solid var(--border); padding: 5px 8px;
+    text-align: left; vertical-align: top;
+}
+th { background: #000; color: #fff; }
+tr:nth-child(even) { background: var(--hover); }
+code { background: #fff; padding: 1px 3px; }
+ul, ol { margin: 6px 0 6px 24px; }
+li { margin: 2px 0; }
+hr { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
+</style>
+</head>
+<body>
+<main>
+
+<nav>
+    <a href="index.html">Home</a> |
+    <a href="AS.html">Assembler</a> |
+    <a href="DSM.html">Disassembler</a> |
+    <a href="MNEMS.html">Instruction Reference</a> |
+    <a href="PREPROCESSOR.md">Preprocessor</a>
+</nav>
+
+<h1>AstraC Assembler</h1>
+
+<p>
+AstraC Assembly is a NASM-like x86 assembly language for the AstraC toolchain.
+It produces flat binaries with optional ACFH headers.
+</p>
+
+<h2>Assembler Pipeline</h2>
+<table>
+<tr><th>Stage</th><th>Name</th><th>Description</th></tr>
+<tr><td>1</td><td>Preprocessing</td><td>Handles directives, macros, includes</td></tr>
+<tr><td>2</td><td>Lexical Analysis</td><td>Tokenizes into instruction/register/operand tokens</td></tr>
+<tr><td>3</td><td>Parsing</td><td>Builds an Abstract Syntax Tree (AST)</td></tr>
+<tr><td>4</td><td>Semantic Analysis</td><td>Validates operands, resolves labels and symbols</td></tr>
+<tr><td>5</td><td>Optimization</td><td>Peephole optimizations, constant folding</td></tr>
+<tr><td>6</td><td>Code Generation</td><td>Emits machine code to output file</td></tr>
+</table>
+
+<h3>Error Codes</h3>
+<table>
+<tr><th>Code</th><th>Name</th><th>Meaning</th></tr>
+<tr><td>0</td><td>ASTRAC_OK</td><td>Success</td></tr>
+<tr><td>1</td><td>ASTRAC_ERR_ARGS</td><td>Bad or missing arguments</td></tr>
+<tr><td>2</td><td>ASTRAC_ERR_PREPROCESS</td><td>Preprocessor failure</td></tr>
+<tr><td>3</td><td>ASTRAC_ERR_LEX</td><td>Lexer failure</td></tr>
+<tr><td>4</td><td>ASTRAC_ERR_AST</td><td>AST construction failure</td></tr>
+<tr><td>5</td><td>ASTRAC_ERR_VERIFY</td><td>Verification failure</td></tr>
+<tr><td>6</td><td>ASTRAC_ERR_OPTIMIZE</td><td>Optimisation failure</td></tr>
+<tr><td>7</td><td>ASTRAC_ERR_CODEGEN</td><td>Code generation failure</td></tr>
+</table>
+
+<h2>CLI Reference</h2>
+<pre>AstraC.exe asm &lt;file.AS&gt; [flags]
+
+Flags:
+    arch i386|i286   ; Target architecture (default: i386)
+    bits 16|32       ; Force instruction encoding width
+    org 7C00         ; Origin address (hex, no 0x prefix)
+    exe              ; Emit ACFH executable header
+    lib              ; Emit ACFH library header
+    entry &lt;label&gt;    ; Entry point label (default: _start)
+    warn 0|1|2|err   ; Warning level (err = treat as errors)
+    macro &lt;name&gt; &lt;v&gt; ; Define macro for preprocessing
+    stepoff 1|2|3    ; Stop after stage (1=preproc, 2=asm, 3=compile)
+    verbose          ; Print progress information</pre>
+
+<h2>Source File Structure</h2>
+<pre>; Comment (stripped by preprocessor)
+
+#include &lt;header.INC&gt;        ; Include another file
+#define BUFFER_SIZE 256      ; Define a macro
+
+.data                        ; Mutable data section
+msg   DB "Hello", 0          ; Null-terminated string
+count DD 0                   ; 32-bit integer
+
+.rodata                      ; Read-only data section
+magic DW 0xABCD              ; 16-bit constant
+
+.code                        ; Code section
+.use32                       ; 32-bit mode (default)
+
+_start:                      ; Global label
+    MOV EAX, 1
+    ADD EAX, [count]
+    JMP _start
+
+.use16                       ; Switch to 16-bit mode
+    MOV AX, BX</pre>
+
+<h2>Directives</h2>
+<table>
+<tr><th>Directive</th><th>Description</th></tr>
+<tr><td><code>.data</code></td><td>Switch to the <b>mutable data</b> section</td></tr>
+<tr><td><code>.rodata</code></td><td>Switch to the <b>read-only data</b> section</td></tr>
+<tr><td><code>.code</code></td><td>Switch to the <b>code</b> (text) section</td></tr>
+<tr><td><code>.use32</code></td><td>Set <b>32-bit</b> code mode (protected mode default)</td></tr>
+<tr><td><code>.use16</code></td><td>Set <b>16-bit</b> code mode (real mode)</td></tr>
+<tr><td><code>.org ADDR</code></td><td>Set the <b>origin address</b> (base for label calculations)</td></tr>
+<tr><td><code>.times N db V</code></td><td>Fill <b>N</b> bytes with value <b>V</b> (supports $ and $$ in expressions)</td></tr>
+</table>
+
+<h3>Section Model</h3>
+<ul>
+<li><code>.data</code> and <code>.rodata</code> contain only data variable declarations (DB, DW, DD)</li>
+<li><code>.code</code> sections contain labels, instructions, and raw numeric literals</li>
+<li><code>.use16</code> / <code>.use32</code> change operand-size default but do not switch sections</li>
+</ul>
+
+<h3>Origin Directive</h3>
+<p>Sets the base address for offset calculations. Labels and <code>$</code> references are computed relative to this origin:</p>
+<pre>.org 0x7C00          ; bootloader loads at 0x7C00</pre>
+
+<h3>Fill Directive</h3>
+<p>Emits repeated byte values to pad or fill regions:</p>
+<pre>.times 510-($-$$) db 0   ; pad to byte 510 (from section start)
+0xAA55                    ; boot signature</pre>
+<p><code>$</code> is the current output offset, <code>$$</code> is the offset of the current section start. The expression <code>$-$$</code> gives bytes emitted so far in the current section.</p>
+
+<hr>
+
+<h2>Labels</h2>
+
+<h3>Global Labels</h3>
+<p>Any identifier followed by a colon defines a global label:</p>
+<pre>_start:
+my_function:
+loop_top:</pre>
+
+<h3>Local Labels (<code>@@</code>)</h3>
+<p>Scoped to their enclosing global label. Two functions can each define <code>@@done:</code> without collision.</p>
+
+<table>
+<tr><th>Form</th><th>Syntax</th><th>Description</th></tr>
+<tr><td>Define</td><td><code>@@1:</code></td><td>Define a numbered local label</td></tr>
+<tr><td>Forward</td><td><code>@f</code></td><td>Reference the <b>next</b> local label</td></tr>
+<tr><td>Backward</td><td><code>@b</code></td><td>Reference the <b>previous</b> local label</td></tr>
+</table>
+
+<pre>strncopy:
+    @@done:              ; scoped as strncopy.@@done
+    RET
+
+strncmp:
+    @@done:              ; scoped as strncmp.@@done &mdash; no collision
+    RET</pre>
+
+<hr>
+
+<h2>Data Variables</h2>
+<p>Declared in <code>.data</code> or <code>.rodata</code> sections:</p>
+<pre>name  TYPE  value [, value ...]</pre>
+
+<table>
+<tr><th>Keyword(s)</th><th>Size</th><th>Description</th></tr>
+<tr><td><code>DB</code>, <code>BYTE</code></td><td>8-bit</td><td>Byte &mdash; also used for string literals</td></tr>
+<tr><td><code>DW</code>, <code>WORD</code></td><td>16-bit</td><td>Word</td></tr>
+<tr><td><code>DD</code>, <code>DWORD</code></td><td>32-bit</td><td>Double-word</td></tr>
+<tr><td><code>REAL4</code></td><td>32-bit</td><td>IEEE 754 single-precision float</td></tr>
+</table>
+
+<pre>.data
+msg     DB "Hello, world!", 0   ; String with null terminator
+flag    DB 1                    ; Single byte
+arr     DW 1, 2, 3, 4          ; Comma-separated word array
+addr    DD 0x00100000           ; 32-bit address
+pi      REAL4 3.14             ; Float constant</pre>
+
+<h3>Variable Byte-Size (<code>$variable</code>)</h3>
+<p>The <code>$</code> prefix before a variable name evaluates to the <b>byte size</b> of that variable:</p>
+<pre>.data
+msg     DB "Hello, world!", 0
+msg_len DD $msg               ; = 14 (bytes in 'msg')</pre>
+
+<h3>Negative Values</h3>
+<p>Stored as two's complement:</p>
+<pre>word_neg  DW -1               ; stored as 0xFFFF
+dword_neg DD -100              ; stored as 0xFFFFFF9C</pre>
+
+<hr>
+
+<h2>Number Literals</h2>
+<table>
+<tr><th>Format</th><th>Prefix</th><th>Example</th><th>Value</th></tr>
+<tr><td>Decimal</td><td><i>(none)</i></td><td><code>42</code></td><td>42</td></tr>
+<tr><td>Hexadecimal</td><td><code>0x</code></td><td><code>0xFF</code></td><td>255</td></tr>
+<tr><td>Binary</td><td><code>0b</code></td><td><code>0b1010</code></td><td>10</td></tr>
+<tr><td>Character</td><td><code>'&hellip;'</code></td><td><code>'A'</code></td><td>65</td></tr>
+<tr><td>Negative</td><td><code>-</code></td><td><code>-1</code></td><td>0xFFFFFFFF</td></tr>
+</table>
+<p>Bare numbers in <code>.code</code> emit raw bytes, sized automatically (1, 2, or 4 bytes).</p>
+
+<h2>String Literals</h2>
+<pre>msg DB "Hello", 0    ; 6 bytes: 'H','e','l','l','o', 0x00</pre>
+<table>
+<tr><th>Escape</th><th>Value</th><th>Description</th></tr>
+<tr><td><code>\n</code></td><td>0x0A</td><td>Newline (LF)</td></tr>
+<tr><td><code>\r</code></td><td>0x0D</td><td>Carriage return (CR)</td></tr>
+<tr><td><code>\t</code></td><td>0x09</td><td>Horizontal tab</td></tr>
+<tr><td><code>\0</code></td><td>0x00</td><td>Null terminator</td></tr>
+<tr><td><code>\\</code></td><td>0x5C</td><td>Literal backslash</td></tr>
+<tr><td><code>\"</code></td><td>0x22</td><td>Literal double quote</td></tr>
+</table>
+
+<hr>
+
+<h2>Operand Syntax</h2>
+<pre>MNEMONIC                         ; no operands
+MNEMONIC dst                     ; one operand
+MNEMONIC dst, src                ; two operands</pre>
+
+<h3>Register Operands</h3>
+<pre>MOV EAX, EBX        ; 32-bit
+MOV AX, BX          ; 16-bit
+MOV AL, BH          ; 8-bit</pre>
+
+<h3>Immediate Operands</h3>
+<pre>MOV EAX, 42          ; decimal
+MOV EAX, 0xFF        ; hex
+MOV EAX, 0b1010      ; binary
+MOV AL, 'A'          ; character</pre>
+
+<h3>Memory Operands</h3>
+<pre>[EAX]                        ; base register
+[EBX + 100]                  ; base + displacement
+[ESI + ECX]                  ; base + index
+[ESI + ECX*4]                ; base + index &times; scale
+[ESI + ECX*4 + 16]           ; base + index &times; scale + displacement
+[my_var]                     ; symbol / variable address
+[300]                        ; displacement-only (absolute address)</pre>
+
+<h3>Segment Override</h3>
+<pre>MOV AX, [CS:BX]         ; code segment override (prefix 2Eh)
+MOV [ES:DI], AX          ; extra segment override (prefix 26h)</pre>
+
+<h3>Size Prefix</h3>
+<pre>MOV BYTE PTR [EAX], 0       ; 8-bit store
+MOV WORD PTR [EAX], 0       ; 16-bit store
+MOV DWORD PTR [EAX], 0      ; 32-bit store
+INC BYTE [EAX]              ; PTR keyword is optional</pre>
+
+<h3>Current Location Counter</h3>
+<pre>JMP $               ; infinite loop
+.times 512-($-$$) db 0  ; pad to 512 bytes from section start</pre>
+
+<hr>
+
+<h2>Registers</h2>
+<table>
+<tr><th>32-bit</th><th>16-bit</th><th>8-bit High</th><th>8-bit Low</th></tr>
+<tr><td><code>EAX</code></td><td><code>AX</code></td><td><code>AH</code></td><td><code>AL</code></td></tr>
+<tr><td><code>EBX</code></td><td><code>BX</code></td><td><code>BH</code></td><td><code>BL</code></td></tr>
+<tr><td><code>ECX</code></td><td><code>CX</code></td><td><code>CH</code></td><td><code>CL</code></td></tr>
+<tr><td><code>EDX</code></td><td><code>DX</code></td><td><code>DH</code></td><td><code>DL</code></td></tr>
+<tr><td><code>ESI</code></td><td><code>SI</code></td><td>&mdash;</td><td>&mdash;</td></tr>
+<tr><td><code>EDI</code></td><td><code>DI</code></td><td>&mdash;</td><td>&mdash;</td></tr>
+<tr><td><code>EBP</code></td><td><code>BP</code></td><td>&mdash;</td><td>&mdash;</td></tr>
+<tr><td><code>ESP</code></td><td><code>SP</code></td><td>&mdash;</td><td>&mdash;</td></tr>
+</table>
+
+<h3>Other Register Sets</h3>
+<p><b>Segment:</b> <code>CS</code>, <code>DS</code>, <code>ES</code>, <code>FS</code>, <code>GS</code>, <code>SS</code></p>
+<p><b>Control:</b> <code>CR0</code>, <code>CR2</code>, <code>CR3</code>, <code>CR4</code></p>
+<p><b>Debug:</b> <code>DR0</code>&ndash;<code>DR7</code></p>
+<p><b>FPU:</b> <code>ST0</code>&ndash;<code>ST7</code></p>
+<p><b>MMX:</b> <code>MM0</code>&ndash;<code>MM7</code></p>
+<p><b>SSE:</b> <code>XMM0</code>&ndash;<code>XMM7</code></p>
+
+<hr>
+
+<h2>Encoding Reference</h2>
+<p>Instruction byte stream layout:</p>
+<pre>[legacy prefix] [segment override] [0F] [opcode] [ModR/M [SIB [disp]]] [immediate]</pre>
+
+<h3>Encoding Types</h3>
+<ul>
+<li><b>ENC_DIRECT</b> &mdash; Opcode only, no operands (<code>NOP</code> &rarr; <code>90</code>)</li>
+<li><b>ENC_REG_OPCODE</b> &mdash; Register in low 3 bits of opcode (<code>PUSH EAX</code> &rarr; <code>50</code>)</li>
+<li><b>ENC_IMM</b> &mdash; Opcode + immediate (<code>INT 0x21</code> &rarr; <code>CD 21</code>)</li>
+<li><b>ENC_MODRM</b> &mdash; Opcode + ModR/M &plusmn; SIB &plusmn; disp &plusmn; imm</li>
+</ul>
+
+<h3>ModR/M Byte</h3>
+<pre>Bits:  7  6 | 5  4  3 | 2  1  0
+       mod  |   reg   |   r/m</pre>
+<table>
+<tr><th>mod</th><th>Meaning</th></tr>
+<tr><td>00</td><td>Memory, no displacement (except r/m=101 &rarr; disp32)</td></tr>
+<tr><td>01</td><td>Memory, 8-bit signed displacement</td></tr>
+<tr><td>10</td><td>Memory, 32-bit displacement</td></tr>
+<tr><td>11</td><td>Register-direct (no memory access)</td></tr>
+</table>
+
+<h3>Prefix Bytes</h3>
+<table>
+<tr><th>Byte</th><th>Name</th><th>Purpose</th></tr>
+<tr><td><code>66h</code></td><td>Operand-size override</td><td>16-bit ops in 32-bit mode</td></tr>
+<tr><td><code>67h</code></td><td>Address-size override</td><td>16-bit addressing in 32-bit mode</td></tr>
+<tr><td><code>F2h</code></td><td>REPNE / SSE prefix</td><td>Repeat / SSE hint</td></tr>
+<tr><td><code>F3h</code></td><td>REP / REPE / SSE prefix</td><td>Repeat / SSE hint</td></tr>
+</table>
+
+<h3>Immediate Encoding</h3>
+<ul>
+<li>Opcodes <code>83h</code> and <code>6Bh</code> always use 8-bit sign-extended immediates</li>
+<li>All immediates are <b>little-endian</b></li>
+</ul>
+
+<hr>
+
+<h2>Examples</h2>
+
+<h3>Bootloader Stub</h3>
+<pre>#define ORG 0x7C00
+.use16
+.org ORG
+.code
+
+_start:
+    CLI
+    XOR AX, AX
+    MOV DS, AX
+    MOV SS, AX
+    MOV SP, ORG
+    MOV SI, msg
+    CALL print
+    HLT
+
+print:
+    LODSB
+    TEST AL, AL
+    JZ .done
+    MOV AH, 0x0E
+    INT 0x10
+    JMP print
+.done:
+    RET
+
+.data
+msg DB "Hello from ASTRAC!", 0
+
+.code
+.times 510-($-$$) db 0
+0xAA55</pre>
+
+</main>
+</body>
+</html>
