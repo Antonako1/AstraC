@@ -1,3 +1,56 @@
-U32 main(U32 argc, PU8 *argv) {
-    return 0;
+#include "./AC/INCLUDE.AH"
+
+typedef struct _STUDENT {
+    U32 id;
+    PU8 name;
+} STUDENT, *PSTUDENT;
+
+PU8 get_student_name(PSTUDENT student) {
+    return student->name;
+}
+
+U32 increment_student_id(PSTUDENT student) {
+    student->id++;
+    return student->id;
+}
+
+typedef U32 (*IDCALLBACK)(PSTUDENT);
+
+U32 main(U32 argc, PPU8 argv) {
+    STUDENT student;
+    student.id   = 12345;
+    student.name = "John Doe";
+
+    IDCALLBACK cb = &increment_student_id;
+    cb(&student);
+
+    U8 buf[16];
+
+    if (student.id > 12345) {
+        for (U32 i = 0; i < 5; i++) {
+            asm {
+                mov eax, student.id
+                add eax, i
+                mov student.id, eax
+            }
+        }
+    } else {
+        student.id = 0;
+    }
+
+    switch (student.id) {
+        case 0:  return 0;
+        case 50: return 50;
+        default: break;
+    }
+
+    U32 n = 0;
+    while (n < student.id) {
+        n++;
+        if (n == 10) break;
+    }
+
+    PU8 name = get_student_name(&student);
+
+    return student.id;
 }

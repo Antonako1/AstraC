@@ -36,8 +36,7 @@ STATIC VOID GEN_LITERAL(PCNODE n) {
             AC_FPRINTF(outf, "    MOV EAX, 0x%X\n", (U32)n->fval);
             break;
         case CNODE_STR_LIT:
-            AC_FPRINTF(outf, "    MOV EAX, _STR%u\n",
-                       (U32)(n - (PCNODE)NULLPTR) & 0xFF);
+            AC_FPRINTF(outf, "    MOV EAX, _str%u\n", n->ival);
             break;
         case CNODE_TRUE_LIT:
             emit("    MOV EAX, 1");
@@ -146,7 +145,19 @@ STATIC VOID GEN_CALL(PCNODE n) {
         GEN_EXPR(n->children[i]);
         emit("    PUSH EAX");
     }
-    AC_FPRINTF(outf, "    CALL _%s\n", n->txt ? n->txt : (PU8)"_unknown");
+    /* Check if target is a function pointer variable */
+    SYMBOL *cs = FIND_SYM(n->txt);
+    if (n->txt && cs && cs->kind == SYM_VARIABLE) {
+        /* Indirect call through function pointer */
+        if (cs->is_global)
+            AC_FPRINTF(outf, "    CALL [%s]\n", cs->name);
+        else if (cs->offset >= 8)
+            AC_FPRINTF(outf, "    CALL [EBP+%u]\n", cs->offset);
+        else
+            AC_FPRINTF(outf, "    CALL [EBP-%u]\n", (U32)(-(I32)cs->offset));
+    } else {
+        AC_FPRINTF(outf, "    CALL _%s\n", n->txt ? n->txt : (PU8)"_unknown");
+    }
     /* Clean stack (cdecl: caller cleans) */
     if (n->child_count > 0)
         AC_FPRINTF(outf, "    ADD ESP, %u\n", n->child_count * 4);
@@ -382,7 +393,22 @@ STATIC VOID EMIT_RODATA_STRINGS() {
     for (U32 i = 0; i < ctx->rodata_string_count; i++) {
         RODATA_STR *rs = &ctx->rodata_strings[i];
         if (rs->node && rs->node->txt) {
-            AC_FPRINTF(outf, "._str%u DB \"%s\", 0\n", rs->label, rs->node->txt);
+            AC_FPRINTF(outf, "_str%u DB \"", rs->label);
+            /* Write the string content with escape handling */
+            PU8 txt = rs->node->txt;
+            while (*txt) {
+                U8 c = (U8)*txt;
+                switch (c) {
+                    case '\n': AC_FPRINTF(outf, "\\n"); break;
+                    case '\r': AC_FPRINTF(outf, "\\r"); break;
+                    case '\t': AC_FPRINTF(outf, "\\t"); break;
+                    case '\\': AC_FPRINTF(outf, "\\\\"); break;
+                    case '"':  AC_FPRINTF(outf, "\\\""); break;
+                    default:   AC_FPRINTF(outf, "%c", c); break;
+                }
+                txt++;
+            }
+            AC_FPRINTF(outf, "\", 0\n");
         }
     }
 }

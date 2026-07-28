@@ -216,12 +216,13 @@ STATIC COMP_TYPE VERIFY_NODE(PCNODE n) {
 
         case CNODE_CALL: {
             SYMBOL *fs = V_FIND_SYM(n->txt);
-            if (!fs || fs->kind != SYM_FUNCTION) {
+            if (!fs) {
+                if (n->txt) AC_PRINTF("[VERIFY] L%u undefined symbol '%s' in call\n", n->line, n->txt);
                 ERR("call to undefined function", n->line, n->col);
                 return COMP_MAKE_TYPE(CTYPE_NONE, 0, NULLPTR);
             }
             for (U32 i = 0; i < n->child_count; i++) VERIFY_NODE(n->children[i]);
-            n->dtype = fs->ret_type;
+            n->dtype = (fs->kind == SYM_FUNCTION) ? fs->ret_type : fs->type;
             return n->dtype;
         }
 
@@ -245,7 +246,11 @@ STATIC COMP_TYPE VERIFY_NODE(PCNODE n) {
         case CNODE_ASSIGN: {
             COMP_TYPE lt = VERIFY_NODE(n->children[0]);
             COMP_TYPE rt = VERIFY_NODE(n->children[1]);
-            if (lt.base != rt.base && lt.base != CTYPE_NONE && rt.base != CTYPE_NONE)
+            /* Allow assignment through member access (-> or .) without type check */
+            if (n->children[0] && (n->children[0]->ntype == CNODE_MEMBER
+                || n->children[0]->ntype == CNODE_ARROW_EXPR))
+                ; /* skip type check for member access */
+            else if (lt.base != rt.base && lt.base != CTYPE_NONE && rt.base != CTYPE_NONE)
                 WARN("assignment type mismatch", n->line, n->col);
             n->dtype = lt;
             return lt;
