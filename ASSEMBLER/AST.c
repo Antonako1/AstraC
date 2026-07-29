@@ -130,6 +130,8 @@ STATIC const ASM_MNEMONIC_TABLE *RESOLVE_MNEMONIC(
     }
 
     const ASM_MNEMONIC_TABLE *fallback = NULLPTR;
+    const ASM_MNEMONIC_TABLE *constraint_best = NULLPTR;
+    U32 constraint_best_score = 10;
 
     for (U32 i = 0; i < tbl_len; i++) {
         const ASM_MNEMONIC_TABLE *tbl = &asm_mnemonics[i];
@@ -205,10 +207,31 @@ STATIC const ASM_MNEMONIC_TABLE *RESOLVE_MNEMONIC(
 
         /* ── This entry matches ───────────────────────────────────── */
 
-        /* Size is constrained by a register / sized memory operand —
-         * the first match is always the correct one. */
-        if (has_size_constraint)
-            return tbl;
+        /* Size is constrained by a register / sized memory operand */
+        if (has_size_constraint) {
+            /* Score entries: lower is better. 0 = exact match on all
+             * operand types.  Weights per mismatch:
+             *   OP_REG → OP_MEM (r/m accepts reg)    = 1
+             *   OP_PTR → OP_IMM (label as immediate) = 1  ← preferred
+             *   OP_PTR → OP_MEM (label as memory)    = 2  ← least preferred
+             * This makes `MOV reg, label` pick the +r encoding (imm)
+             * instead of the /r encoding (memory). */
+            U32 score = 0;
+            for (U32 j = 0; j < op_count; j++) {
+                ASM_OPERAND_TYPE a = operands[j].type;
+                ASM_OPERAND_TYPE e = tbl->operand[j];
+                if (a == e) continue;
+                if (e == OP_MEM && (a == OP_REG || a == OP_SEG)) { score += 1; }
+                else if (e == OP_IMM && a == OP_PTR)            { score += 1; }
+                else if (e == OP_MEM && a == OP_PTR)            { score += 2; }
+                else                                            { score += 10; }
+            }
+            if (score < constraint_best_score) {
+                constraint_best_score = score;
+                constraint_best = tbl;
+            }
+            continue;
+        }
 
         /* No register constrains size — prefer entries whose size
          * matches the native operand width of the current code mode.
@@ -223,6 +246,15 @@ STATIC const ASM_MNEMONIC_TABLE *RESOLVE_MNEMONIC(
         if (!fallback) fallback = tbl;
     }
 
+    if (constraint_best) {
+        AC_PRINTF("[RESOLVER] constraint_best=%s id=%u score=%u enc=%u opc=0x%X ops=[%d,%d]\n",
+               constraint_best->name, constraint_best->mnemonic,
+               constraint_best_score, constraint_best->encoding,
+               constraint_best->opcode[0],
+               constraint_best->operand[0], constraint_best->operand[1]);
+        return constraint_best;
+    }
+    AC_PRINTF("[RESOLVER] No constraint match for '%s', fallback=%s\n", name, fallback ? fallback->name : "NULL");
     return fallback;
 }
 
@@ -893,6 +925,15 @@ STATIC PASM_NODE PARSE_INSTRUCTION(TOK_CURSOR *cur) {
     if (!n->instr.table_entry) {
         AC_PRINTF("[AST] No matching mnemonic form for '%s' with %u operand(s) at L%u\n",
                mnem_tok->txt, n->instr.operand_count, mnem_tok->line);
+    } else {
+        AC_PRINTF("[AST] Stored entry '%s' id=%u enc=%u modrm=%d opc=0x%X ops=[%d,%d] for '%s' at L%u\n",
+               n->instr.table_entry->name, n->instr.table_entry->mnemonic,
+               n->instr.table_entry->encoding,
+               (I32)n->instr.table_entry->modrm_ext,
+               n->instr.table_entry->opcode[0],
+               n->instr.table_entry->operand[0],
+               n->instr.table_entry->operand[1],
+               mnem_tok->txt, mnem_tok->line);
     }
 
     return n;
