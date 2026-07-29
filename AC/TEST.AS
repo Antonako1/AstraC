@@ -6,8 +6,13 @@ _A_MERE_TEST:
     MOV EBP, ESP
     MOV EAX, 0x42
     PUSH EAX
-    POP EAX
-    XOR EAX, EAX
+    MOV EAX, [G_MESSAGE]
+    PUSH EAX
+    MOV EAX, 0x0
+    POP EBX
+    LEA EAX, [EBX + EAX]
+    POP EBX
+    MOV [EAX], BL
     MOV EAX, 0x2A
     POP EBP
     RET
@@ -176,47 +181,47 @@ _MAIN:
     MOV EBP, ESP
     SUB ESP, 217
     MOV EAX, 0xA
-    MOV [EBP-0], EAX
+    MOV [EBP-4], EAX
     MOV EAX, 0x5
     NEG EAX
-    MOV [EBP-4], EAX
+    MOV [EBP-8], EAX
     MOV EAX, 1
-    MOV [EBP+8], EAX
+    MOV [EBP-12], EAX
     MOV EAX, _str2
-    MOV [EBP+12], EAX
+    MOV [EBP-16], EAX
     MOV EAX, 0x41
-    MOV [EBP+13], EAX
+    MOV [EBP-17], EAX
     MOV EAX, 0
-    MOV [EBP+17], EAX
+    MOV [EBP-21], EAX
     MOV EAX, 0
-    MOV [EBP+21], EAX
+    MOV [EBP-25], EAX
     MOV EAX, 0x64
-    MOV [EBP+22], EAX
+    MOV [EBP-26], EAX
     MOV EAX, 0x3E8
-    MOV [EBP+24], EAX
-    MOV EAX, [EBP+22]
-    MOV [EBP+28], EAX
+    MOV [EBP-28], EAX
+    MOV EAX, [EBP-26]
+    MOV [EBP-32], EAX
     MOV EAX, 0xB8000
-    MOV [EBP+32], EAX
-    MOV EAX, [EBP+32]
-    MOV [EBP+36], EAX
+    MOV [EBP-36], EAX
+    MOV EAX, [EBP-36]
+    MOV [EBP-40], EAX
     MOV EAX, 0x1234
-    MOV [EBP+37], EAX
-    MOV EAX, [EBP]
-    PUSH EAX
+    MOV [EBP-41], EAX
     MOV EAX, [EBP-4]
+    PUSH EAX
+    MOV EAX, [EBP-8]
     MOV EBX, EAX
     POP EAX
     ADD EAX, EBX
     PUSH EAX
-    MOV EAX, [EBP]
-    PUSH EAX
     MOV EAX, [EBP-4]
+    PUSH EAX
+    MOV EAX, [EBP-8]
     MOV EBX, EAX
     POP EAX
     SUB EAX, EBX
     PUSH EAX
-    MOV EAX, [EBP]
+    MOV EAX, [EBP-4]
     PUSH EAX
     MOV EAX, 0x2
     MOV EBX, EAX
@@ -226,7 +231,7 @@ _MAIN:
     POP EAX
     IMUL EAX, EBX
     PUSH EAX
-    MOV EAX, [EBP]
+    MOV EAX, [EBP-4]
     PUSH EAX
     MOV EAX, 0x3
     MOV EBX, EAX
@@ -241,104 +246,104 @@ _MAIN:
     MOV EBX, EAX
     POP EAX
     ADD EAX, EBX
-    MOV [EBP+41], EAX
-    MOV EAX, [EBP]
+    MOV [EBP-45], EAX
+    MOV EAX, [EBP-4]
     PUSH EAX
     MOV EAX, 0xFF
     MOV EBX, EAX
     POP EAX
     AND EAX, EBX
-    MOV [EBP+45], EAX
-    MOV EAX, [EBP]
+    MOV [EBP-49], EAX
+    MOV EAX, [EBP-4]
     PUSH EAX
     MOV EAX, 0xFF00
     MOV EBX, EAX
     POP EAX
     OR EAX, EBX
-    MOV [EBP+49], EAX
-    MOV EAX, [EBP]
+    MOV [EBP-53], EAX
+    MOV EAX, [EBP-4]
     PUSH EAX
     MOV EAX, 0xAAAA
     MOV EBX, EAX
     POP EAX
     XOR EAX, EBX
-    MOV [EBP+53], EAX
-    MOV EAX, [EBP]
+    MOV [EBP-57], EAX
+    MOV EAX, [EBP-4]
     NOT EAX
-    MOV [EBP+57], EAX
-    MOV EAX, [EBP]
+    MOV [EBP-61], EAX
+    MOV EAX, [EBP-4]
     PUSH EAX
     MOV EAX, 0x2
     MOV EBX, EAX
     POP EAX
     MOV ECX, EBX
     SHL EAX, CL
-    MOV [EBP+61], EAX
-    MOV EAX, [EBP]
+    MOV [EBP-65], EAX
+    MOV EAX, [EBP-4]
     PUSH EAX
     MOV EAX, 0x2
     MOV EBX, EAX
     POP EAX
     MOV ECX, EBX
     SHR EAX, CL
-    MOV [EBP+65], EAX
-    MOV EAX, [EBP]
-    PUSH EAX
+    MOV [EBP-69], EAX
     MOV EAX, [EBP-4]
+    PUSH EAX
+    MOV EAX, [EBP-8]
     MOV EBX, EAX
     POP EAX
     CMP EAX, EBX
     SETE AL
     MOVZX EAX, AL
-    MOV [EBP+69], EAX
-    MOV EAX, [EBP]
-    PUSH EAX
+    MOV [EBP-73], EAX
     MOV EAX, [EBP-4]
+    PUSH EAX
+    MOV EAX, [EBP-8]
     MOV EBX, EAX
     POP EAX
     CMP EAX, EBX
     SETNE AL
     MOVZX EAX, AL
-    MOV [EBP+73], EAX
-    MOV EAX, [EBP]
-    PUSH EAX
+    MOV [EBP-77], EAX
     MOV EAX, [EBP-4]
+    PUSH EAX
+    MOV EAX, [EBP-8]
     MOV EBX, EAX
     POP EAX
     CMP EAX, EBX
     SETL AL
     MOVZX EAX, AL
-    MOV [EBP+77], EAX
-    MOV EAX, [EBP]
-    PUSH EAX
+    MOV [EBP-81], EAX
     MOV EAX, [EBP-4]
+    PUSH EAX
+    MOV EAX, [EBP-8]
     MOV EBX, EAX
     POP EAX
     CMP EAX, EBX
     SETG AL
     MOVZX EAX, AL
-    MOV [EBP+81], EAX
-    MOV EAX, [EBP]
-    PUSH EAX
+    MOV [EBP-85], EAX
     MOV EAX, [EBP-4]
+    PUSH EAX
+    MOV EAX, [EBP-8]
     MOV EBX, EAX
     POP EAX
     CMP EAX, EBX
     SETLE AL
     MOVZX EAX, AL
-    MOV [EBP+85], EAX
-    MOV EAX, [EBP]
-    PUSH EAX
+    MOV [EBP-89], EAX
     MOV EAX, [EBP-4]
+    PUSH EAX
+    MOV EAX, [EBP-8]
     MOV EBX, EAX
     POP EAX
     CMP EAX, EBX
     SETGE AL
     MOVZX EAX, AL
-    MOV [EBP+89], EAX
-    MOV EAX, [EBP+8]
+    MOV [EBP-93], EAX
+    MOV EAX, [EBP-12]
     PUSH EAX
-    MOV EAX, [EBP]
+    MOV EAX, [EBP-4]
     PUSH EAX
     MOV EAX, 0x0
     MOV EBX, EAX
@@ -348,10 +353,10 @@ _MAIN:
     MOVZX EAX, AL
     MOV EBX, EAX
     POP EAX
-    MOV [EBP+93], EAX
-    MOV EAX, [EBP+8]
+    MOV [EBP-97], EAX
+    MOV EAX, [EBP-12]
     PUSH EAX
-    MOV EAX, [EBP-4]
+    MOV EAX, [EBP-8]
     PUSH EAX
     MOV EAX, 0x0
     MOV EBX, EAX
@@ -361,76 +366,128 @@ _MAIN:
     MOVZX EAX, AL
     MOV EBX, EAX
     POP EAX
-    MOV [EBP+97], EAX
-    MOV EAX, [EBP+8]
+    MOV [EBP-101], EAX
+    MOV EAX, [EBP-12]
     TEST EAX, EAX
     SETE AL
     MOVZX EAX, AL
-    MOV [EBP+101], EAX
+    MOV [EBP-105], EAX
     MOV EAX, 0x1
-    MOV [EBP+105], EAX
+    MOV [EBP-109], EAX
     MOV EAX, 0x2
-    MOV [EBP+109], EAX
+    MOV [EBP-113], EAX
     MOV EAX, 0x3
-    MOV [EBP+113], EAX
+    MOV [EBP-117], EAX
     MOV EAX, 0x0
     PUSH EAX
     POP EAX
-    MOV [EBP+113], EAX
+    MOV [EBP-117], EAX
     PUSH EAX
     POP EAX
-    MOV [EBP+109], EAX
+    MOV [EBP-113], EAX
     PUSH EAX
     POP EAX
-    MOV [EBP+105], EAX
+    MOV [EBP-109], EAX
     MOV EAX, 0xA
-    MOV [EBP+117], EAX
+    MOV [EBP-121], EAX
+    MOV EAX, [EBP-121]
+    PUSH EAX
     MOV EAX, 0x5
+    MOV EBX, EAX
+    POP EAX
+    ADD EAX, EBX
     PUSH EAX
     POP EAX
-    MOV [EBP+117], EAX
+    MOV [EBP-121], EAX
+    MOV EAX, [EBP-121]
+    PUSH EAX
     MOV EAX, 0x3
+    MOV EBX, EAX
+    POP EAX
+    SUB EAX, EBX
     PUSH EAX
     POP EAX
-    MOV [EBP+117], EAX
+    MOV [EBP-121], EAX
+    MOV EAX, [EBP-121]
+    PUSH EAX
     MOV EAX, 0x2
+    MOV EBX, EAX
+    POP EAX
+    IMUL EAX, EBX
     PUSH EAX
     POP EAX
-    MOV [EBP+117], EAX
+    MOV [EBP-121], EAX
+    MOV EAX, [EBP-121]
+    PUSH EAX
     MOV EAX, 0x4
+    MOV EBX, EAX
+    POP EAX
+    XOR EDX, EDX
+    DIV EBX
     PUSH EAX
     POP EAX
-    MOV [EBP+117], EAX
+    MOV [EBP-121], EAX
+    MOV EAX, [EBP-121]
+    PUSH EAX
     MOV EAX, 0x1
+    MOV EBX, EAX
+    POP EAX
+    MOV ECX, EBX
+    SHL EAX, CL
     PUSH EAX
     POP EAX
-    MOV [EBP+117], EAX
+    MOV [EBP-121], EAX
+    MOV EAX, [EBP-121]
+    PUSH EAX
     MOV EAX, 0x2
+    MOV EBX, EAX
+    POP EAX
+    MOV ECX, EBX
+    SHR EAX, CL
     PUSH EAX
     POP EAX
-    MOV [EBP+117], EAX
+    MOV [EBP-121], EAX
+    MOV EAX, [EBP-121]
+    PUSH EAX
     MOV EAX, 0x2
+    MOV EBX, EAX
+    POP EAX
+    AND EAX, EBX
     PUSH EAX
     POP EAX
-    MOV [EBP+117], EAX
+    MOV [EBP-121], EAX
+    MOV EAX, [EBP-121]
+    PUSH EAX
     MOV EAX, 0x1
+    MOV EBX, EAX
+    POP EAX
+    OR EAX, EBX
     PUSH EAX
     POP EAX
-    MOV [EBP+117], EAX
+    MOV [EBP-121], EAX
+    MOV EAX, [EBP-121]
+    PUSH EAX
     MOV EAX, 0x3
+    MOV EBX, EAX
+    POP EAX
+    XOR EAX, EBX
     PUSH EAX
     POP EAX
-    MOV [EBP+117], EAX
+    MOV [EBP-121], EAX
     MOV EAX, 0x0
-    MOV [EBP+121], EAX
+    MOV [EBP-125], EAX
     MOV EAX, 0x0
-    MOV [EBP+125], EAX
-    MOV EAX, [EBP+121]
-    MOV [EBP+129], EAX
+    MOV [EBP-129], EAX
+    MOV EAX, [EBP-125]
+    MOV [EBP-133], EAX
+    MOV EAX, [EBP-129]
+    PUSH EAX
+    ADD EAX, 1
+    MOV [EBP-129], EAX
+    POP EAX
+    MOV [EBP-137], EAX
     XOR EAX, EAX
-    MOV [EBP+133], EAX
-    XOR EAX, EAX
-    MOV [EBP+137], EAX
+    MOV [EBP-141], EAX
     MOV EAX, 0x64
     PUSH EAX
     POP EAX
@@ -439,8 +496,8 @@ _MAIN:
     PUSH EAX
     POP EAX
     XOR EAX, EAX
-    LEA EAX, [EBP+141]
-    MOV [EBP+145], EAX
+    LEA EAX, [EBP-145]
+    MOV [EBP-149], EAX
     MOV EAX, 0x12C
     PUSH EAX
     POP EAX
@@ -466,8 +523,8 @@ _MAIN:
     POP EAX
     XOR EAX, EAX
     MOV EAX, [EBP]
-    MOV [EBP+153], EAX
-    MOV EAX, [EBP+153]
+    MOV [EBP-157], EAX
+    MOV EAX, [EBP-157]
     PUSH EAX
     MOV EAX, [EBP]
     MOV EBX, EAX
@@ -480,40 +537,40 @@ _MAIN:
     MOV EAX, [EBP]
     PUSH EAX
     POP EAX
-    MOV [EBP+153], EAX
+    MOV [EBP-157], EAX
     JMP __lbl6
 __lbl5:
 __lbl6:
-    MOV EAX, [EBP-4]
+    MOV EAX, [EBP-8]
     PUSH EAX
-    MOV EAX, [EBP]
+    MOV EAX, [EBP-4]
     PUSH EAX
     CALL _ADD
     ADD ESP, 8
-    MOV [EBP+157], EAX
-    MOV EAX, [EBP]
-    PUSH EAX
+    MOV [EBP-161], EAX
     MOV EAX, [EBP-4]
+    PUSH EAX
+    MOV EAX, [EBP-8]
     MOV EBX, EAX
     POP EAX
     PUSH EAX
     CALL _SUBTRACT
     ADD ESP, 4
-    MOV [EBP+161], EAX
+    MOV [EBP-165], EAX
     MOV EAX, 0x5
     PUSH EAX
     CALL _FACTORIAL
     ADD ESP, 4
-    MOV [EBP+165], EAX
+    MOV [EBP-169], EAX
     LEA EAX, [EBP]
-    MOV [EBP+169], EAX
+    MOV [EBP-173], EAX
     MOV EAX, 0x1E
     PUSH EAX
     MOV EAX, 0x32
     PUSH EAX
-    CALL [EBP+169]
+    CALL [EBP-173]
     ADD ESP, 8
-    MOV [EBP+173], EAX
+    MOV [EBP-177], EAX
     MOV EAX, 0x7
     PUSH EAX
     MOV EAX, 0x6
@@ -522,7 +579,7 @@ __lbl6:
     PUSH EAX
     CALL _APPLY_BINOP
     ADD ESP, 12
-    MOV [EBP+177], EAX
+    MOV [EBP-181], EAX
     MOV EAX, 0xF
     PUSH EAX
     MOV EAX, 0xFF
@@ -533,7 +590,7 @@ __lbl6:
     ADD ESP, 12
     PUSH EAX
     POP EAX
-    MOV [EBP+177], EAX
+    MOV [EBP-181], EAX
     MOV EAX, 0x5
     PUSH EAX
     MOV EAX, 0x1
@@ -544,10 +601,10 @@ __lbl6:
     ADD ESP, 12
     PUSH EAX
     POP EAX
-    MOV [EBP+177], EAX
+    MOV [EBP-181], EAX
     MOV EAX, 0x0
-    MOV [EBP+181], EAX
-    MOV EAX, [EBP]
+    MOV [EBP-185], EAX
+    MOV EAX, [EBP-4]
     PUSH EAX
     MOV EAX, 0x64
     MOV EBX, EAX
@@ -560,10 +617,10 @@ __lbl6:
     MOV EAX, 0x1
     PUSH EAX
     POP EAX
-    MOV [EBP+181], EAX
+    MOV [EBP-185], EAX
     JMP __lbl8
 __lbl7:
-    MOV EAX, [EBP]
+    MOV EAX, [EBP-4]
     PUSH EAX
     MOV EAX, 0x32
     MOV EBX, EAX
@@ -576,10 +633,10 @@ __lbl7:
     MOV EAX, 0x2
     PUSH EAX
     POP EAX
-    MOV [EBP+181], EAX
+    MOV [EBP-185], EAX
     JMP __lbl10
 __lbl9:
-    MOV EAX, [EBP]
+    MOV EAX, [EBP-4]
     PUSH EAX
     MOV EAX, 0xA
     MOV EBX, EAX
@@ -592,28 +649,28 @@ __lbl9:
     MOV EAX, 0x3
     PUSH EAX
     POP EAX
-    MOV [EBP+181], EAX
+    MOV [EBP-185], EAX
     JMP __lbl12
 __lbl11:
     MOV EAX, 0x4
     PUSH EAX
     POP EAX
-    MOV [EBP+181], EAX
+    MOV [EBP-185], EAX
     MOV EAX, 0x63
-    MOV [EBP+185], EAX
-    MOV EAX, [EBP+185]
+    MOV [EBP-189], EAX
+    MOV EAX, [EBP-189]
     PUSH EAX
     POP EAX
-    MOV [EBP+181], EAX
+    MOV [EBP-185], EAX
 __lbl12:
 __lbl10:
 __lbl8:
     MOV EAX, 0x0
-    MOV [EBP+189], EAX
+    MOV [EBP-193], EAX
     MOV EAX, 0x0
-    MOV [EBP+193], EAX
+    MOV [EBP-197], EAX
 __lbl13:
-    MOV EAX, [EBP+193]
+    MOV EAX, [EBP-197]
     PUSH EAX
     MOV EAX, 0xA
     MOV EBX, EAX
@@ -623,11 +680,16 @@ __lbl13:
     MOVZX EAX, AL
     TEST EAX, EAX
     JZ __lbl14
-    MOV EAX, [EBP+193]
+    MOV EAX, [EBP-193]
+    PUSH EAX
+    MOV EAX, [EBP-197]
+    MOV EBX, EAX
+    POP EAX
+    ADD EAX, EBX
     PUSH EAX
     POP EAX
-    MOV [EBP+189], EAX
-    MOV EAX, [EBP+193]
+    MOV [EBP-193], EAX
+    MOV EAX, [EBP-197]
     PUSH EAX
     MOV EAX, 0x5
     MOV EBX, EAX
@@ -641,7 +703,7 @@ __lbl13:
     JMP __lbl17
 __lbl16:
 __lbl17:
-    MOV EAX, [EBP+189]
+    MOV EAX, [EBP-193]
     PUSH EAX
     MOV EAX, 0x1E
     MOV EBX, EAX
@@ -656,15 +718,19 @@ __lbl17:
 __lbl18:
 __lbl19:
 __lbl15:
-    XOR EAX, EAX
+    MOV EAX, [EBP-197]
+    PUSH EAX
+    ADD EAX, 1
+    MOV [EBP-197], EAX
+    POP EAX
     JMP __lbl13
 __lbl14:
     MOV EAX, 0x5
-    MOV [EBP+197], EAX
+    MOV [EBP-201], EAX
     MOV EAX, 0x0
-    MOV [EBP+201], EAX
+    MOV [EBP-205], EAX
 __lbl20:
-    MOV EAX, [EBP+197]
+    MOV EAX, [EBP-201]
     PUSH EAX
     MOV EAX, 0x0
     MOV EBX, EAX
@@ -674,24 +740,42 @@ __lbl20:
     MOVZX EAX, AL
     TEST EAX, EAX
     JZ __lbl21
-    MOV EAX, [EBP+197]
+    MOV EAX, [EBP-205]
+    PUSH EAX
+    MOV EAX, [EBP-201]
+    MOV EBX, EAX
+    POP EAX
+    ADD EAX, EBX
     PUSH EAX
     POP EAX
-    MOV [EBP+201], EAX
-    XOR EAX, EAX
+    MOV [EBP-205], EAX
+    MOV EAX, [EBP-201]
+    PUSH EAX
+    SUB EAX, 1
+    MOV [EBP-201], EAX
+    POP EAX
     JMP __lbl20
 __lbl21:
     MOV EAX, 0x0
-    MOV [EBP+205], EAX
+    MOV [EBP-209], EAX
     MOV EAX, 0x0
-    MOV [EBP+209], EAX
+    MOV [EBP-213], EAX
 __lbl22:
-    MOV EAX, [EBP+205]
+    MOV EAX, [EBP-213]
+    PUSH EAX
+    MOV EAX, [EBP-209]
+    MOV EBX, EAX
+    POP EAX
+    ADD EAX, EBX
     PUSH EAX
     POP EAX
-    MOV [EBP+209], EAX
-    XOR EAX, EAX
-    MOV EAX, [EBP+205]
+    MOV [EBP-213], EAX
+    MOV EAX, [EBP-209]
+    PUSH EAX
+    ADD EAX, 1
+    MOV [EBP-209], EAX
+    POP EAX
+    MOV EAX, [EBP-209]
     PUSH EAX
     MOV EAX, 0x5
     MOV EBX, EAX
@@ -703,11 +787,19 @@ __lbl22:
     JNZ __lbl22
 __lbl23:
     MOV EAX, 0x0
-    MOV [EBP+213], EAX
-    XOR EAX, EAX
+    MOV [EBP-217], EAX
+    MOV EAX, [EBP-217]
+    PUSH EAX
+    ADD EAX, 1
+    MOV [EBP-217], EAX
+    POP EAX
 TEST_LABEL:
-    XOR EAX, EAX
-    MOV EAX, [EBP+213]
+    MOV EAX, [EBP-217]
+    PUSH EAX
+    ADD EAX, 1
+    MOV [EBP-217], EAX
+    POP EAX
+    MOV EAX, [EBP-217]
     PUSH EAX
     MOV EAX, 0x3
     MOV EBX, EAX
@@ -722,24 +814,24 @@ TEST_LABEL:
 __lbl24:
 __lbl25:
 
-MOV EAX, [EBP]
-[EBP] EAX, [EBP-4]
-MOV [EBP], EAX
+MOV EAX, [EBP-4]
+[EBP] EAX, [EBP-8]
+MOV [EBP-4], EAX
 
     CALL _RESET_COUNTERS
-    MOV EAX, [EBP+189]
+    MOV EAX, [EBP-193]
     PUSH EAX
-    MOV EAX, [EBP+201]
+    MOV EAX, [EBP-205]
     MOV EBX, EAX
     POP EAX
     ADD EAX, EBX
     PUSH EAX
-    MOV EAX, [EBP+209]
+    MOV EAX, [EBP-213]
     MOV EBX, EAX
     POP EAX
     ADD EAX, EBX
     PUSH EAX
-    MOV EAX, [EBP+213]
+    MOV EAX, [EBP-217]
     MOV EBX, EAX
     POP EAX
     ADD EAX, EBX

@@ -22,7 +22,7 @@ if ($LASTEXITCODE -ne 0) { Write-Host "SECOND_STAGE failed"; exit 1 }
 
 # Stage 3: Compile KERNEL (32-bit AC kernel)
 Write-Host "=== Compiling KERNEL ==="
-& $ASTRAC comp $kernelAc bits 32 org 10000 verbose warn err
+& $ASTRAC comp $kernelAc bits 32 org 10000 warn err #verbose
 if ($LASTEXITCODE -ne 0) { Write-Host "KERNEL failed"; exit 1 }
 
 # Stage 4: Create floppy image (1.44 MB = 1474560 bytes)
