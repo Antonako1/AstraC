@@ -9,7 +9,6 @@ AstraC is a lightweight assembler and compiler for the Intel I386 and Intel I286
 
 - See the [documentation](./DOCS/README.md) for more information on how to use AstraC.
 - See the [VS Code extension](https://marketplace.visualstudio.com/items?itemName=Antonako1.ac-language-support) for syntax highlighting and integration with Visual Studio Code.
-- See the 
 
 ## Features
 
