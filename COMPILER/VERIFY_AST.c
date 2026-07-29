@@ -28,6 +28,27 @@ STATIC BOOL IS_POINTER(COMP_TYPE t) {
     return t.base >= CTYPE_PU8 || t.base == CTYPE_VOIDPTR;
 }
 
+STATIC COMP_TYPE STRIP_PTR_TYPE(COMP_TYPE t) {
+    if (t.ptr_depth > 0)
+        return COMP_MAKE_TYPE(t.base, t.ptr_depth - 1, t.name);
+    switch (t.base) {
+        case CTYPE_PU8:   return COMP_MAKE_TYPE(CTYPE_U8, 0, NULLPTR);
+        case CTYPE_PU16:  return COMP_MAKE_TYPE(CTYPE_U16, 0, NULLPTR);
+        case CTYPE_PU32:  return COMP_MAKE_TYPE(CTYPE_U32, 0, NULLPTR);
+        case CTYPE_PI8:   return COMP_MAKE_TYPE(CTYPE_I8, 0, NULLPTR);
+        case CTYPE_PI16:  return COMP_MAKE_TYPE(CTYPE_I16, 0, NULLPTR);
+        case CTYPE_PI32:  return COMP_MAKE_TYPE(CTYPE_I32, 0, NULLPTR);
+        case CTYPE_PPU8:  return COMP_MAKE_TYPE(CTYPE_PU8, 0, NULLPTR);
+        case CTYPE_PPU16: return COMP_MAKE_TYPE(CTYPE_PU16, 0, NULLPTR);
+        case CTYPE_PPU32: return COMP_MAKE_TYPE(CTYPE_PU32, 0, NULLPTR);
+        case CTYPE_PPI8:  return COMP_MAKE_TYPE(CTYPE_PI8, 0, NULLPTR);
+        case CTYPE_PPI16: return COMP_MAKE_TYPE(CTYPE_PI16, 0, NULLPTR);
+        case CTYPE_PPI32: return COMP_MAKE_TYPE(CTYPE_PI32, 0, NULLPTR);
+        case CTYPE_VOIDPTR: return COMP_MAKE_TYPE(CTYPE_U8, 0, NULLPTR);
+        default: return t;
+    }
+}
+
 STATIC VOID WARN(PU8 msg, U32 line, U32 col) {
     AC_PRINTF("[VERIFY] L%u:%u warning: %s\n", line, col, msg);
     ctx->warnings++;
@@ -233,12 +254,8 @@ STATIC COMP_TYPE VERIFY_NODE(PCNODE n) {
         case CNODE_INDEX: {
             COMP_TYPE bt = VERIFY_NODE(n->children[0]);
             VERIFY_NODE(n->children[1]);
-            /* Base type: strip one pointer level */
-            if (bt.ptr_depth > 0) {
-                n->dtype = COMP_MAKE_TYPE(bt.base, bt.ptr_depth - 1, bt.name);
-            } else if (IS_POINTER(bt)) {
-                n->dtype = COMP_MAKE_TYPE(CTYPE_U32, 0, NULLPTR);
-            }
+            if (IS_POINTER(bt))
+                n->dtype = STRIP_PTR_TYPE(bt);
             return n->dtype;
         }
 
@@ -268,9 +285,10 @@ STATIC COMP_TYPE VERIFY_NODE(PCNODE n) {
 
         case CNODE_DEREF: {
             COMP_TYPE ct = VERIFY_NODE(n->children[0]);
-            if (ct.ptr_depth > 0)
-                n->dtype = COMP_MAKE_TYPE(ct.base, ct.ptr_depth - 1, ct.name);
-            else n->dtype = ct;
+            if (IS_POINTER(ct))
+                n->dtype = STRIP_PTR_TYPE(ct);
+            else
+                n->dtype = ct;
             return n->dtype;
         }
 
