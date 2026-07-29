@@ -38,6 +38,9 @@ STATIC AC_FILE_HEADER h ATTRIB_DATA;
 #define FIRST_PASS 0
 #define SECOND_PASS 1
 STATIC U8 CURRENT_PASS ATTRIB_DATA = FIRST_PASS; /* 0 = first pass, 1 = second pass (resolving labels) */
+STATIC U32 pass1_code_size;
+STATIC U32 pass1_data_size;
+STATIC U32 pass1_rodata_size;
 
 
 /*
@@ -149,9 +152,19 @@ STATIC U32 RESOLVE_SYMBOL(PU8 name) {
     return p->offset;
 }
 
-/* Resolve a symbol to its absolute address (file offset + origin). */
+/* Resolve a symbol to its absolute address (file offset + section base + origin). */
 STATIC U32 RESOLVE_SYMBOL_ADDR(PU8 name) {
-    return RESOLVE_SYMBOL(name) + ptrs.origin;
+    ASM_PTR *p = FIND_ASM_PTR(name);
+    if (!p)
+        return RESOLVE_SYMBOL(name) + ptrs.origin;
+    
+    U32 base = 0;
+    switch (p->section) {
+        case DIR_DATA:   base = pass1_code_size; break;
+        case DIR_RODATA: base = pass1_code_size + pass1_data_size; break;
+        default: break; /* DIR_CODE or DIR_NONE: base=0 */
+    }
+    return p->offset + base + ptrs.origin;
 }
 
 
@@ -546,6 +559,8 @@ STATIC BOOL ENCODE_INSTRUCTION(FILE *f, PASM_NODE node) {
                node->line);
         return TRUE;    /* non-fatal: already diagnosed by AST builder */
     }
+    AC_PRINTF("[ASM GEN] Line %u: encoding '%s' enc=%d sect=%d code=%u\n",
+           node->line, tbl->name, tbl->encoding, ptrs.current_section, ptrs.code);
 
     AC_DEBUG_PRINTF("[ASM GEN] Encoding '%s' (opcode 0x%02X) at line %u\n",
                  tbl->name, tbl->opcode[0], node->line);
@@ -1339,6 +1354,10 @@ BOOLEAN GEN_BINARY(ASM_AST_ARRAY *ast, PASM_INFO info) {
     if (cfg->verbose)
         AC_PRINTF("[ASM GEN] Pass 1 complete: %u labels, code=%u data=%u rodata=%u origin=0x%X\n",
                ptrs.arr_tail, ptrs.code, ptrs.data, ptrs.rodata, ptrs.origin);
+
+    pass1_code_size   = ptrs.code;
+    pass1_data_size   = ptrs.data;
+    pass1_rodata_size = ptrs.rodata;
 
     /* ── Resolve @f / @b references ───────────────────────────────────── */
     RESOLVE_LOCAL_REFS(ast);
