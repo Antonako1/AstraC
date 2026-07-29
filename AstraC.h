@@ -18,7 +18,7 @@
 #include "STDLIB/BINARY.h"
 
 /* ── VERSION ──────────────────────────────────────────────────────────── */
-#define VERSION     "0.0.1"
+#include "VERSION/VERSION.h"
 #define TRADEMARK   "AstraC Compiler, Assembler and Disassembler"
 
 /* ── BUILD MODES ──────────────────────────────────────────────────────── */
