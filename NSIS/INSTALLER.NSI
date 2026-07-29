@@ -532,7 +532,9 @@ Section "Documentation" SecDocs
   File "..\DOCS\AS.html"
   File "..\DOCS\DSM.html"
   File "..\DOCS\MNEMS.html"
-  File "..\DOCS\AstraC.png"
+  File "..\DOCS\AC.png"
+  File "..\DOCS\AH.png"
+  File "..\DOCS\AS.png"
 
   !insertmacro MUI_STARTMENU_WRITE_BEGIN Application
     CreateShortCut "$SMPROGRAMS\$StartMenuFolder\Documentation.lnk" "$INSTDIR\docs\index.html"
@@ -640,7 +642,7 @@ Section "Uninstall"
   Delete "$INSTDIR\docs\AS.html"
   Delete "$INSTDIR\docs\DSM.html"
   Delete "$INSTDIR\docs\MNEMS.html"
-  Delete "$INSTDIR\docs\AstraC.png"
+  Delete "$INSTDIR\docs\AC.png"
   RMDir  "$INSTDIR\docs"
 
   RMDir /r "$INSTDIR\src"
