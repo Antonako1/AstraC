@@ -11,8 +11,15 @@ endif()
 
 project ("AstraC" C CXX)
 
+# Generate resource file with icon path
+configure_file(
+  "${CMAKE_CURRENT_SOURCE_DIR}/ASTRAC.rc.in"
+  "${CMAKE_CURRENT_BINARY_DIR}/ASTRAC.rc"
+  @ONLY
+)
+
 # Add source to this project's executable.
-add_executable (AstraC "ASTRAC.c" "ASTRAC.h")
+add_executable (AstraC "ASTRAC.c" "ASTRAC.h" "${CMAKE_CURRENT_BINARY_DIR}/ASTRAC.rc")
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
   set_property(TARGET AstraC PROPERTY CXX_STANDARD 20)

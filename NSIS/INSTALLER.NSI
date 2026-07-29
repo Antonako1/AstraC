@@ -543,6 +543,7 @@ Section /o "Source Code" SecSource
   SetOutPath "$INSTDIR\src"
   File "..\ASTRAC.c"
   File "..\ASTRAC.h"
+  File "..\ASTRAC.rc.in"
   File "..\LICENSE"
   File "..\CMakeLists.txt"
 
