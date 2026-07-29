@@ -251,6 +251,17 @@ U32 main(U32 argc, PPU8 argv) {
     }
     if (args.dsm_bits == 0) args.dsm_bits = 32;
     if (!args.entry_point) args.entry_point = "main";
+    if(args.arch == ARCH_NONE) args.arch = ARCH_I386;
+    PU8 arch_str = (args.arch == ARCH_I386) ? "i386" : (args.arch == ARCH_I286) ? "i286" : "unknown";
+    PU8 build_type_str = (args.build_type == BUILD_TYPE_COMPILE) ? "COMPILE" :
+                        (args.build_type == BUILD_TYPE_ASSEMBLE) ? "ASSEMBLE" :
+                        (args.build_type == BUILD_TYPE_BUILD) ? "BUILD" :
+                        (args.build_type == BUILD_TYPE_DISASSEMBLE) ? "DISASSEMBLE" :
+                        (args.build_type == BUILD_TYPE_PREPROCESS_ONLY) ? "PREPROCESS_ONLY" : "UNKNOWN";
+    AC_PRINTF("[ASTRAC] Build type: %s, \n\tinput: '%s', \n\toutput: '%s', \n\tarch: %s, \n\tbits: %u, \n\torg: 0x%X, \n\tentry: '%s'\n",
+        build_type_str, args.input_file, args.outfile,
+        arch_str,
+        args.dsm_bits, args.org, args.entry_point);
 
     ASTRAC_RESULT res = START_WORKLOAD();
     FREE_ARGS();
