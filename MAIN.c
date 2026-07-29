@@ -252,8 +252,6 @@ U32 main(U32 argc, PPU8 argv) {
     if (args.dsm_bits == 0) args.dsm_bits = 32;
     if (!args.entry_point) args.entry_point = "main";
 
-
-
     ASTRAC_RESULT res = START_WORKLOAD();
     FREE_ARGS();
     return (U32)res;
