@@ -1,12 +1,11 @@
 # AstraC - A Simple Assembler and Compiler for x86 Architecture
 
-AstraC is a lightweight assembler and compiler for the Intel I386 and Intel I286 architecture.
-  Designed and built for use on emulators and raw machines that run raw binary.
-
-<!-- Center the logo -->
 <div style="text-align: center;">
   <img src="./DOCS/AstraC.png" alt="AstraC Logo" width="200">
 </div>
+
+AstraC is a lightweight assembler and compiler for the Intel I386 and Intel I286 architecture.
+  Designed and built for use on emulators and raw machines that run raw binary.
 
 ## Features
 
