@@ -7,6 +7,5 @@
  *   3. Preprocess AS output
  *   4. Assemble AS -> BIN
  *
- * TODO: implement once the compiler front-end is functional.
  */
 #include "AstraC.h"

@@ -247,11 +247,11 @@ STATIC const ASM_MNEMONIC_TABLE *RESOLVE_MNEMONIC(
     }
 
     if (constraint_best) {
-        AC_PRINTF("[RESOLVER] constraint_best=%s id=%u score=%u enc=%u opc=0x%X ops=[%d,%d]\n",
-               constraint_best->name, constraint_best->mnemonic,
-               constraint_best_score, constraint_best->encoding,
-               constraint_best->opcode[0],
-               constraint_best->operand[0], constraint_best->operand[1]);
+        // AC_PRINTF("[RESOLVER] constraint_best=%s id=%u score=%u enc=%u opc=0x%X ops=[%d,%d]\n",
+        //        constraint_best->name, constraint_best->mnemonic,
+        //        constraint_best_score, constraint_best->encoding,
+        //        constraint_best->opcode[0],
+        //        constraint_best->operand[0], constraint_best->operand[1]);
         return constraint_best;
     }
     AC_PRINTF("[RESOLVER] No constraint match for '%s', fallback=%s\n", name, fallback ? fallback->name : "NULL");
@@ -417,10 +417,10 @@ STATIC PASM_NODE PARSE_SECTION(TOK_CURSOR *cur) {
 
         /* Collect fill value text */
         PU8 fill_raw = COLLECT_VALUE_TEXT(cur);
-        AC_PRINTF("[AST] .times count_expr='%s' fill_type=%u fill_raw='%s'\n",
-            (expr_len > 0) ? expr_buf : "(none)",
-            fill_type,
-            fill_raw ? fill_raw : "(none)");
+        // AC_PRINTF("[AST] .times count_expr='%s' fill_type=%u fill_raw='%s'\n",
+        //     (expr_len > 0) ? expr_buf : "(none)",
+        //     fill_type,
+        //     fill_raw ? fill_raw : "(none)");
         PASM_NODE n = ALLOC_NODE(NODE_TIMES, dir_tok);
         if (!n) return NULLPTR;
         n->times.count_expr = (expr_len > 0) ? AC_STRDUP(expr_buf) : NULLPTR;
@@ -925,16 +925,17 @@ STATIC PASM_NODE PARSE_INSTRUCTION(TOK_CURSOR *cur) {
     if (!n->instr.table_entry) {
         AC_PRINTF("[AST] No matching mnemonic form for '%s' with %u operand(s) at L%u\n",
                mnem_tok->txt, n->instr.operand_count, mnem_tok->line);
-    } else {
-        AC_PRINTF("[AST] Stored entry '%s' id=%u enc=%u modrm=%d opc=0x%X ops=[%d,%d] for '%s' at L%u\n",
-               n->instr.table_entry->name, n->instr.table_entry->mnemonic,
-               n->instr.table_entry->encoding,
-               (I32)n->instr.table_entry->modrm_ext,
-               n->instr.table_entry->opcode[0],
-               n->instr.table_entry->operand[0],
-               n->instr.table_entry->operand[1],
-               mnem_tok->txt, mnem_tok->line);
-    }
+    } 
+    // else {
+        // AC_PRINTF("[AST] Stored entry '%s' id=%u enc=%u modrm=%d opc=0x%X ops=[%d,%d] for '%s' at L%u\n",
+        //        n->instr.table_entry->name, n->instr.table_entry->mnemonic,
+        //        n->instr.table_entry->encoding,
+        //        (I32)n->instr.table_entry->modrm_ext,
+        //        n->instr.table_entry->opcode[0],
+        //        n->instr.table_entry->operand[0],
+        //        n->instr.table_entry->operand[1],
+        //        mnem_tok->txt, mnem_tok->line);
+    // }
 
     return n;
 }

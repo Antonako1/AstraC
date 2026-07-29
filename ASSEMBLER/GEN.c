@@ -248,7 +248,7 @@ STATIC U32 eval_atom(PU8 *pp) {
 
     /* $$ (origin / section start) */
     if ((*pp)[0] == '$' && (*pp)[1] == '$') {
-        AC_PRINTF("[ASM GEN] Resolving symbol '$$' to origin 0x%X\n", ptrs.origin);
+        // AC_PRINTF("[ASM GEN] Resolving symbol '$$' to origin 0x%X\n", ptrs.origin);
         *pp += 2;
         return ptrs.origin;
     }
@@ -270,7 +270,7 @@ STATIC U32 eval_atom(PU8 *pp) {
     /* $ — cumulative file position (across all sections) + origin */
     if (**pp == '$') {
         U32 pos = ptrs.code + ptrs.data + ptrs.rodata + ptrs.origin;
-        AC_PRINTF("[ASM GEN] Resolving symbol '$' to offset 0x%X\n", pos);
+        // AC_PRINTF("[ASM GEN] Resolving symbol '$' to offset 0x%X\n", pos);
         (*pp)++;
         return pos;
     }
@@ -555,15 +555,15 @@ STATIC VOID EMIT_MODRM(FILE *f, U8 reg_field, ASM_OPERAND *op) {
 STATIC BOOL ENCODE_INSTRUCTION(FILE *f, PASM_NODE node) {
     const ASM_MNEMONIC_TABLE *tbl = node->instr.table_entry;
     if (!tbl) {
-        AC_PRINTF("[ASM GEN] Line %u: Instruction has no table entry — skipping\n",
-               node->line);
+        // AC_PRINTF("[ASM GEN] Line %u: Instruction has no table entry — skipping\n",
+        //        node->line);
         return TRUE;    /* non-fatal: already diagnosed by AST builder */
     }
-    AC_PRINTF("[ASM GEN] Line %u: encoding '%s' enc=%d sect=%d code=%u\n",
-           node->line, tbl->name, tbl->encoding, ptrs.current_section, ptrs.code);
+    // AC_PRINTF("[ASM GEN] Line %u: encoding '%s' enc=%d sect=%d code=%u\n",
+    //        node->line, tbl->name, tbl->encoding, ptrs.current_section, ptrs.code);
 
-    AC_DEBUG_PRINTF("[ASM GEN] Encoding '%s' (opcode 0x%02X) at line %u\n",
-                 tbl->name, tbl->opcode[0], node->line);
+    // AC_DEBUG_PRINTF("[ASM GEN] Encoding '%s' (opcode 0x%02X) at line %u\n",
+    //              tbl->name, tbl->opcode[0], node->line);
 
     /* ── 1. Legacy prefix ──────────────────────────────────────────────
      *  In 32-bit mode: 0x66 for 16-bit instructions  (table says PF_66)
@@ -1195,11 +1195,11 @@ STATIC BOOL GEN_EMIT_PASS(FILE *f, ASM_AST_ARRAY *ast, ASTRAC_ARGS *cfg) {
 
         /* ── .times <expr> <type> <value> ─────────────────────────────── */
         case NODE_TIMES: {
-            AC_PRINTF("[ASM GEN] .times directive at line %u\n", node->line);
-            AC_PRINTF("[ASM GEN] .times count_expr=%s, fill_type=%u, fill_raw=%s\n",
-                   node->times.count_expr ? node->times.count_expr : "(null)",
-                   node->times.fill_type,
-                   node->times.fill_raw ? node->times.fill_raw : "(null)");
+            // AC_PRINTF("[ASM GEN] .times directive at line %u\n", node->line);
+            // AC_PRINTF("[ASM GEN] .times count_expr=%s, fill_type=%u, fill_raw=%s\n",
+            //        node->times.count_expr ? node->times.count_expr : "(null)",
+            //        node->times.fill_type,
+            //        node->times.fill_raw ? node->times.fill_raw : "(null)");
 
             U32 count = node->times.count_expr
                       ? EVAL_EXPR(node->times.count_expr) : 0;
@@ -1218,8 +1218,8 @@ STATIC BOOL GEN_EMIT_PASS(FILE *f, ASM_AST_ARRAY *ast, ASTRAC_ARGS *cfg) {
                                  : (elem_sz == 2) ? SZ_16BIT
                                                    : SZ_32BIT;
 
-            AC_PRINTF("[ASM GEN] .times %u x %u-byte fill=0x%X at line %u\n",
-                   count, elem_sz, fill_val, node->line);
+            // AC_PRINTF("[ASM GEN] .times %u x %u-byte fill=0x%X at line %u\n",
+            //        count, elem_sz, fill_val, node->line);
             if (cfg->verbose && f)
                 AC_PRINTF("[ASM GEN] .times %u x %u-byte fill=0x%X at line %u\n",
                        count, elem_sz, fill_val, node->line);

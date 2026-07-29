@@ -65,7 +65,7 @@ ASTRAC_RESULT START_ASSEMBLING() {
     if (cfg->verbose) AC_PRINTF("[AS] Stage 2/6: Lexing...\n");
     tok_arr = LEX(info);
     if (!tok_arr || tok_arr->len == 0) {
-        AC_PRINTF("[AS] Lexer produced no tokens.\n");
+        AC_PRINTF("[AS] Lexer produced no tokens, exiting.\n");
         result = ASTRAC_ERR_LEX;
         goto cleanup;
     }
