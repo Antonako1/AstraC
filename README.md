@@ -1,9 +1,9 @@
 # AstraC - A Simple Assembler and Compiler for x86 Architecture
 
 <div style="display: flex; justify-content: center;">
-  <img src="./DOCS/AC.png" alt="AstraC Source Logo" width="200" style="border-right: 1px solid #555; padding-right: 20px; margin-right: 20px;">
-  <img src="./DOCS/AH.png" alt="AstraC Header Logo" width="200" style="border-right: 1px solid #555; padding-right: 20px; margin-right: 20px;">
-  <img src="./DOCS/AS.png" alt="AstraC Assembly Logo" width="200">
+  <img src="./DOCS/AC.png" alt="AstraC Source Logo" width="100" style="border-right: 1px solid #555; padding-right: 20px; margin-right: 20px;">
+  <img src="./DOCS/AH.png" alt="AstraC Header Logo" width="100" style="border-right: 1px solid #555; padding-right: 20px; margin-right: 20px;">
+  <img src="./DOCS/AS.png" alt="AstraC Assembly Logo" width="150">
 </div>
 
 AstraC is a lightweight assembler and compiler for the Intel I386 and Intel I286 architecture.
