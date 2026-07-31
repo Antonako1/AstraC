@@ -29,6 +29,7 @@ typedef enum {
     BUILD_TYPE_BUILD           = BUILD_TYPE_COMPILE | BUILD_TYPE_ASSEMBLE, /* full pipeline: AC->AS->BIN */
     BUILD_TYPE_DISASSEMBLE     = 0x0004,   /* binary     -> readable AS        */
     BUILD_TYPE_PREPROCESS_ONLY = 0x0008,   /* preprocess only                   */
+    BUILD_TYPE_MNEMONIC_INFO     = 0x0010,   /* show information about a mnemonic */
 } BUILD_TYPE;
 
 /* ── RETURN / ERROR CODES ─────────────────────────────────────────────── */
@@ -65,7 +66,7 @@ typedef enum {
 #define MAX_INCLUDES        255
 #define MAX_INPUT_FILES     255
 #define MAX_MACRO_VALUE     255
-#define BUF_SZ              512
+#define BUF_SZ              4096
 #define MAX_FILES           MAX_INPUT_FILES
 
 /* ── PREPROCESSOR MODES ───────────────────────────────────────────────── */

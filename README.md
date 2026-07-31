@@ -20,7 +20,6 @@ AstraC is a lightweight assembler and compiler for the Intel I386 and Intel I286
 - Own standard library for linkage to other operating systems
 - Whole executable source compiled as one file.
 
-## Building
 
 ## Usage
 
@@ -32,6 +31,7 @@ Options:
     comp <file.AC>                  ; Compile input file
     disasm <file.BIN>               ; Disassemble input file
     preproc <file.AC|file.AS>       ; Preprocess file
+    info <mnemonic>                 ; Show information about a mnemonic
     version                         ; Show version information
     help                            ; Show this help message
  

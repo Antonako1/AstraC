@@ -25,6 +25,7 @@ VOID PRINT_HELP() {
             "  comp <file.AC>                   ; Compile input file\n"
             "  disasm <file.BIN>                ; Disassemble input file\n"
             "  preproc <file.AC|file.AS>        ; Preprocess file\n"
+            "  info <mnemonic>                  ; Show information about a mnemonic\n"
             "  version                          ; Show version information\n"
             "  help                             ; Show this help message\n"
         
@@ -115,6 +116,14 @@ U32 main(U32 argc, PPU8 argv) {
             }
             args.input_file = argv[++i];
         } 
+        else if(ARG_CMP1("info")) {
+            args.build_type = BUILD_TYPE_MNEMONIC_INFO;
+            if(i + 1 >= argc) {
+                AC_PRINTF("[ASTRAC] Error: info requires a mnemonic argument.\n");
+                return ASTRAC_ERR_ARGS;
+            }
+            args.input_file = argv[++i];
+        }
         
         
         else if(ARG_CMP1("macro")) {
@@ -235,6 +244,14 @@ U32 main(U32 argc, PPU8 argv) {
         AC_PRINTF("[ASTRAC] Error: no input file specified.\n");
         return ASTRAC_ERR_ARGS;
     }
+    
+    if(args.build_type == BUILD_TYPE_MNEMONIC_INFO) {
+        AC_PRINTF("[ASTRAC] Info mode selected for mnemonic: '%s'\n", args.input_file);
+        ASTRAC_RESULT res = START_MNEMONIC_INFO(args.input_file);
+        FREE_ARGS();
+        return (U32)res;
+    }
+
     // create output file name if not specified
     if (!args.outfile) {
         args.outfile = AC_MAlloc(AC_STRLEN(args.input_file) + 5); // +5 for ".bin" and null terminator
