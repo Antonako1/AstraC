@@ -41,6 +41,7 @@ VOID PRINT_HELP() {
             "  org <address>                    ; Specify memory origin address for raw binaries (e.g., 0x7C00)\n"
             "  entry <label>                    ; Define the entry point for executables\n"
             "  warn <level>                     ; Warning level (0=none, 1=standard, 2=all, err=treat as errors)\n"
+            "  debug                           ; Emit source-line comments in generated .AS for debugging\n"
     );
 }
 
@@ -210,6 +211,9 @@ U32 main(U32 argc, PPU8 argv) {
                 return ASTRAC_ERR_ARGS;
             }
             args.entry_point = argv[++i];
+        }
+        else if(ARG_CMP1("debug")) {
+            args.debug = TRUE;
         }
         else if(ARG_CMP1("warn")) {
             if(i + 1 >= argc) {

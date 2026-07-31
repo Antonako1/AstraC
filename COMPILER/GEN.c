@@ -533,8 +533,19 @@ STATIC VOID GEN_ASM_BLOCK(PCNODE n) {
     AC_FPRINTF(outf, "\n");
 }
 
+STATIC VOID GEN_DEBUG_LINE(PCNODE n) {
+    if (!ctx->debug || !ctx->src_lines || !n) return;
+    U32 line = n->line;
+    if (line == 0 || line > ctx->src_line_count) return;
+    PU8 txt = ctx->src_lines[line - 1];
+    if (!txt) return;
+    while (*txt == ' ' || *txt == '\t') txt++;
+    if (*txt) AC_FPRINTF(outf, "; %s\n", txt);
+}
+
 STATIC VOID GEN_STMT(PCNODE n) {
     if (!n) return;
+    GEN_DEBUG_LINE(n);
     switch (n->ntype) {
         case CNODE_BLOCK:    GEN_BLOCK(n); break;
         case CNODE_IF:       GEN_IF(n); break;
@@ -644,6 +655,7 @@ BOOL COMP_GEN(PCNODE root, PCOMP_CTX c) {
         if (!has_body) continue;
 
         if (!bootloader) {
+            GEN_DEBUG_LINE(n);
             AC_FPRINTF(outf, "\n_%s:\n", fs->name);
             emit("    PUSH EBP");
             emit("    MOV EBP, ESP");

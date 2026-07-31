@@ -268,8 +268,12 @@ typedef struct _COMP_CTX {
     SYM_TABLE  symtab;       /* symbol table for parser/verifier/codegen */
     BOOL       in_func;      /* inside a function body */
     BOOL       verbose;      /* verbose output */
+    BOOL       debug;        /* emit source-line comments in generated .AS */
     U32        file_scope;   /* incrementing scope for file-local visibility */
     PCNODE     cur_func;     /* current function node */
+
+    PU8       *src_lines;    /* source line pointers (into tmp_src) for debug */
+    U32        src_line_count;
 
     U32 errors;
     U32 warnings;

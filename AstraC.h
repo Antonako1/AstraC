@@ -112,6 +112,7 @@ typedef struct _ASTRAC_ARGS {
     PU8 entry_point;
     U32 warning_level;
     BOOL warnings_as_errors;
+    BOOL debug;
 } ASTRAC_ARGS;
 
 ASTRAC_ARGS *GET_ARGS();

@@ -26,6 +26,7 @@ U32 START_COMPILER() {
     if (!comp_ctx) { AC_PRINTF("[COMP] Out of memory\n"); return ASTRAC_ERR_INTERNAL; }
     AC_MEMZERO(comp_ctx, sizeof(COMP_CTX));
     comp_ctx->verbose    = cfg->verbose;
+    comp_ctx->debug      = cfg->debug;
     comp_ctx->file_scope = 1;
 
     /* ── Stage 1: Preprocessing ────────────────────────────────────────── */
@@ -70,6 +71,29 @@ U32 START_COMPILER() {
         fread(comp_ctx->tmp_src, 1, psize, pf);
         comp_ctx->tmp_src[psize] = '\0';
         fclose(pf);
+    }
+
+    /* Build source-line index for debug mode */
+    if (comp_ctx->debug) {
+        PU8 src = comp_ctx->tmp_src;
+        U32 len = AC_STRLEN(src);
+        U32 count = 0;
+        PU8 p = src;
+        while (p < src + len) { count++; while (p < src + len && *p != '\n') p++; if (p < src + len) p++; }
+        comp_ctx->src_line_count = count;
+        comp_ctx->src_lines = (PU8 *)AC_MAlloc(sizeof(PU8) * count);
+        if (comp_ctx->src_lines) {
+            PU8 copy = (PU8)AC_MAlloc(len + 1);
+            if (copy) {
+                AC_MEMCPY(copy, src, len + 1);
+                U32 i = 0; p = copy;
+                while (p < copy + len) {
+                    comp_ctx->src_lines[i++] = p;
+                    while (p < copy + len && *p != '\n') p++;
+                    if (p < copy + len) *p++ = '\0';
+                }
+            }
+        }
     }
 
     /* ── Stage 2: Lex ──────────────────────────────────────────────────── */
@@ -128,6 +152,10 @@ U32 START_COMPILER() {
     }
 
     /* Cleanup */
+    if (comp_ctx->src_lines && comp_ctx->src_line_count > 0) {
+        AC_MFree(comp_ctx->src_lines[0]);
+        AC_MFree(comp_ctx->src_lines);
+    }
     DESTROY_CNODE_TREE(ast);
     DESTROY_COMP_TOK_ARRAY(toks);
 
@@ -136,7 +164,7 @@ U32 START_COMPILER() {
         cfg->input_file = comp_ctx->out_asm;
         if (cfg->verbose) AC_PRINTF("[COMP] Assembling %s...\n", comp_ctx->out_asm);
         ASTRAC_RESULT asm_res = START_ASSEMBLING();
-        if (asm_res != ASTRAC_OK) { AC_MFree(comp_ctx); return asm_res; }
+        if (asm_res != ASTRAC_OK) { if (comp_ctx->src_lines && comp_ctx->src_line_count > 0) { AC_MFree(comp_ctx->src_lines[0]); AC_MFree(comp_ctx->src_lines); } AC_MFree(comp_ctx); return asm_res; }
     }
 
     if (cfg->verbose) AC_PRINTF("[COMP] Compilation complete.\n");

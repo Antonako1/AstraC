@@ -42,6 +42,12 @@ STATIC U32 pass1_code_size;
 STATIC U32 pass1_data_size;
 STATIC U32 pass1_rodata_size;
 
+/* ── Assembler debug (.ASD output) ──────────────────────────────────────── */
+STATIC BOOL asm_debug ATTRIB_DATA;
+STATIC FILE *asd_out ATTRIB_DATA;
+STATIC U8   debug_buf[65536] ATTRIB_DATA;
+STATIC U32  debug_tail ATTRIB_DATA;
+
 
 /*
  * ════════════════════════════════════════════════════════════════════════════
@@ -63,6 +69,10 @@ STATIC U32 CURRENT_OFFSET(VOID) {
 /* Write bytes to output and advance the section offset. */
 STATIC VOID EMIT(FILE *file, const U8 *buf, U32 len) {
     if (file) AC_FWRITE(file, (VOIDPTR)buf, len);
+    if (asm_debug && CURRENT_PASS == SECOND_PASS && debug_tail + len <= sizeof(debug_buf)) {
+        AC_MEMCPY(debug_buf + debug_tail, buf, len);
+        debug_tail += len;
+    }
 
     switch (ptrs.current_section) {
         case DIR_CODE: case DIR_CODE_TYPE_32: case DIR_CODE_TYPE_16:
@@ -552,6 +562,81 @@ STATIC VOID EMIT_MODRM(FILE *f, U8 reg_field, ASM_OPERAND *op) {
  *  ENC_IMM         — opcode + immediate value only (e.g. INT, PUSH imm)
  *  ENC_MODRM       — opcode + ModR/M (± SIB ± disp) + optional imm
  */
+
+STATIC PU8 REG_NAME(U32 reg_id) {
+    const KEYWORD *regs = get_registers();
+    for (U32 i = 0; ; i++) {
+        if (!regs[i].value) break;
+        if (regs[i].enum_val == reg_id) return regs[i].value;
+    }
+    return (PU8)"?";
+}
+
+STATIC VOID ASM_DEBUG_FMT_INSTR(PASM_NODE node, U8 *buf, U32 sz) {
+    const ASM_MNEMONIC_TABLE *tbl = node->instr.table_entry;
+    if (!tbl) { AC_STRCPY(buf, "???"); return; }
+    AC_STRCPY(buf, tbl->name);
+    U32 pos = AC_STRLEN(buf);
+    for (U32 i = 0; i < node->instr.operand_count && pos + 32 < sz; i++) {
+        ASM_OPERAND *op = &node->instr.operands[i];
+        if (i == 0) { buf[pos] = ' '; pos++; buf[pos] = '\0'; }
+        else { buf[pos] = ','; pos++; buf[pos] = ' '; pos++; buf[pos] = '\0'; }
+        switch (op->type) {
+            case OP_REG:
+                pos += AC_SPRINTF((char*)(buf + pos), "%s", REG_NAME(op->reg));
+                break;
+            case OP_IMM:
+                pos += AC_SPRINTF((char*)(buf + pos), "0x%X", op->immediate);
+                break;
+            case OP_SEG:
+                pos += AC_SPRINTF((char*)(buf + pos), "%s", REG_NAME(op->reg));
+                break;
+            case OP_MEM: {
+                if (!op->mem_ref) { pos += AC_SPRINTF((char*)(buf + pos), "[?]"); break; }
+                ASM_NODE_MEM *m = op->mem_ref;
+                buf[pos] = '['; pos++; buf[pos] = '\0';
+                BOOL need_plus = FALSE;
+                if (m->base_reg != (U32)REG_NONE) {
+                    pos += AC_SPRINTF((char*)(buf + pos), "%s", REG_NAME(m->base_reg));
+                    need_plus = TRUE;
+                }
+                if (m->index_reg != (U32)REG_NONE) {
+                    if (need_plus) { buf[pos] = '+'; pos++; buf[pos] = '\0'; }
+                    pos += AC_SPRINTF((char*)(buf + pos), "%s", REG_NAME(m->index_reg));
+                    if (m->scale > 1) {
+                        pos += AC_SPRINTF((char*)(buf + pos), "*%d", m->scale);
+                    }
+                    need_plus = TRUE;
+                }
+                if (m->symbol_name && m->symbol_name[0]) {
+                    if (need_plus) { buf[pos] = '+'; pos++; buf[pos] = '\0'; }
+                    pos += AC_SPRINTF((char*)(buf + pos), "%s", m->symbol_name);
+                    need_plus = TRUE;
+                }
+                if (m->displacement != 0 || !need_plus) {
+                    if (need_plus && m->displacement >= 0) { buf[pos] = '+'; pos++; buf[pos] = '\0'; }
+                    pos += AC_SPRINTF((char*)(buf + pos), "%d", m->displacement);
+                }
+                buf[pos] = ']'; pos++; buf[pos] = '\0';
+                break;
+            }
+            default: break;
+        }
+    }
+}
+
+STATIC VOID ASM_DEBUG_EMIT(PASM_NODE node, U32 byte_start) {
+    if (!asd_out || debug_tail <= byte_start) return;
+    U32 len = debug_tail - byte_start;
+    if (len == 0) return;
+    U8 instr[256];
+    ASM_DEBUG_FMT_INSTR(node, instr, sizeof(instr));
+    AC_FPRINTF(asd_out, "; %s\n", instr);
+    for (U32 i = byte_start; i < debug_tail; i++)
+        AC_FPRINTF(asd_out, "%02X ", debug_buf[i]);
+    AC_FPRINTF(asd_out, "\n");
+}
+
 STATIC BOOL ENCODE_INSTRUCTION(FILE *f, PASM_NODE node) {
     const ASM_MNEMONIC_TABLE *tbl = node->instr.table_entry;
     if (!tbl) {
@@ -1294,11 +1379,15 @@ STATIC BOOL GEN_EMIT_PASS(FILE *f, ASM_AST_ARRAY *ast, ASTRAC_ARGS *cfg) {
         }
 
         /* ── Instruction ──────────────────────────────────────────────── */
-        case NODE_INSTRUCTION:
+        case NODE_INSTRUCTION: {
+            U32 dbg_start = asm_debug ? debug_tail : 0;
             if (!ENCODE_INSTRUCTION(f, node)) {
                 AC_PRINTF("[ASM GEN] Line %u: Failed to encode instruction\n", node->line);
                 return FALSE;
             }
+            if (asm_debug) ASM_DEBUG_EMIT(node, dbg_start);
+            break;
+        }
             break;
 
         default:
@@ -1384,6 +1473,21 @@ BOOLEAN GEN_BINARY(ASM_AST_ARRAY *ast, PASM_INFO info) {
         return FALSE;
     }
 
+    /* ── Debug output (.ASD) ───────────────────────────────────────────── */
+    asm_debug = cfg->debug;
+    if (asm_debug) {
+        debug_tail = 0;
+        U8 asd_path[512];
+        AC_MEMZERO(asd_path, sizeof(asd_path));
+        PU8 dot = AC_STRRCHR(outputfile, '.');
+        if (dot) { U32 bl = (U32)(dot - outputfile); AC_MEMCPY(asd_path, outputfile, bl); }
+        else AC_STRCPY(asd_path, outputfile);
+        AC_STRCAT(asd_path, ".ASD");
+        if (AC_FILE_EXISTS(asd_path)) AC_FILE_DELETE(asd_path);
+        AC_FILE_CREATE(asd_path);
+        asd_out = AC_FOPEN(asd_path, MODE_A | MODE_FAT32);
+    }
+
     ASM_PTR *main_ptr = FIND_ASM_PTR("_start");
     AC_DEBUG_PRINTF("[ASM GEN] Entry point '_start' offset: 0x%X\n", main_ptr ? main_ptr->offset : OFFSET_NON_EXISTENT);
     /* ──────────────────────────────────────────────────────────────────
@@ -1418,6 +1522,7 @@ BOOLEAN GEN_BINARY(ASM_AST_ARRAY *ast, PASM_INFO info) {
     
 
     if (!GEN_EMIT_PASS(out, ast, cfg)) {
+        if (asd_out) AC_FCLOSE(asd_out);
         AC_FCLOSE(out);
         return FALSE;
     }
@@ -1426,6 +1531,7 @@ BOOLEAN GEN_BINARY(ASM_AST_ARRAY *ast, PASM_INFO info) {
                  ptrs.code, ptrs.data, ptrs.rodata);
 
     if (cfg->verbose) AC_PRINTF("[ASM GEN] Finished writing output file: %s, sz %u bytes\n", outputfile, AC_FSIZE(out));
+    if (asd_out) AC_FCLOSE(asd_out);
     AC_FCLOSE(out);
     return TRUE;
 }
