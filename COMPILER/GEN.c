@@ -71,6 +71,8 @@ STATIC VOID GEN_IDENT(PCNODE n) {
         AC_FPRINTF(outf, "    MOV EAX, [EBP-%u]\n", (U32)(-(I32)s->offset));
 }
 
+STATIC VOID GEN_ARR_BASE(PCNODE base);
+
 STATIC VOID GEN_ASSIGN(PCNODE n) {
     PCNODE lhs = n->children[0];
     U32 es;
@@ -132,7 +134,7 @@ STATIC VOID GEN_ASSIGN(PCNODE n) {
         else if (es == 2)  emit("    MOV [EAX], BX");
         else                emit("    MOV [EAX], EBX");
     } else if (lhs->ntype == CNODE_INDEX) {
-        GEN_EXPR(lhs->children[0]);
+        GEN_ARR_BASE(lhs->children[0]);
         emit("    PUSH EAX");
         GEN_EXPR(lhs->children[1]);
         emit("    POP EBX");
@@ -184,6 +186,7 @@ STATIC VOID GEN_BINOP(PCNODE n) {
         case CTOK_GT:  emit("    CMP EAX, EBX\n    SETG AL\n    MOVZX EAX, AL"); break;
         case CTOK_LE:  emit("    CMP EAX, EBX\n    SETLE AL\n    MOVZX EAX, AL"); break;
         case CTOK_GE:  emit("    CMP EAX, EBX\n    SETGE AL\n    MOVZX EAX, AL"); break;
+        case CTOK_COMMA: emit("    MOV EAX, EBX"); break;
         default: break;
     }
 }
@@ -248,6 +251,23 @@ STATIC VOID GEN_ADDR(PCNODE n) {
     }
 }
 
+STATIC VOID GEN_ARR_BASE(PCNODE base) {
+    if (base->ntype == CNODE_IDENT) {
+        SYMBOL *s = FIND_SYM(base->txt);
+        if (!s) { emit("    XOR EAX, EAX"); return; }
+        if (s->is_global)
+            AC_FPRINTF(outf, "    LEA EAX, [%s]\n", s->name);
+        else if ((I32)s->offset == 0)
+            emit("    LEA EAX, [EBP]");
+        else if ((I32)s->offset > 0)
+            AC_FPRINTF(outf, "    LEA EAX, [EBP+%u]\n", s->offset);
+        else
+            AC_FPRINTF(outf, "    LEA EAX, [EBP-%u]\n", (U32)(-(I32)s->offset));
+    } else {
+        GEN_EXPR(base);
+    }
+}
+
 STATIC VOID GEN_DEREF(PCNODE n) {
     GEN_EXPR(n->children[0]);
     U32 elem_size = COMP_TYPE_SIZE(n->dtype);
@@ -260,7 +280,7 @@ STATIC VOID GEN_DEREF(PCNODE n) {
 }
 
 STATIC VOID GEN_INDEX(PCNODE n) {
-    GEN_EXPR(n->children[0]);  /* base → EAX */
+    GEN_ARR_BASE(n->children[0]);  /* base address → EAX */
     emit("    PUSH EAX");
     GEN_EXPR(n->children[1]);  /* index → EAX */
     emit("    POP EBX");

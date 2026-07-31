@@ -199,7 +199,7 @@ STATIC PCNODE parse_atom() {
             COMP_TYPE ct = parse_type();
             if (ct.base != CTYPE_NONE && MATCH(CTOK_RPAREN)) {
                 ADV();
-                PCNODE e = parse_expr();
+                PCNODE e = parse_expr_prec(2);
                 PCNODE n = CNODE_NEW(CNODE_CAST, t->line, t->col);
                 n->dtype = ct;
                 if (e) CNODE_ADD_CHILD(n, e);
