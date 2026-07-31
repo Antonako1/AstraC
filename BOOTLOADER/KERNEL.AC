@@ -2,21 +2,16 @@
 // Writes "HELLO WORLD" to VGA text mode buffer at 0xB8000.
 // Compile: AstraC.exe comp BOOTLOADER/KERNEL.AC bits 32 org 10000
 
+#include "./KERNEL.AH"
+
 U0 print_c(U8 c);
 U0 print_s(PU8 str);
-U0 clear();
+U0 clear_screen();
+
+
 
 U0 main() {
-    asm {
-        ; VGA text mode: each cell is char (1B) + attr (1B), little-endian
-        MOV DWORD PTR [0xB8000], 0x04450448  ; "HE" white on black
-        MOV DWORD PTR [0xB8004], 0x044C044C  ; "LL"
-        MOV DWORD PTR [0xB8008], 0x0420044F  ; "O "
-        MOV DWORD PTR [0xB800C], 0x044F0457  ; "WO"
-        MOV DWORD PTR [0xB8010], 0x044C0452  ; "RL"
-        MOV WORD  PTR [0xB8014], 0x0444      ; "D"
-    }
-    clear();
+    clear_screen();
     PU8 msg = (PU8)"Hello, World!";
     print_s(msg);
     while (1) {
@@ -24,7 +19,7 @@ U0 main() {
     }
 }
 
-U0 clear() {
+U0 clear_screen() {
     PU8 vga_buffer = (PU8)0xB8000;
     U32 offset = 0;
     for (U32 i = 0; i < 80 * 25; i++) {

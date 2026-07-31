@@ -21,6 +21,7 @@ CMakeFiles/
 *.img
 *.BIN
 *.DSM
+/TESTS
 
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs

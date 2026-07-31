@@ -233,7 +233,9 @@ STATIC VOID GEN_ADDR(PCNODE n) {
     if (target->ntype == CNODE_IDENT) {
         SYMBOL *s = FIND_SYM(target->txt);
         if (!s) { emit("    XOR EAX, EAX"); return; }
-        if (s->is_global)
+        if (s->kind == SYM_FUNCTION)
+            AC_FPRINTF(outf, "    LEA EAX, [_%s]\n", s->name);
+        else if (s->is_global)
             AC_FPRINTF(outf, "    LEA EAX, [%s]\n", s->name);
         else if ((I32)s->offset == 0)
             AC_FPRINTF(outf, "    LEA EAX, [EBP]\n");
@@ -675,7 +677,13 @@ BOOL COMP_GEN(PCNODE root, PCOMP_CTX c) {
             SYMBOL *s = &sym->entries[i];
             if (s->kind == SYM_VARIABLE && s->is_global && !s->is_defined) {
                 if (!has_globals) { emit("\n.data"); has_globals = TRUE; }
-                AC_FPRINTF(outf, "%s DD 0\n", s->name);
+                U32 count = (s->array_size > 0) ? s->array_size : 1;
+                U32 elem_size = COMP_TYPE_SIZE(s->type);
+                PU8 der = (elem_size == 1) ? "DB" : (elem_size == 2) ? "DW" : "DD";
+                if (count == 1)
+                    AC_FPRINTF(outf, "%s %s 0\n", s->name, der);
+                else
+                    AC_FPRINTF(outf, "%s:\n.times %u %s 0\n", s->name, count, der);
             }
         }
     }

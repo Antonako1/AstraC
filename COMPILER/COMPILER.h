@@ -173,6 +173,7 @@ typedef struct _SYMBOL {
     BOOL is_union;            /* for struct/unions */
     BOOL is_file_local;       /* 'local' keyword — only visible in defining file */
     U32  file_scope;          /* scope depth for file-local visibility */
+    U32  array_size;          /* >0 = array element count; 0 = scalar */
 
     /* Function params */
     U32   param_count;

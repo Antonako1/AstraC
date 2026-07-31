@@ -140,7 +140,7 @@ typedef struct {
     };
 } ASM_TOK, *PASM_TOK;
 
-#define MAX_TOKENS 4096
+#define MAX_TOKENS 65536
 
 typedef struct {
     U32      len;
@@ -353,7 +353,7 @@ typedef struct ASM_NODE {
     };
 } ASM_NODE, *PASM_NODE;
 
-#define MAX_NODES 4096
+#define MAX_NODES 65536
 
 typedef struct {
     U32       len;

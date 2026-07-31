@@ -913,6 +913,12 @@ STATIC PCNODE parse_toplevel() {
         vs->is_global = TRUE;
         vs->is_file_local = is_local;
         if (is_local) vs->file_scope = ctx->file_scope;
+        if (MATCH(CTOK_LBRACKET)) {
+            ADV();
+            PCNODE size = parse_atom();
+            if (size) CNODE_ADD_CHILD(n, size);
+            EXPECT(CTOK_RBRACKET);
+        }
         if (MATCH(CTOK_ASSIGN)) {
             ADV();
             PCNODE init = parse_expr();
