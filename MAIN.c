@@ -33,7 +33,7 @@ VOID PRINT_HELP() {
             "  macro <name> <value>             ; Define a macro for preprocessing\n"
             "  stepoff <level>                  ; Levels: 1=After preprocessing, 2=After assembling 3=After compiling\n"
             "  verbose                          ; Verbose output\n"
-
+            "  debug                            ; Debug output to files. (AC->AS, AS->ASD)\n"
             "  arch <architecture>              ; Specify target architecture: i386 or i286. Default=i386\n"
             "  exe                              ; Specify to output a binary file with a simple header. Off by default.\n"
             "  lib                              ; Specify to output a binary file with a simple header. Off by default.\n"
