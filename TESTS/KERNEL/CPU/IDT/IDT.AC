@@ -1,0 +1,22 @@
+U32 idt_e[512];
+U16 idt_d[3];
+
+U0 idt_set_gate(U8 num, U32 base, U16 sel, U8 flags)
+{
+    U32 e = num * 2;
+    idt_e[e]     = (base & 0xFFFF) | ((U32)sel << 16);
+    idt_e[e + 1] = (base & 0xFFFF0000) | (((U32)flags & 0xFF) << 8);
+}
+
+U0 IDT_INIT()
+{
+    PU32 p = (PU32)&idt_e;
+    U32 addr = (U32)p;
+    idt_d[0] = (U16)(256 * 8 - 1);
+    idt_d[1] = (U16)(addr & 0xFFFF);
+    idt_d[2] = (U16)((addr >> 16) & 0xFFFF);
+
+    asm {
+        LIDT idt_d
+    }
+}

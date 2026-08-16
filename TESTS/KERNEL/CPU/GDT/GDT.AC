@@ -1,0 +1,42 @@
+#ifndef KERNEL_CPU_GDT_GDT_AC_DEFINED
+#define KERNEL_CPU_GDT_GDT_AC_DEFINED
+
+#define GDT_ENTRY_COUNT 3
+
+#define READABLE_RNG0_KRNL 0x9A
+#define WRITABLE_RNG0_KRNL 0x92
+#define GRANULARITY 0xCF
+
+#define KCODE_SEL 0x08
+#define KDATA_SEL 0x10
+
+U32 gdt_e[6];
+U16 gdt_d[3];
+
+U0 gdt_sg(U32 n, U32 b, U32 l, U8 a, U8 g)
+{
+    U32 o = n * 2;
+    gdt_e[o]     = (l & 0xFFFF) | ((b & 0xFFFF) << 16);
+    gdt_e[o + 1] = ((b >> 16) & 0xFF) | ((a & 0xFF) << 8) |
+                    (((l >> 16) & 0x0F) << 16) | ((g & 0xF0) << 16) |
+                    (((b >> 24) & 0xFF) << 24);
+}
+
+U0 GDT_INIT()
+{
+    gdt_sg(0, 0, 0, 0, 0);
+    gdt_sg(1, 0, 0xFFFFFFFF, READABLE_RNG0_KRNL, GRANULARITY);
+    gdt_sg(2, 0, 0xFFFFFFFF, WRITABLE_RNG0_KRNL, GRANULARITY);
+
+    PU32 p = (PU32)&gdt_e;
+    U32 addr = (U32)p;
+    gdt_d[0] = (U16)(GDT_ENTRY_COUNT * 8 - 1);
+    gdt_d[1] = (U16)(addr & 0xFFFF);
+    gdt_d[2] = (U16)((addr >> 16) & 0xFFFF);
+
+    asm {
+        LGDT gdt_d
+    }
+}
+
+#endif

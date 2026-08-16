@@ -1,0 +1,389 @@
+U0 isr_handler(PU32 r);
+
+U0 isr_common_func()
+{
+    asm {
+    isr_common_stub:
+        PUSHAD
+        PUSH DS
+        PUSH ES
+        PUSH FS
+        PUSH GS
+        MOV AX, 0x10
+        MOV DS, AX
+        MOV ES, AX
+        MOV FS, AX
+        MOV GS, AX
+        MOV EAX, ESP
+        PUSH EAX
+        CALL _isr_handler
+        ADD ESP, 4
+        POP GS
+        POP FS
+        POP ES
+        POP DS
+        POPAD
+        ADD ESP, 8
+        IRET
+    }
+}
+
+U0 isr0()
+{
+    asm {
+        POP EBP
+        PUSH 0
+        PUSH 0
+        JMP isr_common_stub
+    }
+}
+
+U0 isr1()
+{
+    asm {
+        POP EBP
+        PUSH 0
+        PUSH 1
+        JMP isr_common_stub
+    }
+}
+
+U0 isr2()
+{
+    asm {
+        POP EBP
+        PUSH 0
+        PUSH 2
+        JMP isr_common_stub
+    }
+}
+
+U0 isr3()
+{
+    asm {
+        POP EBP
+        PUSH 0
+        PUSH 3
+        JMP isr_common_stub
+    }
+}
+
+U0 isr4()
+{
+    asm {
+        POP EBP
+        PUSH 0
+        PUSH 4
+        JMP isr_common_stub
+    }
+}
+
+U0 isr5()
+{
+    asm {
+        POP EBP
+        PUSH 0
+        PUSH 5
+        JMP isr_common_stub
+    }
+}
+
+U0 isr6()
+{
+    asm {
+        POP EBP
+        PUSH 0
+        PUSH 6
+        JMP isr_common_stub
+    }
+}
+
+U0 isr7()
+{
+    asm {
+        POP EBP
+        PUSH 0
+        PUSH 7
+        JMP isr_common_stub
+    }
+}
+
+U0 isr8()
+{
+    asm {
+        POP EBP
+        PUSH 8
+        JMP isr_common_stub
+    }
+}
+
+U0 isr9()
+{
+    asm {
+        POP EBP
+        PUSH 0
+        PUSH 9
+        JMP isr_common_stub
+    }
+}
+
+U0 isr10()
+{
+    asm {
+        POP EBP
+        PUSH 10
+        JMP isr_common_stub
+    }
+}
+
+U0 isr11()
+{
+    asm {
+        POP EBP
+        PUSH 11
+        JMP isr_common_stub
+    }
+}
+
+U0 isr12()
+{
+    asm {
+        POP EBP
+        PUSH 12
+        JMP isr_common_stub
+    }
+}
+
+U0 isr13()
+{
+    asm {
+        POP EBP
+        PUSH 13
+        JMP isr_common_stub
+    }
+}
+
+U0 isr14()
+{
+    asm {
+        POP EBP
+        PUSH 14
+        JMP isr_common_stub
+    }
+}
+
+U0 isr15()
+{
+    asm {
+        POP EBP
+        PUSH 0
+        PUSH 15
+        JMP isr_common_stub
+    }
+}
+
+U0 isr16()
+{
+    asm {
+        POP EBP
+        PUSH 0
+        PUSH 16
+        JMP isr_common_stub
+    }
+}
+
+U0 isr17()
+{
+    asm {
+        POP EBP
+        PUSH 17
+        JMP isr_common_stub
+    }
+}
+
+U0 isr18()
+{
+    asm {
+        POP EBP
+        PUSH 0
+        PUSH 18
+        JMP isr_common_stub
+    }
+}
+
+U0 isr19()
+{
+    asm {
+        POP EBP
+        PUSH 0
+        PUSH 19
+        JMP isr_common_stub
+    }
+}
+
+U0 isr20()
+{
+    asm {
+        POP EBP
+        PUSH 0
+        PUSH 20
+        JMP isr_common_stub
+    }
+}
+
+U0 isr21()
+{
+    asm {
+        POP EBP
+        PUSH 0
+        PUSH 21
+        JMP isr_common_stub
+    }
+}
+
+U0 isr22()
+{
+    asm {
+        POP EBP
+        PUSH 0
+        PUSH 22
+        JMP isr_common_stub
+    }
+}
+
+U0 isr23()
+{
+    asm {
+        POP EBP
+        PUSH 0
+        PUSH 23
+        JMP isr_common_stub
+    }
+}
+
+U0 isr24()
+{
+    asm {
+        POP EBP
+        PUSH 0
+        PUSH 24
+        JMP isr_common_stub
+    }
+}
+
+U0 isr25()
+{
+    asm {
+        POP EBP
+        PUSH 0
+        PUSH 25
+        JMP isr_common_stub
+    }
+}
+
+U0 isr26()
+{
+    asm {
+        POP EBP
+        PUSH 0
+        PUSH 26
+        JMP isr_common_stub
+    }
+}
+
+U0 isr27()
+{
+    asm {
+        POP EBP
+        PUSH 0
+        PUSH 27
+        JMP isr_common_stub
+    }
+}
+
+U0 isr28()
+{
+    asm {
+        POP EBP
+        PUSH 0
+        PUSH 28
+        JMP isr_common_stub
+    }
+}
+
+U0 isr29()
+{
+    asm {
+        POP EBP
+        PUSH 0
+        PUSH 29
+        JMP isr_common_stub
+    }
+}
+
+U0 isr30()
+{
+    asm {
+        POP EBP
+        PUSH 0
+        PUSH 30
+        JMP isr_common_stub
+    }
+}
+
+U0 isr31()
+{
+    asm {
+        POP EBP
+        PUSH 0
+        PUSH 31
+        JMP isr_common_stub
+    }
+}
+
+U0 ISR_INIT()
+{
+    idt_set_gate(0,  (U32)&isr0, 0x08, 0x8E);
+    idt_set_gate(1,  (U32)&isr1, 0x08, 0x8E);
+    idt_set_gate(2,  (U32)&isr2, 0x08, 0x8E);
+    idt_set_gate(3,  (U32)&isr3, 0x08, 0x8E);
+    idt_set_gate(4,  (U32)&isr4, 0x08, 0x8E);
+    idt_set_gate(5,  (U32)&isr5, 0x08, 0x8E);
+    idt_set_gate(6,  (U32)&isr6, 0x08, 0x8E);
+    idt_set_gate(7,  (U32)&isr7, 0x08, 0x8E);
+    idt_set_gate(8,  (U32)&isr8, 0x08, 0x8E);
+    idt_set_gate(9,  (U32)&isr9, 0x08, 0x8E);
+    idt_set_gate(10, (U32)&isr10, 0x08, 0x8E);
+    idt_set_gate(11, (U32)&isr11, 0x08, 0x8E);
+    idt_set_gate(12, (U32)&isr12, 0x08, 0x8E);
+    idt_set_gate(13, (U32)&isr13, 0x08, 0x8E);
+    idt_set_gate(14, (U32)&isr14, 0x08, 0x8E);
+    idt_set_gate(15, (U32)&isr15, 0x08, 0x8E);
+    idt_set_gate(16, (U32)&isr16, 0x08, 0x8E);
+    idt_set_gate(17, (U32)&isr17, 0x08, 0x8E);
+    idt_set_gate(18, (U32)&isr18, 0x08, 0x8E);
+    idt_set_gate(19, (U32)&isr19, 0x08, 0x8E);
+    idt_set_gate(20, (U32)&isr20, 0x08, 0x8E);
+    idt_set_gate(21, (U32)&isr21, 0x08, 0x8E);
+    idt_set_gate(22, (U32)&isr22, 0x08, 0x8E);
+    idt_set_gate(23, (U32)&isr23, 0x08, 0x8E);
+    idt_set_gate(24, (U32)&isr24, 0x08, 0x8E);
+    idt_set_gate(25, (U32)&isr25, 0x08, 0x8E);
+    idt_set_gate(26, (U32)&isr26, 0x08, 0x8E);
+    idt_set_gate(27, (U32)&isr27, 0x08, 0x8E);
+    idt_set_gate(28, (U32)&isr28, 0x08, 0x8E);
+    idt_set_gate(29, (U32)&isr29, 0x08, 0x8E);
+    idt_set_gate(30, (U32)&isr30, 0x08, 0x8E);
+    idt_set_gate(31, (U32)&isr31, 0x08, 0x8E);
+}
+
+U0 isr_handler(PU32 r)
+{
+    U32 int_no = r[12];
+    if (int_no < 0x20)
+    {
+        print_s("Exception!\n");
+        asm { CLI }
+        asm { HLT }
+    }
+}

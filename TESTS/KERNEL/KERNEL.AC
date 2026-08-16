@@ -1,0 +1,86 @@
+// KERNEL/KERNEL.AC — 32-bit kernel
+// _start() MUST be at org offset 0 — second stage jumps to 0x10000
+
+U0 print_c(U8 c);
+U0 print_s(PU8 str);
+U0 clear_screen();
+
+U32 row;
+U32 col;
+U32 offset;
+
+U0 _start() {
+    asm { CLI }
+    // ASM { HLT }
+    row = 0;
+    col = 0;
+    offset = 0;
+    clear_screen();
+    print_s("AstraOS 32-bit kernel loaded!\n");
+    print_s("Initializing GDT...\n");
+    GDT_INIT();
+    print_s("Initializing IDT...\n");
+    IDT_INIT();
+    print_s("Initializing ISR...\n");
+    ISR_INIT();
+    print_s("Remapping PIC...\n");
+    PIC_REMAP();
+    print_s("Initializing IRQ...\n");
+    IRQ_INIT();
+    print_s("Initializing PS2 keyboard...\n");
+    PS2_INIT();
+    print_s("Kernel ready.\n");
+    asm { STI }
+
+    while (1) {
+        // asm { 
+        //     STI
+        //     HLT
+        //     CLI
+        // }
+        if (PS2_KEY_READY()) {
+            print_c(PS2_GETC());
+        }
+    }
+}
+
+#include "../KERNEL/KERNEL.AH"
+
+// ── VGA output ─────────────────────────────────────────────────────────
+U0 clear_screen() {
+    PU8 vga_buffer = (PU8)0xB8000;
+    offset = 0;
+    row = 0;
+    col = 0;
+    for (U32 i = 0; i < 80 * 25; i++) {
+        vga_buffer[offset] = ' ';
+        vga_buffer[offset + 1] = 0x07;
+        offset += 2;
+    }
+    offset = 0;
+    row = 0;
+    col = 0;
+}
+
+U0 print_c(U8 c) {
+    PU8 vga_buffer = (PU8)0xB8000;
+    if (c == '\n') {
+        row++;
+        col = 0;
+        offset = row * 80 * 2 + col * 2;
+        return;
+    }
+    vga_buffer[offset] = c;
+    vga_buffer[offset + 1] = 0x02;
+    col++;
+    if (col >= 80) {
+        col = 0;
+        row++;
+    }
+    offset = row * 80 * 2 + col * 2;
+}
+
+U0 print_s(PU8 str) {
+    for(U32 i = 0; str[i] != 0; i = i + 1)
+        print_c(str[i]);
+}

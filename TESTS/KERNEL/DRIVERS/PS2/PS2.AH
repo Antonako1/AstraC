@@ -1,0 +1,5 @@
+// PS2.AH — PS/2 keyboard driver prototypes
+U0 PS2_INIT();
+U0 KEYBOARD_HANDLER();
+U8 PS2_KEY_READY();
+U8 PS2_GETC();
