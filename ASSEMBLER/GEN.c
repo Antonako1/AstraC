@@ -48,6 +48,15 @@ STATIC FILE *asd_out ATTRIB_DATA;
 STATIC U8   debug_buf[65536] ATTRIB_DATA;
 STATIC U32  debug_tail ATTRIB_DATA;
 
+/* ── Per-section output buffers (Pass 2) ──────────────────────────────────
+ * Bytes are buffered per section during Pass 2, then written to the output
+ * file in a fixed order (code → data → rodata). This guarantees the physical
+ * file layout matches RESOLVE_SYMBOL_ADDR()'s assumption, regardless of the
+ * order in which sections appear in the .AS source. */
+STATIC PU8 code_buf   ATTRIB_DATA;
+STATIC PU8 data_buf   ATTRIB_DATA;
+STATIC PU8 rodata_buf ATTRIB_DATA;
+
 
 /*
  * ════════════════════════════════════════════════════════════════════════════
@@ -66,20 +75,41 @@ STATIC U32 CURRENT_OFFSET(VOID) {
     }
 }
 
-/* Write bytes to output and advance the section offset. */
+/* Write bytes to the current section buffer and advance the section offset.
+ *
+ * During Pass 1 (f == NULL, CURRENT_PASS == FIRST_PASS) we only advance the
+ * section offsets so label/variable addresses can be computed.
+ *
+ * During Pass 2 (CURRENT_PASS == SECOND_PASS) we additionally copy the bytes
+ * into the per-section buffer allocated in GEN_BINARY. The output file itself
+ * is written once, after Pass 2, in fixed order code → data → rodata. */
 STATIC VOID EMIT(FILE *file, const U8 *buf, U32 len) {
-    if (file) AC_FWRITE(file, (VOIDPTR)buf, len);
-    if (asm_debug && CURRENT_PASS == SECOND_PASS && debug_tail + len <= sizeof(debug_buf)) {
-        AC_MEMCPY(debug_buf + debug_tail, buf, len);
-        debug_tail += len;
-    }
+    (void)file;
 
+    PU8 dst = NULLPTR;
     switch (ptrs.current_section) {
         case DIR_CODE: case DIR_CODE_TYPE_32: case DIR_CODE_TYPE_16:
-            ptrs.code += len; break;
-        case DIR_DATA:   ptrs.data   += len; break;
-        case DIR_RODATA: ptrs.rodata += len; break;
-        default: break;
+            dst = code_buf + ptrs.code;
+            ptrs.code += len;
+            break;
+        case DIR_DATA:
+            dst = data_buf + ptrs.data;
+            ptrs.data += len;
+            break;
+        case DIR_RODATA:
+            dst = rodata_buf + ptrs.rodata;
+            ptrs.rodata += len;
+            break;
+        default:
+            break;
+    }
+
+    if (CURRENT_PASS == SECOND_PASS && dst) {
+        AC_MEMCPY(dst, buf, len);
+        if (asm_debug && debug_tail + len <= sizeof(debug_buf)) {
+            AC_MEMCPY(debug_buf + debug_tail, buf, len);
+            debug_tail += len;
+        }
     }
 }
 
@@ -1460,16 +1490,36 @@ BOOLEAN GEN_BINARY(ASM_AST_ARRAY *ast, PASM_INFO info) {
     ptrs.origin          = cfg->org;
     AC_DEBUG_PRINTF("[ASM GEN] Offsets reset for Pass 2: code=0, data=0, rodata=0, origin=0x%X\n", ptrs.origin);
 
+    /* ── Allocate per-section output buffers from Pass 1 sizes ─────────── */
+    code_buf   = pass1_code_size   ? AC_MAlloc(pass1_code_size)   : NULLPTR;
+    data_buf   = pass1_data_size   ? AC_MAlloc(pass1_data_size)   : NULLPTR;
+    rodata_buf = pass1_rodata_size ? AC_MAlloc(pass1_rodata_size) : NULLPTR;
+    if ((pass1_code_size   && !code_buf)   ||
+        (pass1_data_size   && !data_buf)   ||
+        (pass1_rodata_size && !rodata_buf)) {
+        AC_PRINTF("[ASM GEN] Failed to allocate section output buffers\n");
+        AC_MFree(code_buf);   code_buf   = NULLPTR;
+        AC_MFree(data_buf);   data_buf   = NULLPTR;
+        AC_MFree(rodata_buf); rodata_buf = NULLPTR;
+        return FALSE;
+    }
+
     /* ── Open output file ─────────────────────────────────────────────── */
     PU8 outputfile = cfg->outfile;
     if (AC_FILE_EXISTS(outputfile)) AC_FILE_DELETE(outputfile);
     if (!AC_FILE_CREATE(outputfile)) {
         AC_PRINTF("[ASM GEN] Failed to create output file: %s\n", outputfile);
+        AC_MFree(code_buf);   code_buf   = NULLPTR;
+        AC_MFree(data_buf);   data_buf   = NULLPTR;
+        AC_MFree(rodata_buf); rodata_buf = NULLPTR;
         return FALSE;
     }
     FILE *out = AC_FOPEN(outputfile, MODE_A | MODE_FAT32);
     if (!out) {
         AC_PRINTF("[ASM GEN] Failed to open output file: %s\n", outputfile);
+        AC_MFree(code_buf);   code_buf   = NULLPTR;
+        AC_MFree(data_buf);   data_buf   = NULLPTR;
+        AC_MFree(rodata_buf); rodata_buf = NULLPTR;
         return FALSE;
     }
 
@@ -1497,38 +1547,65 @@ BOOLEAN GEN_BINARY(ASM_AST_ARRAY *ast, PASM_INFO info) {
     AC_DEBUG_PRINTF("[ASM GEN] Starting Pass 2: emitting binary to %s\n", outputfile);
 
     AC_MEMZERO(&h, sizeof(AC_FILE_HEADER));
-    if(cfg->output_type != OUTPUT_NONE) {
-        AC_MEMCPY(h.magic, AC_FILE_MAGIC, AC_FILE_MAGIC_LEN);
-    
-        AC_MEMZERO(h.reserved, sizeof(AC_FILE_RESERVED_SIZE));
-        h.version = AC_FILE_VERSION;
-    
-        h.entry_point_offset = main_ptr ? main_ptr->offset : OFFSET_NON_EXISTENT;
-    
-        h.code_offset = ptrs.code;
-        h.data_offset = ptrs.data;
-        h.rodata_offset = ptrs.rodata;
-        h.bss_offset = 0;
-    
-        h.code_size = 0;
-        h.data_size = 0;
-        h.rodata_size = 0;
-        h.bss_size = 0;
-        AC_DEBUG_PRINTF("[ASM GEN] Writing file header with entry point offset: 0x%X\n", h.entry_point_offset);
 
-        EMIT(out, (U8 *)&h, sizeof(h));
-    }
-    
-    
-
+    /* ──────────────────────────────────────────────────────────────────
+     *  Pass 2:  Emit into per-section buffers  (no direct file writes)
+     * ────────────────────────────────────────────────────────────────── */
     if (!GEN_EMIT_PASS(out, ast, cfg)) {
         if (asd_out) AC_FCLOSE(asd_out);
         AC_FCLOSE(out);
+        AC_MFree(code_buf);   code_buf   = NULLPTR;
+        AC_MFree(data_buf);   data_buf   = NULLPTR;
+        AC_MFree(rodata_buf); rodata_buf = NULLPTR;
         return FALSE;
     }
 
     AC_DEBUG_PRINTF("[ASM GEN] Pass 2 complete: code=%u bytes, data=%u bytes, rodata=%u bytes\n",
                  ptrs.code, ptrs.data, ptrs.rodata);
+
+    /* ──────────────────────────────────────────────────────────────────
+     *  Write the output file in fixed layout:  [header] code data rodata
+     *
+     *  RESOLVE_SYMBOL_ADDR() computes absolute addresses as
+     *      data:   symbol.offset + pass1_code_size                   + origin
+     *      rodata: symbol.offset + pass1_code_size + pass1_data_size + origin
+     *  i.e. it assumes the runtime layout is `code | data | rodata` with no
+     *  gaps. Emitting the file in that exact order keeps the physical file
+     *  layout consistent with the resolved addresses. (For --exe/--lib the
+     *  header precedes the sections; its size is recorded in the header's
+     *  *_offset fields, but absolute symbol addresses are still computed
+     *  relative to the section base, not the file start.)
+     * ────────────────────────────────────────────────────────────────── */
+    if (cfg->output_type != OUTPUT_NONE) {
+        AC_MEMCPY(h.magic, AC_FILE_MAGIC, AC_FILE_MAGIC_LEN);
+        AC_MEMZERO(h.reserved, sizeof(h.reserved));
+        h.version = AC_FILE_VERSION;
+        h.entry_point_offset = main_ptr ? main_ptr->offset : OFFSET_NON_EXISTENT;
+
+        h.code_offset   = sizeof(AC_FILE_HEADER);
+        h.code_size     = ptrs.code;
+        h.data_offset   = sizeof(AC_FILE_HEADER) + ptrs.code;
+        h.data_size     = ptrs.data;
+        h.rodata_offset = sizeof(AC_FILE_HEADER) + ptrs.code + ptrs.data;
+        h.rodata_size   = ptrs.rodata;
+        h.bss_offset    = sizeof(AC_FILE_HEADER) + ptrs.code + ptrs.data + ptrs.rodata;
+        h.bss_size      = 0;
+
+        AC_DEBUG_PRINTF("[ASM GEN] Writing file header (entry=0x%X, code=0x%X+0x%X, data=0x%X+0x%X, rodata=0x%X+0x%X)\n",
+                    h.entry_point_offset,
+                    h.code_offset, h.code_size,
+                    h.data_offset, h.data_size,
+                    h.rodata_offset, h.rodata_size);
+        AC_FWRITE(out, (VOIDPTR)&h, sizeof(h));
+    }
+
+    if (ptrs.code)   AC_FWRITE(out, (VOIDPTR)code_buf,   ptrs.code);
+    if (ptrs.data)   AC_FWRITE(out, (VOIDPTR)data_buf,   ptrs.data);
+    if (ptrs.rodata) AC_FWRITE(out, (VOIDPTR)rodata_buf, ptrs.rodata);
+
+    AC_MFree(code_buf);   code_buf   = NULLPTR;
+    AC_MFree(data_buf);   data_buf   = NULLPTR;
+    AC_MFree(rodata_buf); rodata_buf = NULLPTR;
 
     if (cfg->verbose) AC_PRINTF("[ASM GEN] Finished writing output file: %s, sz %u bytes\n", outputfile, AC_FSIZE(out));
     if (asd_out) AC_FCLOSE(asd_out);

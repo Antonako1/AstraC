@@ -1,0 +1,16 @@
+// ── CPU subsystem implementations ──────────────────────────────────────
+#include "../KERNEL/CPU/GDT/GDT.AH"
+#include "../KERNEL/CPU/IDT/IDT.AH"
+#include "../KERNEL/CPU/ISR/ISR.AH"
+#include "../KERNEL/CPU/IRQ/IRQ.AH"
+#include "../KERNEL/CPU/GDT/GDT.AC"
+#include "../KERNEL/CPU/IDT/IDT.AC"
+#include "../KERNEL/CPU/ISR/ISR.AC"
+#include "../KERNEL/CPU/IRQ/IRQ.AC"
+
+
+// ── Driver subsystem implementations ──────────────────────────────────────
+#include "../KERNEL/DRIVERS/PIC/PIC.AH"
+#include "../KERNEL/DRIVERS/PIC/PIC.AC"
+#include "../KERNEL/DRIVERS/PS2/PS2.AH"
+#include "../KERNEL/DRIVERS/PS2/PS2.AC"

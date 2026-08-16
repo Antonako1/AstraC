@@ -1,0 +1,250 @@
+U0 irq_handler(PU32 r);
+
+U0 irq_common_func()
+{
+    asm {
+    irq_common_stub:
+        PUSHAD
+        PUSH DS
+        PUSH ES
+        PUSH FS
+        PUSH GS
+        MOV AX, 0x10
+        MOV DS, AX
+        MOV ES, AX
+        MOV FS, AX
+        MOV GS, AX
+        MOV EAX, ESP
+        PUSH EAX
+        CALL _irq_handler
+        ADD ESP, 4
+        POP GS
+        POP FS
+        POP ES
+        POP DS
+        POPAD
+        ADD ESP, 8
+        IRET
+    }
+}
+
+U0 irq32()
+{
+    asm {
+        POP EBP
+        PUSH 0
+        PUSH 32
+        JMP irq_common_stub
+    }
+}
+
+U0 irq33()
+{
+    asm {
+        POP EBP
+        PUSH 0
+        PUSH 33
+        JMP irq_common_stub
+    }
+}
+
+U0 irq34()
+{
+    asm {
+        POP EBP
+        PUSH 0
+        PUSH 34
+        JMP irq_common_stub
+    }
+}
+
+U0 irq35()
+{
+    asm {
+        POP EBP
+        PUSH 0
+        PUSH 35
+        JMP irq_common_stub
+    }
+}
+
+U0 irq36()
+{
+    asm {
+        POP EBP
+        PUSH 0
+        PUSH 36
+        JMP irq_common_stub
+    }
+}
+
+U0 irq37()
+{
+    asm {
+        POP EBP
+        PUSH 0
+        PUSH 37
+        JMP irq_common_stub
+    }
+}
+
+U0 irq38()
+{
+    asm {
+        POP EBP
+        PUSH 0
+        PUSH 38
+        JMP irq_common_stub
+    }
+}
+
+U0 irq39()
+{
+    asm {
+        POP EBP
+        PUSH 0
+        PUSH 39
+        JMP irq_common_stub
+    }
+}
+
+U0 irq40()
+{
+    asm {
+        POP EBP
+        PUSH 0
+        PUSH 40
+        JMP irq_common_stub
+    }
+}
+
+U0 irq41()
+{
+    asm {
+        POP EBP
+        PUSH 0
+        PUSH 41
+        JMP irq_common_stub
+    }
+}
+
+U0 irq42()
+{
+    asm {
+        POP EBP
+        PUSH 0
+        PUSH 42
+        JMP irq_common_stub
+    }
+}
+
+U0 irq43()
+{
+    asm {
+        POP EBP
+        PUSH 0
+        PUSH 43
+        JMP irq_common_stub
+    }
+}
+
+U0 irq44()
+{
+    asm {
+        POP EBP
+        PUSH 0
+        PUSH 44
+        JMP irq_common_stub
+    }
+}
+
+U0 irq45()
+{
+    asm {
+        POP EBP
+        PUSH 0
+        PUSH 45
+        JMP irq_common_stub
+    }
+}
+
+U0 irq46()
+{
+    asm {
+        POP EBP
+        PUSH 0
+        PUSH 46
+        JMP irq_common_stub
+    }
+}
+
+U0 irq47()
+{
+    asm {
+        POP EBP
+        PUSH 0
+        PUSH 47
+        JMP irq_common_stub
+    }
+}
+
+U0 PIC_REMAP()
+{
+    asm {
+        MOV AL, 0x11
+        DB 0xE6, 0x20
+        DB 0xE6, 0xA0
+        MOV AL, 0x20
+        DB 0xE6, 0x21
+        MOV AL, 0x28
+        DB 0xE6, 0xA1
+        MOV AL, 0x04
+        DB 0xE6, 0x21
+        MOV AL, 0x02
+        DB 0xE6, 0xA1
+        MOV AL, 0x01
+        DB 0xE6, 0x21
+        DB 0xE6, 0xA1
+    }
+}
+
+U0 IRQ_INIT()
+{
+    idt_set_gate(32, (U32)&irq32, 0x08, 0x8E);
+    idt_set_gate(33, (U32)&irq33, 0x08, 0x8E);
+    idt_set_gate(34, (U32)&irq34, 0x08, 0x8E);
+    idt_set_gate(35, (U32)&irq35, 0x08, 0x8E);
+    idt_set_gate(36, (U32)&irq36, 0x08, 0x8E);
+    idt_set_gate(37, (U32)&irq37, 0x08, 0x8E);
+    idt_set_gate(38, (U32)&irq38, 0x08, 0x8E);
+    idt_set_gate(39, (U32)&irq39, 0x08, 0x8E);
+    idt_set_gate(40, (U32)&irq40, 0x08, 0x8E);
+    idt_set_gate(41, (U32)&irq41, 0x08, 0x8E);
+    idt_set_gate(42, (U32)&irq42, 0x08, 0x8E);
+    idt_set_gate(43, (U32)&irq43, 0x08, 0x8E);
+    idt_set_gate(44, (U32)&irq44, 0x08, 0x8E);
+    idt_set_gate(45, (U32)&irq45, 0x08, 0x8E);
+    idt_set_gate(46, (U32)&irq46, 0x08, 0x8E);
+    idt_set_gate(47, (U32)&irq47, 0x08, 0x8E);
+}
+
+U0 irq_handler(PU32 r)
+{
+    if (r[12] == 33)
+    {
+        KEYBOARD_HANDLER();
+    }
+
+    asm {
+        MOV AL, 0x20
+        DB 0xE6, 0x20
+    }
+
+    if (r[12] >= 40)
+    {
+        asm {
+            MOV AL, 0x20
+            DB 0xE6, 0xA0
+        }
+    }
+}
