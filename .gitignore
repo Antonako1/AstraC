@@ -21,7 +21,11 @@ CMakeFiles/
 *.img
 *.BIN
 *.DSM
-/TESTS
+*.ASD
+# /TESTS
+# Generated compiler output from .AC sources
+TESTS/KERNEL/KERNEL.AS
+!/TESTS/BUILD
 
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
