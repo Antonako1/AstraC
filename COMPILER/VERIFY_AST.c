@@ -108,9 +108,13 @@ STATIC COMP_TYPE VERIFY_NODE(PCNODE n) {
         case CNODE_VAR_DECL: {
             SYMBOL *vs = V_FIND_SYM(n->txt);
             if (!vs) { ERR("variable not in symbol table", n->line, n->col); break; }
-            /* Track array size for globals */
-            if (n->child_count > 0 && n->children[0]->ntype == CNODE_INT_LIT)
+            /* Array size child is an INT_LIT; optional initializer follows */
+            if (n->child_count > 0 && n->children[0]->ntype == CNODE_INT_LIT) {
                 vs->array_size = n->children[0]->ival;
+                if (n->child_count > 1) VERIFY_NODE(n->children[1]);
+            } else if (n->child_count > 0) {
+                VERIFY_NODE(n->children[0]);
+            }
             break;
         }
 
@@ -253,8 +257,12 @@ STATIC COMP_TYPE VERIFY_NODE(PCNODE n) {
         case CNODE_INDEX: {
             COMP_TYPE bt = VERIFY_NODE(n->children[0]);
             VERIFY_NODE(n->children[1]);
-            if (IS_POINTER(bt))
+            if (bt.base == CTYPE_NONE)
+                n->dtype = COMP_MAKE_TYPE(CTYPE_U32, 0, NULLPTR);
+            else if (bt.ptr_depth > 0 || IS_POINTER(bt))
                 n->dtype = STRIP_PTR_TYPE(bt);
+            else
+                n->dtype = bt;   /* array symbol: s->type is already the element type */
             return n->dtype;
         }
 

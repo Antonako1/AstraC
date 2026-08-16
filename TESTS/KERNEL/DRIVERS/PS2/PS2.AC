@@ -1,0 +1,128 @@
+// PS2.AC — PS/2 keyboard driver (scan code set 1)
+// P.C: 0x60 data, 0x64 status/command. Keyboard IRQ1 → vector 33.
+// Port I/O uses DB byte-pokes (E4 = IN AL,imm8 / E6 = OUT imm8,AL)
+// because the assembler has no two-operand IN/OUT form.
+
+U8 kbd_map[128];
+U8 kbd_buffer[256];
+U32 kbd_head;
+U32 kbd_tail;
+U8 kbd_scancode;
+
+U0 PS2_INIT()
+{
+    kbd_head = 0;
+    kbd_tail = 0;
+
+    U32 i;
+    for (i = 0; i < 128; i++) kbd_map[i] = 0;
+
+    // ── Scan code set 1 -> ASCII (US layout, unshifted) ──────────────
+    // rows (top of keyboard)
+    kbd_map[0x29] = '`';
+    kbd_map[0x02] = '1';
+    kbd_map[0x03] = '2';
+    kbd_map[0x04] = '3';
+    kbd_map[0x05] = '4';
+    kbd_map[0x06] = '5';
+    kbd_map[0x07] = '6';
+    kbd_map[0x08] = '7';
+    kbd_map[0x09] = '8';
+    kbd_map[0x0A] = '9';
+    kbd_map[0x0B] = '0';
+    kbd_map[0x0C] = '-';
+    kbd_map[0x0D] = '=';
+    // QWERTY row
+    kbd_map[0x10] = 'q';
+    kbd_map[0x11] = 'w';
+    kbd_map[0x12] = 'e';
+    kbd_map[0x13] = 'r';
+    kbd_map[0x14] = 't';
+    kbd_map[0x15] = 'y';
+    kbd_map[0x16] = 'u';
+    kbd_map[0x17] = 'i';
+    kbd_map[0x18] = 'o';
+    kbd_map[0x19] = 'p';
+    kbd_map[0x1A] = '[';
+    kbd_map[0x1B] = ']';
+    kbd_map[0x2B] = '\\';
+    // ASDF row
+    kbd_map[0x1E] = 'a';
+    kbd_map[0x1F] = 's';
+    kbd_map[0x20] = 'd';
+    kbd_map[0x21] = 'f';
+    kbd_map[0x22] = 'g';
+    kbd_map[0x23] = 'h';
+    kbd_map[0x24] = 'j';
+    kbd_map[0x25] = 'k';
+    kbd_map[0x26] = 'l';
+    kbd_map[0x27] = ';';
+    kbd_map[0x28] = '\'';
+    // ZXCV row
+    kbd_map[0x2C] = 'z';
+    kbd_map[0x2D] = 'x';
+    kbd_map[0x2E] = 'c';
+    kbd_map[0x2F] = 'v';
+    kbd_map[0x30] = 'b';
+    kbd_map[0x31] = 'n';
+    kbd_map[0x32] = 'm';
+    kbd_map[0x33] = ',';
+    kbd_map[0x34] = '.';
+    kbd_map[0x35] = '/';
+    // misc
+    kbd_map[0x39] = ' ';
+    kbd_map[0x1C] = '\n';
+    kbd_map[0x0E] = '\b';
+    kbd_map[0x0F] = '\t';
+    kbd_map[0x45] = '\0';
+
+    // ── Enable keyboard interface + keyboard (8042) ───────────────────
+    // NOT: OUT 0x64,0x60 ("write-to-buffer") then OUT 0x60,0xF4 — 0x60 in the
+    // command register means "set command byte", which corrupts controller config.
+    // Bytes to the keyboard go directly to data port 0x60.
+    asm {
+        MOV AL, 0xAE
+        DB 0xE6, 0x64               ; OUT 0x64, AL    enable keyboard interface
+        MOV AL, 0xF4
+        DB 0xE6, 0x60               ; OUT 0x60, AL    keyboard cmd: enable scanning
+    }
+
+    // ── Unmask IRQ1 on master PIC (OCW1 at port 0x21) ────────────────
+    // 0xFD = 1111 1101 -> IRQ1 (keyboard) enabled, all others masked
+    asm {
+        MOV AL, 0xFD
+        DB 0xE6, 0x21
+    }
+}
+
+U0 KEYBOARD_HANDLER()
+{
+    // Read scancode from data port
+    asm {
+        DB 0xE4, 0x60               ; IN AL, 0x60
+        MOV KBD_SCANCODE, AL
+    }
+    U32 sc = (U32)kbd_scancode & 0xFF;
+    if (sc >= 0x80) return;         // key-up break code, ignore
+    
+    U8 ch = (U8)kbd_map[sc];
+    if (ch == 0) return;
+    U32 next = (kbd_head + 1) % 256;
+    if (next == kbd_tail) return;   // ring full, drop oldest key
+    kbd_buffer[kbd_head] = ch;
+    kbd_head = next;
+}
+
+U8 PS2_KEY_READY()
+{
+    if (kbd_head == kbd_tail) return 0;
+    return 1;
+}
+
+U8 PS2_GETC()
+{
+    if (kbd_head == kbd_tail) return 0;
+    U8 ch = (U8)kbd_buffer[kbd_tail];
+    kbd_tail = (kbd_tail + 1) % 256;
+    return ch;
+}

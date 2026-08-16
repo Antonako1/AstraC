@@ -1,0 +1,2 @@
+U0 IDT_INIT();
+U0 idt_set_gate(U8 num, U32 base, U16 sel, U8 flags);

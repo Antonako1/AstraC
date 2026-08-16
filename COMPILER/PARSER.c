@@ -585,6 +585,7 @@ STATIC PCNODE parse_stmt() {
             SYMBOL *av = SYM_ADD(it->txt, SYM_VARIABLE);
             av->type  = vt;
             av->is_global = !ctx->in_func;
+            if (sz && sz->ntype == CNODE_INT_LIT) av->array_size = sz->ival;
             EXPECT(CTOK_SEMICOLON);
             return n;
         }
@@ -917,6 +918,7 @@ STATIC PCNODE parse_toplevel() {
             ADV();
             PCNODE size = parse_atom();
             if (size) CNODE_ADD_CHILD(n, size);
+            if (size && size->ntype == CNODE_INT_LIT) vs->array_size = size->ival;
             EXPECT(CTOK_RBRACKET);
         }
         if (MATCH(CTOK_ASSIGN)) {

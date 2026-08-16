@@ -1,0 +1,2 @@
+U0 PIC_REMAP();
+U0 IRQ_INIT();
