@@ -61,14 +61,30 @@ STATIC VOID GEN_LITERAL(PCNODE n) {
 STATIC VOID GEN_IDENT(PCNODE n) {
     SYMBOL *s = FIND_SYM(n->txt);
     if (!s) { emit("    XOR EAX, EAX"); return; }
-    if (s->is_global)
-        AC_FPRINTF(outf, "    MOV EAX, [%s]\n", s->name);
-    else if ((I32)s->offset == 0)
-        AC_FPRINTF(outf, "    MOV EAX, [EBP]\n");
-    else if ((I32)s->offset > 0)
-        AC_FPRINTF(outf, "    MOV EAX, [EBP+%u]\n", s->offset);
-    else
-        AC_FPRINTF(outf, "    MOV EAX, [EBP-%u]\n", (U32)(-(I32)s->offset));
+    /* Array names decay to pointer-to-first-element (address, not value) */
+    if (s->array_size > 0) {
+        if (s->is_global)
+            AC_FPRINTF(outf, "    LEA EAX, [%s]\n", s->name);
+        else if ((I32)s->offset == 0)
+            AC_FPRINTF(outf, "    LEA EAX, [EBP]\n");
+        else if ((I32)s->offset > 0)
+            AC_FPRINTF(outf, "    LEA EAX, [EBP+%u]\n", s->offset);
+        else
+            AC_FPRINTF(outf, "    LEA EAX, [EBP-%u]\n", (U32)(-(I32)s->offset));
+        return;
+    }
+    {
+        U32 es = COMP_TYPE_SIZE(s->type);
+        PU8 op = (es == 1) ? "MOVZX EAX, BYTE" : (es == 2) ? "MOVZX EAX, WORD" : "MOV EAX,";
+        if (s->is_global)
+            AC_FPRINTF(outf, "    %s [%s]\n", op, s->name);
+        else if ((I32)s->offset == 0)
+            AC_FPRINTF(outf, "    %s [EBP]\n", op);
+        else if ((I32)s->offset > 0)
+            AC_FPRINTF(outf, "    %s [EBP+%u]\n", op, s->offset);
+        else
+            AC_FPRINTF(outf, "    %s [EBP-%u]\n", op, (U32)(-(I32)s->offset));
+    }
 }
 
 STATIC VOID GEN_ARR_BASE(PCNODE base);
@@ -118,14 +134,35 @@ STATIC VOID GEN_ASSIGN(PCNODE n) {
         s = FIND_SYM(lhs->txt);
         if (!s) { emit("    POP EAX"); return; }
         emit("    POP EAX");
-        if (s->is_global)
-            AC_FPRINTF(outf, "    MOV [%s], EAX\n", s->name);
-        else if ((I32)s->offset == 0)
-            AC_FPRINTF(outf, "    MOV [EBP], EAX\n");
-        else if ((I32)s->offset > 0)
-            AC_FPRINTF(outf, "    MOV [EBP+%u], EAX\n", s->offset);
-        else
-            AC_FPRINTF(outf, "    MOV [EBP-%u], EAX\n", (U32)(-(I32)s->offset));
+        es = COMP_TYPE_SIZE(s->type);
+        if (es == 1) {
+            if (s->is_global)
+                AC_FPRINTF(outf, "    MOV [%s], AL\n", s->name);
+            else if ((I32)s->offset == 0)
+                AC_FPRINTF(outf, "    MOV [EBP], AL\n");
+            else if ((I32)s->offset > 0)
+                AC_FPRINTF(outf, "    MOV [EBP+%u], AL\n", s->offset);
+            else
+                AC_FPRINTF(outf, "    MOV [EBP-%u], AL\n", (U32)(-(I32)s->offset));
+        } else if (es == 2) {
+            if (s->is_global)
+                AC_FPRINTF(outf, "    MOV [%s], AX\n", s->name);
+            else if ((I32)s->offset == 0)
+                AC_FPRINTF(outf, "    MOV [EBP], AX\n");
+            else if ((I32)s->offset > 0)
+                AC_FPRINTF(outf, "    MOV [EBP+%u], AX\n", s->offset);
+            else
+                AC_FPRINTF(outf, "    MOV [EBP-%u], AX\n", (U32)(-(I32)s->offset));
+        } else {
+            if (s->is_global)
+                AC_FPRINTF(outf, "    MOV [%s], EAX\n", s->name);
+            else if ((I32)s->offset == 0)
+                AC_FPRINTF(outf, "    MOV [EBP], EAX\n");
+            else if ((I32)s->offset > 0)
+                AC_FPRINTF(outf, "    MOV [EBP+%u], EAX\n", s->offset);
+            else
+                AC_FPRINTF(outf, "    MOV [EBP-%u], EAX\n", (U32)(-(I32)s->offset));
+        }
     } else if (lhs->ntype == CNODE_DEREF) {
         GEN_EXPR(lhs->children[0]);
         es = COMP_TYPE_SIZE(lhs->dtype);
@@ -251,18 +288,44 @@ STATIC VOID GEN_ADDR(PCNODE n) {
     }
 }
 
+STATIC BOOL IS_PTR_DTYPE(COMP_TYPE t) {
+    if (t.ptr_depth > 0) return TRUE;
+    switch (t.base) {
+        case CTYPE_PU8:  case CTYPE_PU16: case CTYPE_PU32:
+        case CTYPE_PPU8: case CTYPE_PPU16: case CTYPE_PPU32:
+        case CTYPE_PI8:  case CTYPE_PI16: case CTYPE_PI32:
+        case CTYPE_PPI8: case CTYPE_PPI16: case CTYPE_PPI32:
+        case CTYPE_VOIDPTR:
+            return TRUE;
+        default:
+            return FALSE;
+    }
+}
+
+/* A pointer-typed scalar variable (e.g. `PU8 p`) holds the buffer address
+ * in its VALUE, so `p[i]` must load that value first (MOV).  An array-typed
+ * variable (e.g. `U8 buf[N]`) IS the buffer: its storage address is the
+ * array base, so `buf[i]` must take that address (LEA). */
+STATIC BOOL IS_PTR_VAR_SYMBOL(SYMBOL *s) {
+    if (!s || s->kind != SYM_VARIABLE) return FALSE;
+    if (s->array_size > 0) return FALSE;     /* declared array → address-of */
+    return IS_PTR_DTYPE(s->type);
+}
+
 STATIC VOID GEN_ARR_BASE(PCNODE base) {
     if (base->ntype == CNODE_IDENT) {
         SYMBOL *s = FIND_SYM(base->txt);
         if (!s) { emit("    XOR EAX, EAX"); return; }
+        BOOL use_value = IS_PTR_VAR_SYMBOL(s);
         if (s->is_global)
-            AC_FPRINTF(outf, "    LEA EAX, [%s]\n", s->name);
+            AC_FPRINTF(outf, "    %s EAX, [%s]\n", use_value ? "MOV" : "LEA", s->name);
         else if ((I32)s->offset == 0)
-            emit("    LEA EAX, [EBP]");
+            AC_FPRINTF(outf, "    %s EAX, [EBP]\n", use_value ? "MOV" : "LEA");
         else if ((I32)s->offset > 0)
-            AC_FPRINTF(outf, "    LEA EAX, [EBP+%u]\n", s->offset);
+            AC_FPRINTF(outf, "    %s EAX, [EBP+%u]\n", use_value ? "MOV" : "LEA", s->offset);
         else
-            AC_FPRINTF(outf, "    LEA EAX, [EBP-%u]\n", (U32)(-(I32)s->offset));
+            AC_FPRINTF(outf, "    %s EAX, [EBP-%u]\n", use_value ? "MOV" : "LEA",
+                       (U32)(-(I32)s->offset));
     } else {
         GEN_EXPR(base);
     }
@@ -470,6 +533,8 @@ STATIC VOID GEN_LABEL(PCNODE n) {
 
 STATIC VOID GEN_RETURN(PCNODE n) {
     if (n->child_count > 0) GEN_EXPR(n->children[0]);
+    if (local_offset < 0)
+        AC_FPRINTF(outf, "    ADD ESP, %u\n", (U32)(-local_offset));
     emit("    POP EBP");
     emit("    RET");
 }
@@ -559,18 +624,36 @@ STATIC VOID GEN_STMT(PCNODE n) {
         case CNODE_BREAK:    GEN_BREAK(); break;
         case CNODE_CONTINUE: GEN_CONTINUE(); break;
         case CNODE_ASM_BLOCK: GEN_ASM_BLOCK(n); break;
-        case CNODE_VAR_DECL:
-            if (n->child_count > 0) {
-                GEN_EXPR(n->children[0]);
-                SYMBOL *s = FIND_SYM(n->txt);
-                if (s && s->is_global)
-                    AC_FPRINTF(outf, "    MOV [%s], EAX\n", s->name);
-                else if (s && (I32)s->offset > 0)
-                    AC_FPRINTF(outf, "    MOV [EBP+%u], EAX\n", s->offset);
-                else if (s)
-                    AC_FPRINTF(outf, "    MOV [EBP-%u], EAX\n", (U32)(-(I32)s->offset));
+        case CNODE_VAR_DECL: {
+            /* Array decls: children[0] is size (INT_LIT), not an initializer.
+             * Scalar init / array init: first non-size child is the value. */
+            SYMBOL *s = FIND_SYM(n->txt);
+            PCNODE init = NULLPTR;
+            if (s && s->array_size > 0) {
+                if (n->child_count > 1) init = n->children[1];
+            } else if (n->child_count > 0) {
+                init = n->children[0];
+            }
+            if (init) {
+                GEN_EXPR(init);
+                U32 es = s ? COMP_TYPE_SIZE(s->type) : 4;
+                if (s && s->is_global) {
+                    if (es == 1)      AC_FPRINTF(outf, "    MOV [%s], AL\n", s->name);
+                    else if (es == 2) AC_FPRINTF(outf, "    MOV [%s], AX\n", s->name);
+                    else              AC_FPRINTF(outf, "    MOV [%s], EAX\n", s->name);
+                } else if (s && (I32)s->offset > 0) {
+                    if (es == 1)      AC_FPRINTF(outf, "    MOV [EBP+%u], AL\n", s->offset);
+                    else if (es == 2) AC_FPRINTF(outf, "    MOV [EBP+%u], AX\n", s->offset);
+                    else              AC_FPRINTF(outf, "    MOV [EBP+%u], EAX\n", s->offset);
+                } else if (s) {
+                    U32 off = (U32)(-(I32)s->offset);
+                    if (es == 1)      AC_FPRINTF(outf, "    MOV [EBP-%u], AL\n", off);
+                    else if (es == 2) AC_FPRINTF(outf, "    MOV [EBP-%u], AX\n", off);
+                    else              AC_FPRINTF(outf, "    MOV [EBP-%u], EAX\n", off);
+                }
             }
             break;
+        }
         case CNODE_EXPR_STMT:
             if (n->child_count > 0) GEN_EXPR(n->children[0]);
             break;
@@ -584,8 +667,10 @@ STATIC VOID ASSIGN_LOCAL_OFFSETS(PCNODE n) {
     if (n->ntype == CNODE_VAR_DECL && n->txt) {
         SYMBOL *s = FIND_SYM(n->txt);
         if (s && !s->is_global) {
-            U32 sz = TYPE_SIZE(n->dtype);
-            if (sz == 0) sz = 4;
+            U32 es = COMP_TYPE_SIZE(n->dtype);
+            if (es == 0) es = 4;
+            U32 count = (s->array_size > 0) ? s->array_size : 1;
+            U32 sz = es * count;
             local_offset -= (I32)sz;
             s->offset = (U32)local_offset;
         }
