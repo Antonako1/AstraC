@@ -103,7 +103,7 @@ STATIC BOOL ast_operand_type_ok(ASM_OPERAND_TYPE actual,
  * agree with the parsed operands.
  */
 STATIC const ASM_MNEMONIC_TABLE *RESOLVE_MNEMONIC(
-        PU8 name, ASM_OPERAND *operands, U32 op_count) {
+        PU8 name, ASM_OPERAND *operands, U32 op_count, BOOL shift_by_cl) {
     U32 tbl_len = sizeof(asm_mnemonics) / sizeof(asm_mnemonics[0]);
 
     /* Determine native operand size from the current code mode. */
@@ -141,6 +141,16 @@ STATIC const ASM_MNEMONIC_TABLE *RESOLVE_MNEMONIC(
 
         /* ── Operand count ────────────────────────────────────────── */
         if ((U32)tbl->operand_count != op_count) continue;
+
+        /* ── Shift/rotate by-CL disambiguation ───────────────────────
+         * The AST builder strips the CL operand so a shift with an
+         * explicit count collapses to a 1-operand form.  The table has
+         * separate 1-operand entries for "by 1" (opcode D0/D1) and
+         * "by CL" (opcode D2/D3) that are otherwise indistinguishable,
+         * so pick the CL form (low bits 0x02) when the flag is set. */
+        if ((U32)tbl->operand_count == 1 && shift_by_cl) {
+            if ((tbl->opcode[0] & 0x02) == 0) continue;
+        }
 
         /* ── Per-operand type check ───────────────────────────────── */
         BOOL ok = TRUE;
@@ -910,9 +920,11 @@ STATIC PASM_NODE PARSE_INSTRUCTION(TOK_CURSOR *cur) {
         if (op2->type == OP_REG && op2->reg == REG_CL) {
             /* Strip CL — the _CL table entry is 1-operand */
             n->instr.operand_count = 1;
+            n->instr.shift_by_cl = TRUE;
         } else if (op2->type == OP_IMM && op2->immediate == 1) {
             /* Strip literal 1 — the _1 table entry is 1-operand */
             n->instr.operand_count = 1;
+            n->instr.shift_by_cl = FALSE;
         }
     }
 
@@ -920,7 +932,8 @@ STATIC PASM_NODE PARSE_INSTRUCTION(TOK_CURSOR *cur) {
     n->instr.table_entry = RESOLVE_MNEMONIC(
             mnem_tok->txt,
             n->instr.operands,
-            n->instr.operand_count);
+            n->instr.operand_count,
+            n->instr.shift_by_cl);
 
     if (!n->instr.table_entry) {
         AC_PRINTF("[AST] No matching mnemonic form for '%s' with %u operand(s) at L%u\n",

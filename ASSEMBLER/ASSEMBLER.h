@@ -339,6 +339,7 @@ typedef struct ASM_NODE {
             const ASM_MNEMONIC_TABLE *table_entry;
             ASM_OPERAND operands[MAX_OPERANDS];
             U32         operand_count;
+            BOOL        shift_by_cl;
         } instr;
         struct { PU8 name; } label;
         struct { PASM_VAR var; } data;
