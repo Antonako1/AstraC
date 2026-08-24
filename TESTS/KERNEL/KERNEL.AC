@@ -1,5 +1,6 @@
 // KERNEL/KERNEL.AC — 32-bit kernel
 // _start() MUST be at org offset 0 — second stage jumps to 0x10000
+#include "../KERNEL/KERNEL.AH"
 
 U0 print_c(U8 c);
 U0 print_s(PU8 str);
@@ -9,9 +10,17 @@ U32 row;
 U32 col;
 U32 offset;
 
-U0 _start() {
+U0 _start(_BOOTSTRAP *bstrap) {
+    
+    bootstrap = bstrap;
+    if (SVGA_INIT(bootstrap)) {
+        ASM { 
+            CLI
+            HLT 
+        }
+    }
+
     asm { CLI }
-    // ASM { HLT }
     row = 0;
     col = 0;
     offset = 0;
@@ -33,18 +42,12 @@ U0 _start() {
     asm { STI }
 
     while (1) {
-        // asm { 
-        //     STI
-        //     HLT
-        //     CLI
-        // }
         if (PS2_KEY_READY()) {
             print_c(PS2_GETC());
         }
     }
 }
 
-#include "../KERNEL/KERNEL.AH"
 
 // ── VGA output ─────────────────────────────────────────────────────────
 U0 clear_screen() {

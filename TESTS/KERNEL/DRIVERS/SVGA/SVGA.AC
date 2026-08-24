@@ -1,0 +1,22 @@
+#include "../KERNEL/KERNEL.AH"
+
+BOOL SVGA_DRAW_PIXEL(U32 x, U32 y, U8 color) {
+    if (x >= 320 || y >= 200) {
+        return FALSE; // Out of bounds
+    }
+
+    PU8 vga_buffer = bootstrap->vga_struct->OEM_SCRATCHPAD; // Assuming OEM_SCRATCHPAD is used as a framebuffer
+    U32 offset = (y * 320) + x;
+    vga_buffer[offset] = color;
+    return TRUE;
+}
+
+U8 SVGA_INIT() {
+    if(!bootstrap) {
+        return FALSE; // Bootstrap structure not initialized
+    }
+    if(STRNICMP(bootstrap->vga_struct->Signature, "VESA", 4)) {
+        return FALSE;
+    }
+    return TRUE;
+}

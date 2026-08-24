@@ -15,8 +15,56 @@ main:
     INT 0x13
     JC error
 
-    ; Switch to 32-bit protected mode
     CLI
+
+
+#define VBE 1
+#ifdef VBE
+    ; Check if VESA BIOS Extensions (VBE) are supported
+    MOV AX, 0x4F00
+    mov BX, 0x0000
+    MOV ES, BX
+    MOV DI, [bootstrap + 16]
+    INT 0x10
+    CMP AH, 0x00
+    JNE error
+    CMP AL, 0x4F
+    JNE error 
+
+    ; Switch to vga mode 0x13h (320x200 256-color)
+    MOV AX, 0x4f02
+    mov BX, 0x0013
+    INT 0x10
+    CMP AH, 0x00
+    JNE error
+    CMP AL, 0x4F
+    JNE error
+
+    ; Check if vga mode was set correctly
+    MOV AX, 0x4f03
+    INT 0x10
+    CMP AH, 0x00
+    JNE error
+    CMP AL, 0x4F
+    JNE error
+
+    ; Store vga mode info in bootstrap structure
+    MOV AX, 0x4F01
+    MOV CX, 0x0013
+    ; Store v
+    MOV BX, 0x0000
+    MOV ES, BX
+    LEA DI, [bootstrap + 16 + 256] ; Offset to SVGA_MODE_INFO_REC in bootstrap structure
+    INT 0x10
+    CMP AH, 0x00
+    JNE error
+    CMP AL, 0x4F
+    JNE error
+    mov [bootstrap], AX
+
+#endif ; VBE
+
+    ; Switch to 32-bit protected mode
 
     ; Enable A20 gate via keyboard controller
     IN 0x92          ; AL = port 0x92
@@ -51,6 +99,13 @@ error:
 
 err_msg DB "SE", 0
 
+; Create a bootstrap structure to pass to the kernel
+bootstrap DW 0x2BA
+; _SVGA_INFO_REC
+.times 256 DB 0 
+; _SVGA_MODE_INFO_REC
+.times 256 DB 0 
+
 ; ── GDT (all DB to avoid DW/DD sizing bugs) ──────────────────────────
 gdt_start:
     DB 0, 0, 0, 0, 0, 0, 0, 0   ; null descriptor
@@ -72,6 +127,10 @@ pm_entry:
     MOV GS, AX
     MOV SS, AX
     MOV ESP, 0x90000    ; stack at 576 KB
+
+
+    ; Load bootstrap structure address into EDI
+    MOV EDI, bootstrap
 
     ; Jump to kernel (use register-indirect to avoid relative-offset bug)
     MOV EAX, 0x10000
