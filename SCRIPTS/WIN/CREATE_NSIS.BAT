@@ -60,4 +60,12 @@ echo [3/3] Done!
 echo   %BUILD_DIR%\AstraC-Setup.exe
 echo ============================================
 
+echo Run the installer to install AstraC, (Y/N).
+
+set /p "RUN_INSTALLER=>"
+if /i "%RUN_INSTALLER%"=="Y" (
+    start "" "%BUILD_DIR%\AstraC-Setup.exe"
+    echo Installer started. Follow the prompts to complete the installation.
+)
+
 popd
