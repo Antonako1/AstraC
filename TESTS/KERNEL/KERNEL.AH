@@ -1,3 +1,17 @@
+// ── Include guard: SVGA.AC also includes KERNEL.AH, so guard against
+//    circular re-inclusion when the header is pulled in transitively.
+#ifndef KERNEL_AH_DEFINED
+#define KERNEL_AH_DEFINED
+
+// ── Constants (defined before the includes so drivers can use them) ─────
+#define BOOT_MAGIC 0x2BA
+#define VGA_MODE_TEXT    0x03
+#define VGA_MODE_13H     0x13
+
+#define _CLI asm { CLI }
+#define _STI asm { STI }
+#define _HLT asm { HLT }
+
 // ── STD Library implementations ──────────────────────────────────────
 #include "../STD/STR.AC"
 
@@ -17,14 +31,9 @@
 #include "../KERNEL/DRIVERS/PIC/PIC.AC"
 #include "../KERNEL/DRIVERS/PS2/PS2.AH"
 #include "../KERNEL/DRIVERS/PS2/PS2.AC"
+#include "../KERNEL/DRIVERS/SVGA/SVGA.AH"
 #include "../KERNEL/DRIVERS/SVGA/SVGA.AC"
 
-
-
-#define BOOT_MAGIC 0x2BA
-
-#define VGA_MODE_TEXT    0x03
-#define VGA_MODE_13H     0x13
 
 /*
 http://www.techhelpmanual.com/113-int_10h__video_services.html
@@ -71,11 +80,11 @@ SvgaInfoRec
 typedef struct _SVGA_INFO_REC {
     U8  abSignature[4];  // "VESA" signature
     U16 wVersion;        // VESA version number; hi-byte=major; low=minor
-    U32 pfszOEMStr;      // ASCIIZ▲ Manufacture ID or other text info
+    U32 pfszOEMStr;      // ASCIIZ Manufacture ID or other text info
     U32 rAbilities;      // Four bytes of bit flags
     U32 pfawModes;       // Address of a list of 16-bit supported mode values
     U16 wTotalMemory;    // Number of 64KB blocks of video memory
-    U8  abData[238];     // May be filled with mode data
+    U8  abData[236];     // May be filled with mode data (256-byte block)
 } SVGA_INFO_REC;
 
 typedef struct _SVGA_MODE_INFO_REC {
@@ -98,7 +107,21 @@ typedef struct _SVGA_MODE_INFO_REC {
     U8  bBankCnt;       // Number of video memory banks
     U8  bMemModel;      // Memory model type code
     U8  bBankSize;      // Video memory bank size in KB
-    U8  res[227];       // Reserved
+    U8  bImgPages;      // Number of image pages
+    U8  bReserved;      // Reserved (page function)
+    U8  redMaskSize;    // Red mask size (direct color)
+    U8  redFieldPos;    // Red field position
+    U8  greenMaskSize;  // Green mask size
+    U8  greenFieldPos;  // Green field position
+    U8  blueMaskSize;   // Blue mask size
+    U8  blueFieldPos;   // Blue field position
+    U8  rsvdMaskSize;   // Reserved mask size
+    U8  rsvdFieldPos;   // Reserved field position
+    U8  dirColorInfo;   // Direct color mode info
+    U32 physBasePtr;    // Physical address of linear framebuffer
+    U32 offScreenMem;   // Offscreen memory offset
+    U16 offScreenSize;  // Offscreen memory size (KB)
+    U8  res[206];       // Reserved (256-byte block)
 
 } SVGA_MODE_INFO_REC;
 
@@ -106,6 +129,8 @@ typedef struct _BOOTSTRAP {
     U16 boot_magic; // Bootloader magic number
     SVGA_INFO_REC vga_struct;
     SVGA_MODE_INFO_REC vga_mode_info;
-} BOOTSTRAP;
+} BOOTSTRAP_T;
 
 _BOOTSTRAP *bootstrap;
+
+#endif /* KERNEL_AH_DEFINED */

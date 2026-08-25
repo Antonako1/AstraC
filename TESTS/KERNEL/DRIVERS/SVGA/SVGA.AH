@@ -1,0 +1,6 @@
+// SVGA.AH — SVGA/VBE framebuffer driver prototypes
+U8  SVGA_INIT();
+U0  SVGA_DRAW_PIXEL(U32 x, U32 y, U8 color);
+U0  SVGA_CLEAR(U8 color);
+U0  SVGA_PUTCHAR(U8 c);
+U0  SVGA_PUTS(PU8 str);

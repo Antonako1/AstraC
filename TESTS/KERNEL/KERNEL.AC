@@ -6,24 +6,17 @@ U0 print_c(U8 c);
 U0 print_s(PU8 str);
 U0 clear_screen();
 
-U32 row;
-U32 col;
-U32 offset;
-
 U0 _start(_BOOTSTRAP *bstrap) {
-    
+    // _CLI
+    // _HLT
     bootstrap = bstrap;
-    if (SVGA_INIT(bootstrap)) {
-        ASM { 
-            CLI
-            HLT 
-        }
+
+    // Validate and initialise the SVGA/VBE framebuffer.  Halt if it failed.
+    if (!SVGA_INIT()) {
+        _HLT
     }
 
     asm { CLI }
-    row = 0;
-    col = 0;
-    offset = 0;
     clear_screen();
     print_s("AstraOS 32-bit kernel loaded!\n");
     print_s("Initializing GDT...\n");
@@ -49,41 +42,19 @@ U0 _start(_BOOTSTRAP *bstrap) {
 }
 
 
-// ── VGA output ─────────────────────────────────────────────────────────
+// ── Console output ──────────────────────────────────────────────────────
+// Delegates to the SVGA framebuffer text console.
 U0 clear_screen() {
-    PU8 vga_buffer = (PU8)0xB8000;
-    offset = 0;
-    row = 0;
-    col = 0;
-    for (U32 i = 0; i < 80 * 25; i++) {
-        vga_buffer[offset] = ' ';
-        vga_buffer[offset + 1] = 0x07;
-        offset += 2;
-    }
-    offset = 0;
-    row = 0;
-    col = 0;
+    return;
+    SVGA_CLEAR(0x00);
 }
 
 U0 print_c(U8 c) {
-    PU8 vga_buffer = (PU8)0xB8000;
-    if (c == '\n') {
-        row++;
-        col = 0;
-        offset = row * 80 * 2 + col * 2;
-        return;
-    }
-    vga_buffer[offset] = c;
-    vga_buffer[offset + 1] = 0x02;
-    col++;
-    if (col >= 80) {
-        col = 0;
-        row++;
-    }
-    offset = row * 80 * 2 + col * 2;
+    return;
+    SVGA_PUTCHAR(c);
 }
 
 U0 print_s(PU8 str) {
-    for(U32 i = 0; str[i] != 0; i = i + 1)
-        print_c(str[i]);
+    return;
+    SVGA_PUTS(str);
 }

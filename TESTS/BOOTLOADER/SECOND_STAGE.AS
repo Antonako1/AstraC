@@ -4,6 +4,9 @@
 .org 0x7E00
 .use16
 .code
+
+#define SVGA_MODE 0x0013
+
 main:
     ; Read kernel (LBA 9-17, CHS 0/0/10-18) to 0x10000
     MOV AX, 0x1000      ; ES = 0x1000
@@ -18,13 +21,11 @@ main:
     CLI
 
 
-#define VBE 1
-#ifdef VBE
     ; Check if VESA BIOS Extensions (VBE) are supported
     MOV AX, 0x4F00
     mov BX, 0x0000
     MOV ES, BX
-    MOV DI, [bootstrap + 16]
+    LEA DI, [bootstrap + 2]     ; VBE info block -> SVGA_INFO_REC
     INT 0x10
     CMP AH, 0x00
     JNE error
@@ -33,7 +34,7 @@ main:
 
     ; Switch to vga mode 0x13h (320x200 256-color)
     MOV AX, 0x4f02
-    mov BX, 0x0013
+    mov BX, SVGA_MODE
     INT 0x10
     CMP AH, 0x00
     JNE error
@@ -50,19 +51,16 @@ main:
 
     ; Store vga mode info in bootstrap structure
     MOV AX, 0x4F01
-    MOV CX, 0x0013
-    ; Store v
+    MOV CX, SVGA_MODE
     MOV BX, 0x0000
     MOV ES, BX
-    LEA DI, [bootstrap + 16 + 256] ; Offset to SVGA_MODE_INFO_REC in bootstrap structure
+    LEA DI, [bootstrap + 258]   ; VBE mode info block -> SVGA_MODE_INFO_REC
     INT 0x10
     CMP AH, 0x00
     JNE error
     CMP AL, 0x4F
     JNE error
-    mov [bootstrap], AX
 
-#endif ; VBE
 
     ; Switch to 32-bit protected mode
 
@@ -97,6 +95,29 @@ error:
     HLT
     JMP .hang
 
+
+; ── 32-bit entry ─────────────────────────────────────────────────────
+.use32
+pm_entry:
+    MOV AX, 0x10        ; data segment selector
+    MOV DS, AX
+    MOV ES, AX
+    MOV FS, AX
+    MOV GS, AX
+    MOV SS, AX
+    MOV ESP, 0x90000    ; stack at 576 KB
+
+
+    ; Load bootstrap structure address into EDI
+    LEA EAX, bootstrap
+    PUSH EAX
+
+    ; Jump to kernel (use register-indirect to avoid relative-offset bug)
+    MOV EAX, 0x10000
+    JMP EAX
+
+
+.data
 err_msg DB "SE", 0
 
 ; Create a bootstrap structure to pass to the kernel
@@ -116,22 +137,3 @@ gdt_end:
 gdt_desc:
 gdt_limit DW gdt_end - gdt_start - 1 ; limit
 gdt_base  DD gdt_start               ; base
-
-; ── 32-bit entry ─────────────────────────────────────────────────────
-.use32
-pm_entry:
-    MOV AX, 0x10        ; data segment selector
-    MOV DS, AX
-    MOV ES, AX
-    MOV FS, AX
-    MOV GS, AX
-    MOV SS, AX
-    MOV ESP, 0x90000    ; stack at 576 KB
-
-
-    ; Load bootstrap structure address into EDI
-    MOV EDI, bootstrap
-
-    ; Jump to kernel (use register-indirect to avoid relative-offset bug)
-    MOV EAX, 0x10000
-    JMP EAX
