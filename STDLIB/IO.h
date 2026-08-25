@@ -16,7 +16,6 @@
 
 /* ── Text formatting ────────────────────────────────────────────────────── */
 #define AC_SPRINTF(buf, fmt, ...)   sprintf((char*)(buf), (fmt), ##__VA_ARGS__)
-#define AC_FPRINTF(file, fmt, ...)  fprintf(file, fmt, ##__VA_ARGS__)
 #define AC_PRINTF(fmt, ...)         printf(fmt, ##__VA_ARGS__)
 
 

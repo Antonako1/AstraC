@@ -645,10 +645,131 @@ BOOL READ_LOGICAL_LINE(FILE *file, U8 *out, U32 out_size) {
 
 /*
  * ════════════════════════════════════════════════════════════════════════════
+ *  INCLUDE PATH RESOLUTION
+ * ════════════════════════════════════════════════════════════════════════════
+ *  Relative #include paths are resolved against the directory of the file that
+ *  contains the #include directive (NOT the process working directory).
+ */
+
+/* Extract the directory portion of `path` (everything up to the last
+ * '/' or '\\').  A path with no separator yields an empty directory. */
+STATIC VOID PP_GET_DIR(PU8 path, U8 *out, U32 out_sz) {
+    if (!path || !out || out_sz == 0) return;
+    U32 len = (U32)AC_STRLEN(path);
+    U32 i   = len;
+    while (i > 0 && path[i-1] != '/' && path[i-1] != '\\') i--;
+    if (i >= out_sz) i = out_sz - 1;
+    AC_STRNCPY(out, path, i);
+    out[i] = '\0';
+}
+
+/* TRUE if `p` is an absolute path (drive-letter or rooted). */
+STATIC BOOL PP_IS_ABS(PU8 p) {
+    if (!p || !*p) return FALSE;
+    if (p[0] == '/' || p[0] == '\\') return TRUE;
+    return (p[0] && p[1] == ':' && (p[2] == '/' || p[2] == '\\'));
+}
+
+/* Join `dir` and `rel` into `out`, inserting a separator if needed. */
+STATIC VOID PP_JOIN_PATH(PU8 dir, PU8 rel, U8 *out, U32 out_sz) {
+    if (!rel || !out || out_sz == 0) return;
+    if (PP_IS_ABS(rel)) {
+        AC_STRNCPY(out, rel, out_sz - 1);
+        out[out_sz - 1] = '\0';
+        return;
+    }
+    U32 dl = (dir && *dir) ? (U32)AC_STRLEN(dir) : 0;
+    U32 i  = 0;
+    if (dl > 0) {
+        if (dl >= out_sz) dl = out_sz - 1;
+        AC_STRNCPY(out, dir, dl);
+        i = dl;
+        if (i > 0 && out[i-1] != '/' && out[i-1] != '\\' && i < out_sz - 1)
+            out[i++] = '/';
+    }
+    if (i < out_sz)
+        AC_STRNCPY(out + i, rel, out_sz - i - 1);
+    out[out_sz - 1] = '\0';
+}
+
+/* Normalize `path` in place: resolve `.` and `..` components, unify
+ * separators to '/', and strip redundant separators.  Handles a leading
+ * '/', '\\', or drive-letter prefix. */
+STATIC VOID PP_NORMALIZE(PU8 path) {
+    if (!path || !*path) return;
+    U8  out[BUF_SZ];
+    U32 n   = 0;
+    U32 i   = 0;
+    U32 len = (U32)AC_STRLEN(path);
+    BOOL abs = FALSE;
+
+    /* Preserve root: leading separator or drive letter. */
+    if (path[0] == '/' || path[0] == '\\') {
+        out[n++] = '/';
+        i = 1;
+        abs = TRUE;
+    } else if (path[0] && path[1] == ':') {
+        out[n++] = path[0];
+        out[n++] = ':';
+        i = 2;
+        if (path[i] == '/' || path[i] == '\\') i++;
+        abs = TRUE;
+    }
+    U32 root = abs ? 1 : 0;   /* first index a component may occupy */
+
+    while (i <= len) {
+        U32 j = i;
+        while (j < len && path[j] != '/' && path[j] != '\\') j++;
+        U32 clen = j - i;
+
+        if (clen == 0 || (clen == 1 && path[i] == '.')) {
+            /* skip empty or "." component */
+        } else if (clen == 2 && path[i] == '.' && path[i+1] == '.') {
+            /* Find start of the last component in `out`. */
+            U32 last = n;
+            while (last > root && out[last-1] != '/') last--;
+            U32 last_len = n - last;
+            if (last_len == 2 && out[last] == '.' && out[last+1] == '.') {
+                /* top is already '..' -> push another '..' */
+                if (n > 0 && out[n-1] != '/') out[n++] = '/';
+                if (n + 2 < BUF_SZ) { out[n++] = '.'; out[n++] = '.'; }
+            } else if (last > root) {
+                /* pop the last regular component */
+                n = last;
+                if (n > root) n--;
+            } else {
+                /* empty stack -> push '..' */
+                if (n > 0 && out[n-1] != '/') out[n++] = '/';
+                if (n + 2 < BUF_SZ) { out[n++] = '.'; out[n++] = '.'; }
+            }
+        } else {
+            if (n > 0 && out[n-1] != '/') out[n++] = '/';
+            if (clen >= BUF_SZ - n - 1) clen = (BUF_SZ > n + 2) ? BUF_SZ - n - 2 : 0;
+            if (clen > 0) { AC_STRNCPY(out + n, path + i, clen); n += clen; }
+        }
+        i = j + 1;
+    }
+
+    if (n == 0) { out[n++] = '.'; }
+    out[n] = '\0';
+    AC_STRNCPY(path, out, BUF_SZ - 1);
+    path[BUF_SZ - 1] = '\0';
+}
+
+/* ── #include recursion guard ──────────────────────────────────────────────── */
+/* A depth limit converts runaway (unguarded) circular includes into a clean
+ * error instead of a stack overflow.  Guarded headers break cycles via
+ * #ifndef/#define, which the normal conditional machinery already handles. */
+#define PP_INCLUDE_DEPTH_MAX 64
+static U32  pp_open_depth ATTRIB_DATA = 0;
+
+/*
+ * ════════════════════════════════════════════════════════════════════════════
  *  PREPROCESS A SINGLE FILE  (recursive for #include)
  * ════════════════════════════════════════════════════════════════════════════
  */
-STATIC BOOL PREPROCESS_FILE(FILE *file, FILE *tmp_file, MACRO_ARR *mcr, PREPROCESSING_UNIT *unit) {
+STATIC BOOL PREPROCESS_FILE(FILE *file, FILE *tmp_file, MACRO_ARR *mcr,
+                            PREPROCESSING_UNIT *unit, PU8 cur_dir) {
     U8 buf[BUF_SZ] = { 0 };
     while (READ_LOGICAL_LINE(file, buf, sizeof(buf))) {
         REMOVE_COMMENTS(buf, unit->type);
@@ -722,7 +843,17 @@ STATIC BOOL PREPROCESS_FILE(FILE *file, FILE *tmp_file, MACRO_ARR *mcr, PREPROCE
                                 if (path[0] != '/') AC_STRCAT(tmp_str, "/");
                                 AC_STRCAT(tmp_str, path);
                             } else {
-                                AC_STRCPY(tmp_str, path);
+                                /* Resolve relative includes against the
+                                 * including file's directory. */
+                                PP_JOIN_PATH(cur_dir, path, tmp_str, sizeof(tmp_str));
+                            }
+                            PP_NORMALIZE(tmp_str);
+
+                            if (pp_open_depth >= PP_INCLUDE_DEPTH_MAX) {
+                                AC_PRINTF("[PP] #include nesting too deep (>= %u): %s\n",
+                                          PP_INCLUDE_DEPTH_MAX, tmp_str);
+                                AC_MFree(name); AC_MFree(value);
+                                return FALSE;
                             }
 
                             FILE *inc = AC_FOPEN(tmp_str, MODE_R | MODE_FAT32);
@@ -734,7 +865,16 @@ STATIC BOOL PREPROCESS_FILE(FILE *file, FILE *tmp_file, MACRO_ARR *mcr, PREPROCE
 
                             if (GET_ARGS()->verbose) AC_PRINTF("[PP] Including: %s\n", tmp_str);
 
-                            BOOL ok = PREPROCESS_FILE(inc, tmp_file, mcr, unit);
+                            /* Compute the included file's directory for nested
+                             * includes, then recurse. */
+                            U8 sub_dir[BUF_SZ] = { 0 };
+                            PP_GET_DIR(tmp_str, sub_dir, sizeof(sub_dir));
+                            PP_NORMALIZE(sub_dir);
+                            pp_open_depth++;
+
+                            BOOL ok = PREPROCESS_FILE(inc, tmp_file, mcr, unit, sub_dir);
+
+                            pp_open_depth--;
                             AC_FCLOSE(inc);
                             if (!ok) { AC_MFree(name); AC_MFree(value); return FALSE; }
                         } break;
@@ -863,13 +1003,20 @@ PASM_INFO PREPROCESS_ASM() {
     if (args->verbose) AC_PRINTF("[PP] Processing: %s -> %s\n", args->input_file, tmp_path);
 
     /* ── Run preprocessor ── */
-    BOOL ok = PREPROCESS_FILE(unit->file, tmp, &unit->macros, unit);
-    AC_FCLOSE(tmp);
+    {
+        U8 top_dir[BUF_SZ] = { 0 };
+        PP_GET_DIR(args->input_file, top_dir, sizeof(top_dir));
+        PP_NORMALIZE(top_dir);
+        pp_open_depth = 0;
+        BOOL ok = PREPROCESS_FILE(unit->file, tmp, &unit->macros, unit, top_dir);
+        pp_open_depth--;
+        AC_FCLOSE(tmp);
 
-    if (!ok) {
-        AC_PRINTF("[PP] Failed on file: %s\n", args->input_file);
-        FREE_PREPROCESSING_UNITS();
-        return info;
+        if (!ok) {
+            AC_PRINTF("[PP] Failed on file: %s\n", args->input_file);
+            FREE_PREPROCESSING_UNITS();
+            return info;
+        }
     }
 
     info->tmp_files[info->tmp_file_count++] = AC_STRDUP(tmp_path);
@@ -947,13 +1094,20 @@ PASM_INFO PREPROCESS_C() {
     if (args->verbose) AC_PRINTF("[PP] Processing: %s -> %s\n", args->input_file, tmp_path);
 
     /* ── Run preprocessor ── */
-    BOOL ok = PREPROCESS_FILE(unit->file, tmp, &unit->macros, unit);
-    AC_FCLOSE(tmp);
+    {
+        U8 top_dir[BUF_SZ] = { 0 };
+        PP_GET_DIR(args->input_file, top_dir, sizeof(top_dir));
+        PP_NORMALIZE(top_dir);
+        pp_open_depth = 0;
+        BOOL ok = PREPROCESS_FILE(unit->file, tmp, &unit->macros, unit, top_dir);
+        pp_open_depth--;
+        AC_FCLOSE(tmp);
 
-    if (!ok) {
-        AC_PRINTF("[PP] Failed on file: %s\n", args->input_file);
-        FREE_PREPROCESSING_UNITS();
-        return info;
+        if (!ok) {
+            AC_PRINTF("[PP] Failed on file: %s\n", args->input_file);
+            FREE_PREPROCESSING_UNITS();
+            return info;
+        }
     }
 
     info->tmp_files[info->tmp_file_count++] = AC_STRDUP(tmp_path);

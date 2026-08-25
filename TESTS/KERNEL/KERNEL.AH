@@ -1,3 +1,20 @@
+// ── Include guard: SVGA.AC also includes KERNEL.AH, so guard against
+//    circular re-inclusion when the header is pulled in transitively.
+#ifndef KERNEL_AH_DEFINED
+#define KERNEL_AH_DEFINED
+
+// ── Constants (defined before the includes so drivers can use them) ─────
+#define BOOT_MAGIC 0x2BA
+#define VGA_MODE_TEXT    0x03
+#define VGA_MODE_13H     0x13
+
+#define _CLI asm { CLI }
+#define _STI asm { STI }
+#define _HLT asm { HLT }
+
+// ── STD Library implementations ──────────────────────────────────────
+#include "../STD/STR.AC"
+
 // ── CPU subsystem implementations ──────────────────────────────────────
 #include "../KERNEL/CPU/GDT/GDT.AH"
 #include "../KERNEL/CPU/IDT/IDT.AH"
@@ -14,3 +31,106 @@
 #include "../KERNEL/DRIVERS/PIC/PIC.AC"
 #include "../KERNEL/DRIVERS/PS2/PS2.AH"
 #include "../KERNEL/DRIVERS/PS2/PS2.AC"
+#include "../KERNEL/DRIVERS/SVGA/SVGA.AH"
+#include "../KERNEL/DRIVERS/SVGA/SVGA.AC"
+
+
+/*
+http://www.techhelpmanual.com/113-int_10h__video_services.html
+
+SvgaInfoRec (ModeInfo)
+  Offset Size Contents
+  ▀▀▀▀▀▀ ▀▀▀▀ ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
+   +0      2  rModeAttrs   bit fields: mode characteristics
+   +2      1  rWinAAttrs   bit fields: windowing system characteristics
+   +3      1  rWinBAttrs   bit fields: windowing system characteristics
+   +4      2  wWinGran     window granularity, in Kbytes
+   +6      2  wWinSize     window size, in KB
+   +8      2  wWinASeg     window A segment address
+  +0aH     2  wWinBSeg     window B segment address
+  +0cH     4  pfWinFnPtr   far address of window-handling function
+  +10H     2  wScanLineSiz bytes per scan line
+────────────────────────── Extended/optional information; present only
+                           when rModeAttrs bit 1 is 1.
+  +12H     2  wHorizRes    horizontal resolution, in pixels or char cells
+  +14H     2  wVertRes     vertical resolution, in pixels or char cells
+  +16H     1  bCharWide    character cell width
+  +17H     1  bCharHigh    character cell height
+  +18H     1  bPlaneCnt    number of video memory planes
+  +19H     1  bBitsPerPel  number of bits per pixel
+  +1aH     1  bBankCnt     number of video memory banks
+  +1bH     1  bMemModel    memory model type code
+  +1cH     1  bBankSize    video memory bank size, in Kbytes
+  +1dH   227  res          reserved
+         256               required size of caller buffer
+
+SvgaInfoRec 
+  Offset Size Contents
+  ▀▀▀▀▀▀ ▀▀▀▀ ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
+   +0      4  abSignature  will contain 'VESA'
+   +4      2  wVersion     VESA version number; hi-byte=major; low=minor
+   +6      4  pfszOEMStr   ASCIIZ▲ Manufacture ID or other text info
+  +0aH     4  rAbilities   four bytes of bit flags
+  +0eH     4  pfawModes    address of a list of 16-bit supported mode values
+          18               size of formatted portion of an SvgaInfoRec
+  +12H   238  abData       may be filled with mode data
+         256               required size for return buffer
+
+*/
+typedef struct _SVGA_INFO_REC {
+    U8  abSignature[4];  // "VESA" signature
+    U16 wVersion;        // VESA version number; hi-byte=major; low=minor
+    U32 pfszOEMStr;      // ASCIIZ Manufacture ID or other text info
+    U32 rAbilities;      // Four bytes of bit flags
+    U32 pfawModes;       // Address of a list of 16-bit supported mode values
+    U16 wTotalMemory;    // Number of 64KB blocks of video memory
+    U8  abData[236];     // May be filled with mode data (256-byte block)
+} SVGA_INFO_REC;
+
+typedef struct _SVGA_MODE_INFO_REC {
+    U16 rModeAttrs;     // Mode attributes
+    U8  rWinAAttrs;     // Window A attributes
+    U8  rWinBAttrs;     // Window B attributes
+    U16 wWinGran;       // Window granularity in KB
+    U16 wWinSize;       // Window size in KB
+    U16 wWinASeg;       // Window A segment address
+    U16 wWinBSeg;       // Window B segment address
+    U32 pfWinFnPtr;     // Far pointer to window function
+    U16 wScanLineSiz;   // Bytes per scan line
+
+    U16 wHorizRes;      // Horizontal resolution in pixels
+    U16 wVertRes;       // Vertical resolution in pixels
+    U8  bCharWide;      // Character cell width in pixels
+    U8  bCharHigh;      // Character cell height in pixels
+    U8  bPlaneCnt;      // Number of video memory planes
+    U8  bBitsPerPel;    // Bits per pixel
+    U8  bBankCnt;       // Number of video memory banks
+    U8  bMemModel;      // Memory model type code
+    U8  bBankSize;      // Video memory bank size in KB
+    U8  bImgPages;      // Number of image pages
+    U8  bReserved;      // Reserved (page function)
+    U8  redMaskSize;    // Red mask size (direct color)
+    U8  redFieldPos;    // Red field position
+    U8  greenMaskSize;  // Green mask size
+    U8  greenFieldPos;  // Green field position
+    U8  blueMaskSize;   // Blue mask size
+    U8  blueFieldPos;   // Blue field position
+    U8  rsvdMaskSize;   // Reserved mask size
+    U8  rsvdFieldPos;   // Reserved field position
+    U8  dirColorInfo;   // Direct color mode info
+    U32 physBasePtr;    // Physical address of linear framebuffer
+    U32 offScreenMem;   // Offscreen memory offset
+    U16 offScreenSize;  // Offscreen memory size (KB)
+    U8  res[206];       // Reserved (256-byte block)
+
+} SVGA_MODE_INFO_REC;
+
+typedef struct _BOOTSTRAP {
+    U16 boot_magic; // Bootloader magic number
+    SVGA_INFO_REC vga_struct;
+    SVGA_MODE_INFO_REC vga_mode_info;
+} BOOTSTRAP_T;
+
+_BOOTSTRAP *bootstrap;
+
+#endif /* KERNEL_AH_DEFINED */

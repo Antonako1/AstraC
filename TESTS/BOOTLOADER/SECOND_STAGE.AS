@@ -4,6 +4,9 @@
 .org 0x7E00
 .use16
 .code
+
+#define SVGA_MODE 0x0013
+
 main:
     ; Read kernel (LBA 9-17, CHS 0/0/10-18) to 0x10000
     MOV AX, 0x1000      ; ES = 0x1000
@@ -15,8 +18,51 @@ main:
     INT 0x13
     JC error
 
-    ; Switch to 32-bit protected mode
     CLI
+
+
+    ; Check if VESA BIOS Extensions (VBE) are supported
+    MOV AX, 0x4F00
+    mov BX, 0x0000
+    MOV ES, BX
+    LEA DI, [bootstrap + 2]     ; VBE info block -> SVGA_INFO_REC
+    INT 0x10
+    CMP AH, 0x00
+    JNE error
+    CMP AL, 0x4F
+    JNE error 
+
+    ; Switch to vga mode 0x13h (320x200 256-color)
+    MOV AX, 0x4f02
+    mov BX, SVGA_MODE
+    INT 0x10
+    CMP AH, 0x00
+    JNE error
+    CMP AL, 0x4F
+    JNE error
+
+    ; Check if vga mode was set correctly
+    MOV AX, 0x4f03
+    INT 0x10
+    CMP AH, 0x00
+    JNE error
+    CMP AL, 0x4F
+    JNE error
+
+    ; Store vga mode info in bootstrap structure
+    MOV AX, 0x4F01
+    MOV CX, SVGA_MODE
+    MOV BX, 0x0000
+    MOV ES, BX
+    LEA DI, [bootstrap + 258]   ; VBE mode info block -> SVGA_MODE_INFO_REC
+    INT 0x10
+    CMP AH, 0x00
+    JNE error
+    CMP AL, 0x4F
+    JNE error
+
+
+    ; Switch to 32-bit protected mode
 
     ; Enable A20 gate via keyboard controller
     IN 0x92          ; AL = port 0x92
@@ -49,18 +95,6 @@ error:
     HLT
     JMP .hang
 
-err_msg DB "SE", 0
-
-; ── GDT (all DB to avoid DW/DD sizing bugs) ──────────────────────────
-gdt_start:
-    DB 0, 0, 0, 0, 0, 0, 0, 0   ; null descriptor
-    DB 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x9A, 0xCF, 0x00  ; code descriptor
-    DB 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x92, 0xCF, 0x00  ; data descriptor
-gdt_end:
-
-gdt_desc:
-gdt_limit DW gdt_end - gdt_start - 1 ; limit
-gdt_base  DD gdt_start               ; base
 
 ; ── 32-bit entry ─────────────────────────────────────────────────────
 .use32
@@ -73,6 +107,33 @@ pm_entry:
     MOV SS, AX
     MOV ESP, 0x90000    ; stack at 576 KB
 
+
+    ; Load bootstrap structure address into EDI
+    LEA EAX, bootstrap
+    PUSH EAX
+
     ; Jump to kernel (use register-indirect to avoid relative-offset bug)
     MOV EAX, 0x10000
     JMP EAX
+
+
+.data
+err_msg DB "SE", 0
+
+; Create a bootstrap structure to pass to the kernel
+bootstrap DW 0x2BA
+; _SVGA_INFO_REC
+.times 256 DB 0 
+; _SVGA_MODE_INFO_REC
+.times 256 DB 0 
+
+; ── GDT (all DB to avoid DW/DD sizing bugs) ──────────────────────────
+gdt_start:
+    DB 0, 0, 0, 0, 0, 0, 0, 0   ; null descriptor
+    DB 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x9A, 0xCF, 0x00  ; code descriptor
+    DB 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x92, 0xCF, 0x00  ; data descriptor
+gdt_end:
+
+gdt_desc:
+gdt_limit DW gdt_end - gdt_start - 1 ; limit
+gdt_base  DD gdt_start               ; base

@@ -346,22 +346,24 @@ STATIC BOOL verify_data_variable(PASM_NODE node, ASM_AST_ARRAY *ast, U32 node_id
         return FALSE;
     }
 
-    /* ── Variable name must be non-empty ──────────────────────────────────── */
-    if (!var->name || !*var->name) {
-        AC_PRINTF("[AS VERIFY] Line %u: Variable has no name\n", node->line);
-        return FALSE;
-    }
-
-    /* ── Duplicate name detection (scan earlier nodes) ────────────────────── */
-    for (U32 i = 0; i < node_idx; i++) {
-        PASM_NODE prev = ast->nodes[i];
-        if (!prev || prev->type != NODE_DATA_VAR) continue;
-        if (!prev->data.var || !prev->data.var->name) continue;
-        if (AC_STRICMP(prev->data.var->name, var->name) == 0) {
-            AC_PRINTF("[AS VERIFY] Line %u: Duplicate variable name '%s' "
-                   "(first defined at line %u)\n",
-                   node->line, var->name, prev->line);
+    /* ── Variable name (bare data `DB 1,2` has no name) ────────────────────── */
+    if (var->name) {
+        if (!*var->name) {
+            AC_PRINTF("[AS VERIFY] Line %u: Variable has no name\n", node->line);
             return FALSE;
+        }
+
+        /* ── Duplicate name detection (scan earlier nodes) ────────────────── */
+        for (U32 i = 0; i < node_idx; i++) {
+            PASM_NODE prev = ast->nodes[i];
+            if (!prev || prev->type != NODE_DATA_VAR) continue;
+            if (!prev->data.var || !prev->data.var->name) continue;
+            if (AC_STRICMP(prev->data.var->name, var->name) == 0) {
+                AC_PRINTF("[AS VERIFY] Line %u: Duplicate variable name '%s' "
+                       "(first defined at line %u)\n",
+                       node->line, var->name, prev->line);
+                return FALSE;
+            }
         }
     }
 

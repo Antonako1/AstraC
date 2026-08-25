@@ -63,8 +63,6 @@ typedef PI32*               PPI32;
 /* ── Section placement attributes ─────────────────────────────────────── */
 /* On the target OS these place symbols in specific linker sections.        */
 /* On the host they are no-ops.                                             */
-#define ATTRIB_DATA
-#define ATTRIB_RODATA
 
 /* Packed struct: GCC/Clang attribute; MSVC uses #pragma pack elsewhere.   */
 // Windows MSVC does not support __attribute__((packed)), so we define it as empty for MSVC. For GCC/Clang, we use the packed attribute.
@@ -88,11 +86,11 @@ typedef PI32*               PPI32;
 #  define ATTRIB_DATA __attribute__((section(".data")))
 #  define ATTRIB_RODATA __attribute__((section(".rodata")))
 
-// Else use GCC/Clang attributes for packed and section placement
+// Else, use nothing
 #else
-#  define ATTRIB_PACKED __attribute__((packed))
-#  define ATTRIB_DATA __attribute__((section(".data")))
-#  define ATTRIB_RODATA __attribute__((section(".rodata")))
+#  define ATTRIB_PACKED 
+#  define ATTRIB_DATA
+#  define ATTRIB_RODATA
 #endif
 
 /* ── Numeric limits ────────────────────────────────────────────────────── */

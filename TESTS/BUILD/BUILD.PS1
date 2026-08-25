@@ -19,17 +19,17 @@ if ($IsLinux) {
 
 # Stage 1: Assemble BOOTLOADER (first stage, 512-byte boot sector)
 Write-Host "=== Assembling BOOTLOADER ==="
-& $ASTRAC asm $bootAsm bits 16 org 7C00 debug arch i286
+& $ASTRAC asm $bootAsm bits 16 org 7C00 debug arch i286 warn 2
 if ($LASTEXITCODE -ne 0) { Write-Host "BOOTLOADER failed, exit code $LASTEXITCODE"; exit 1 }
 
 # Stage 2: Assemble SECOND_STAGE (16-bit → 32-bit transition)
 Write-Host "=== Assembling SECOND_STAGE ==="
-& $ASTRAC asm $stageAsm bits 16 org 7E00 debug
+& $ASTRAC asm $stageAsm bits 16 org 7E00 debug warn 2
 if ($LASTEXITCODE -ne 0) { Write-Host "SECOND_STAGE failed, exit code $LASTEXITCODE"; exit 1 }
 
 # Stage 3: Compile KERNEL (32-bit AC kernel)
 Write-Host "=== Compiling KERNEL ==="
-& $ASTRAC comp $kernelAc bits 32 org 10000 entry _start debug
+& $ASTRAC comp $kernelAc bits 32 org 10000 entry _start debug warn 2
 if ($LASTEXITCODE -ne 0) { Write-Host "KERNEL failed, exit code $LASTEXITCODE"; exit 1 }
 
 # Stage 4: Create floppy image (1.44 MB = 1474560 bytes)
