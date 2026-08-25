@@ -102,7 +102,6 @@ cp "$PROJECT_ROOT/AC/TEST2.AC"   "$STAGE_DIR/share/astrac/examples/AC/"
 # Documentation (same set as NSIS SecDocs)
 for f in \
     AC.md AS.md AC_LANG.md DSM.md PREPROCESSOR.md AC_FILEHEADER.md \
-    index.html AC.html AS.html DSM.html MNEMS.html \
     AC.png AH.png AS.png
 do
     cp "$PROJECT_ROOT/DOCS/$f" "$STAGE_DIR/share/astrac/docs/"
@@ -164,7 +163,7 @@ if [ -n "$WITH_SRC" ]; then
     cp "$PROJECT_ROOT/NSIS/"*.ico "$PROJECT_ROOT/NSIS/INSTALLER.NSI" "$SRC/NSIS/"
     cp "$PROJECT_ROOT/SCRIPTS/WIN/CREATE_NSIS.BAT" "$SRC/SCRIPTS/WIN/"
     cp "$PROJECT_ROOT/SCRIPTS/SH/"*.sh "$SRC/SCRIPTS/SH/"
-    cp "$PROJECT_ROOT/DOCS/"*.md "$PROJECT_ROOT/DOCS/"*.html "$PROJECT_ROOT/DOCS/"*.png "$SRC/DOCS/" 2>/dev/null || true
+    cp "$PROJECT_ROOT/DOCS/"*.md "$PROJECT_ROOT/DOCS/"*.png "$SRC/DOCS/" 2>/dev/null || true
 fi
 
 # Installer / uninstaller shipped inside the tarball

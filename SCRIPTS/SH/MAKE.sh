@@ -23,7 +23,20 @@ fi
 cmake -G "$GENERATOR" ..
 if [ $? -ne 0 ]; then
     echo "CMake configuration failed."
-    exit 1
+    read -p "Delete build directory and try again? (y/n): " answer
+    if [ "$answer" = "y" ] || [ "$answer" = "Y" ]; then
+        cd ..
+        rm -rf build
+        mkdir build
+        cd build || exit 1
+        cmake -G "$GENERATOR" ..
+        if [ $? -ne 0 ]; then
+            echo "CMake configuration failed again. Exiting."
+            exit 1
+        fi
+    else
+        exit 1
+    fi
 fi
 
 cmake --build . --config Release

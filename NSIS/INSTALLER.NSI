@@ -527,18 +527,10 @@ Section "Documentation" SecDocs
   File "..\DOCS\DSM.md"
   File "..\DOCS\PREPROCESSOR.md"
   File "..\DOCS\AC_FILEHEADER.md"
-  File "..\DOCS\index.html"
-  File "..\DOCS\AC.html"
-  File "..\DOCS\AS.html"
-  File "..\DOCS\DSM.html"
-  File "..\DOCS\MNEMS.html"
   File "..\DOCS\AC.png"
   File "..\DOCS\AH.png"
   File "..\DOCS\AS.png"
 
-  !insertmacro MUI_STARTMENU_WRITE_BEGIN Application
-    CreateShortCut "$SMPROGRAMS\$StartMenuFolder\Documentation.lnk" "$INSTDIR\docs\index.html"
-  !insertmacro MUI_STARTMENU_WRITE_END
 SectionEnd
 
 Section /o "Source Code" SecSource
@@ -582,7 +574,6 @@ Section /o "Source Code" SecSource
 
   SetOutPath "$INSTDIR\src\DOCS"
   File "..\DOCS\*.md"
-  File "..\DOCS\*.html"
   File "..\DOCS\*.png"
 SectionEnd
 
@@ -637,11 +628,6 @@ Section "Uninstall"
   Delete "$INSTDIR\docs\DSM.md"
   Delete "$INSTDIR\docs\PREPROCESSOR.md"
   Delete "$INSTDIR\docs\AC_FILEHEADER.md"
-  Delete "$INSTDIR\docs\index.html"
-  Delete "$INSTDIR\docs\AC.html"
-  Delete "$INSTDIR\docs\AS.html"
-  Delete "$INSTDIR\docs\DSM.html"
-  Delete "$INSTDIR\docs\MNEMS.html"
   Delete "$INSTDIR\docs\AC.png"
   RMDir  "$INSTDIR\docs"
 

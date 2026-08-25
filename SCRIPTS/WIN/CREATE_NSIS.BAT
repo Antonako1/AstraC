@@ -35,7 +35,20 @@ if defined NOBUILD (
     if not exist "%BUILD_DIR%" mkdir "%BUILD_DIR%"
     pushd "%BUILD_DIR%"
     cmake -G "Visual Studio 17 2022" -A x64 ..
-    if %ERRORLEVEL% neq 0 ( popd & popd & exit /b 1 )
+    if %ERRORLEVEL% neq 0 ( 
+        set /p "answ=Delete the build directory and try again? (Y/N): "
+        if /i "!answ!"=="Y" (
+            popd
+            rmdir /s /q "%BUILD_DIR%"
+            mkdir "%BUILD_DIR%"
+            pushd "%BUILD_DIR%"
+            cmake -G "Visual Studio 17 2022" -A x64 ..
+            if %ERRORLEVEL% neq 0 ( popd & popd & exit /b 1 )
+        ) else (
+            echo Build failed. Exiting.
+            popd & popd & exit /b 1
+        )
+    )
     cmake --build . --config Release
     if %ERRORLEVEL% neq 0 ( popd & popd & exit /b 1 )
     popd
@@ -57,14 +70,20 @@ popd
 echo.
 echo ============================================
 echo [3/3] Done!
-echo   %BUILD_DIR%\AstraC-Setup.exe
+
+REM Read version from VERSION.txt
+set "VERSION_FILE=%PROJECT_ROOT%\VERSION\VERSION.txt"
+
+
+for /f "usebackq delims=" %%v in ("%VERSION_FILE%") do set "VERSION=%%v"
+echo   %BUILD_DIR%\AstraC-Setup-%VERSION%.exe
 echo ============================================
 
 echo Run the installer to install AstraC, (Y/N).
 
 set /p "RUN_INSTALLER=>"
 if /i "%RUN_INSTALLER%"=="Y" (
-    start "" "%BUILD_DIR%\AstraC-Setup.exe"
+    start "" "%BUILD_DIR%\AstraC-Setup-%VERSION%.exe"
     echo Installer started. Follow the prompts to complete the installation.
 )
 
