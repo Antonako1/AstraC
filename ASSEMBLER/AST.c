@@ -965,18 +965,9 @@ STATIC PASM_NODE PARSE_INSTRUCTION(TOK_CURSOR *cur) {
  *    name  DW  1, 2, 3
  *    name  DD  0x1234
  */
-STATIC PASM_NODE PARSE_DATA_VAR(TOK_CURSOR *cur) {
-    PASM_TOK name_tok = TOK_ADVANCE(cur);   /* consume name identifier */
-    PASM_TOK type_tok = TOK_ADVANCE(cur);   /* consume type keyword */
-
-    PASM_VAR var = AC_MAlloc(sizeof(ASM_VAR));
-    if (!var) return NULLPTR;
-    AC_MEMSET(var, 0, sizeof(ASM_VAR));
-
-    var->name     = AC_STRDUP(name_tok->txt);
-    var->var_type = type_tok->var_type;
-
-    /* Collect raw value text (everything until EOL/EOF) */
+/* Collect the value list of a data definition (after the type keyword).
+ * Fills var->raw_value / is_list / list_len.  The cursor is left at EOL. */
+STATIC VOID COLLECT_DATA_VALUES(TOK_CURSOR *cur, PASM_VAR var) {
     U8  val_buf[BUF_SZ] = { 0 };
     U32 val_len = 0;
     BOOL first = TRUE;
@@ -1052,9 +1043,42 @@ STATIC PASM_NODE PARSE_DATA_VAR(TOK_CURSOR *cur) {
     var->raw_value = (val_len > 0) ? AC_STRDUP(val_buf) : NULLPTR;
     var->is_list   = (commas > 0);
     var->list_len  = commas + 1;
+}
+
+STATIC PASM_NODE PARSE_DATA_VAR(TOK_CURSOR *cur) {
+    PASM_TOK name_tok = TOK_ADVANCE(cur);   /* consume name identifier */
+    PASM_TOK type_tok = TOK_ADVANCE(cur);   /* consume type keyword */
+
+    PASM_VAR var = AC_MAlloc(sizeof(ASM_VAR));
+    if (!var) return NULLPTR;
+    AC_MEMSET(var, 0, sizeof(ASM_VAR));
+
+    var->name     = AC_STRDUP(name_tok->txt);
+    var->var_type = type_tok->var_type;
+
+    COLLECT_DATA_VALUES(cur, var);
 
     PASM_NODE n = ALLOC_NODE(NODE_DATA_VAR, name_tok);
     if (!n) { AC_MFree(var->name); AC_MFree(var->raw_value); AC_MFree(var); return NULLPTR; }
+    n->data.var = var;
+    return n;
+}
+
+/* Parse a bare data definition: `DB 1, 2, 3` with no variable name. */
+STATIC PASM_NODE PARSE_BARE_DATA(TOK_CURSOR *cur) {
+    PASM_TOK type_tok = TOK_ADVANCE(cur);   /* consume type keyword */
+
+    PASM_VAR var = AC_MAlloc(sizeof(ASM_VAR));
+    if (!var) return NULLPTR;
+    AC_MEMSET(var, 0, sizeof(ASM_VAR));
+
+    var->name     = NULLPTR;   /* bare data — no symbol */
+    var->var_type = type_tok->var_type;
+
+    COLLECT_DATA_VALUES(cur, var);
+
+    PASM_NODE n = ALLOC_NODE(NODE_DATA_VAR, type_tok);
+    if (!n) { AC_MFree(var->raw_value); AC_MFree(var); return NULLPTR; }
     n->data.var = var;
     return n;
 }
@@ -1215,33 +1239,45 @@ ASM_AST_ARRAY *ASM_BUILD_AST(ASM_TOK_ARRAY *toks) {
             if (lookahead && lookahead->type == TOK_IDENT_VAR) {
                 node = PARSE_DATA_VAR(&cur);
                 if (node) {
-                    if (current_section == DIR_NONE)
-                        if(WARNING(1)) {
-                            AC_PRINTF("[AST] Error: variable declared outside a data section at L%u\n",
-                                node->line);
-                            DESTROY_AST_ARR(arr);
-                            return NULLPTR;
-                        } else {
+                    if (current_section == DIR_NONE) {
+                        if (WARNING(1)) {
+                            if (GET_ARGS()->warnings_as_errors) {
+                                AC_PRINTF("[AST] Error: variable declared outside a data section at L%u\n",
+                                    node->line);
+                                DESTROY_AST_ARR(arr);
+                                return NULLPTR;
+                            }
                             AC_PRINTF("[AST] Warning: variable declared outside a data section at L%u\n",
                                 node->line);
                         }
+                    }
                     PUSH_NODE(arr, node);
                 }
                 continue;
             }
 
             /* Otherwise, emit as raw identifier token — skip for now */
-            if(WARNING(2)) {
-                    AC_PRINTF("[AST] Unexpected identifier '%s' at L%u C%u\n",
-                        t->txt, t->line, t->col);
-                    AC_PRINTF("[AST] Error: treating warnings as errors\n");
+            if (WARNING(2)) {
+                AC_PRINTF("[AST] Warning: unexpected identifier '%s' at L%u C%u\n",
+                    t->txt, t->line, t->col);
+                if (GET_ARGS()->warnings_as_errors) {
                     DESTROY_AST_ARR(arr);
                     return NULLPTR;
                 }
+            }
             TOK_ADVANCE(&cur);
             continue;
         }
     
+        /* ── Bare data (DB/DW/DD without a variable name) ──────────── */
+        if (t->type == TOK_IDENT_VAR
+            && (t->var_type == TYPE_BYTE || t->var_type == TYPE_WORD
+                || t->var_type == TYPE_DWORD || t->var_type == TYPE_FLOAT)) {
+            node = PARSE_BARE_DATA(&cur);
+            if (node) PUSH_NODE(arr, node);
+            continue;
+        }
+
         /* ── NUMBER in .code → NODE_RAW_NUM ────────────────────────── */
         if (t->type == TOK_NUMBER) {
             PASM_TOK num_tok = TOK_ADVANCE(&cur);
@@ -1254,9 +1290,13 @@ ASM_AST_ARRAY *ASM_BUILD_AST(ASM_TOK_ARRAY *toks) {
         }
 
         /* ── Anything else — skip ─────────────────────────────────── */
-        if (WARNING(4)) {
-            AC_PRINTF("[AST] Skipping unexpected token '%s' (%s) at L%u C%u\n",
+        if (WARNING(2)) {
+            AC_PRINTF("[AST] Warning: skipping unexpected token '%s' (%s) at L%u C%u\n",
                 t->txt, TOKEN_TYPE_STR(t->type), t->line, t->col);
+            if (GET_ARGS()->warnings_as_errors) {
+                DESTROY_AST_ARR(arr);
+                return NULLPTR;
+            }
         }
         TOK_ADVANCE(&cur);
     }

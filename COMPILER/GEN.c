@@ -31,6 +31,8 @@ STATIC SYMBOL *FIND_SYM(PU8 name) {
 /* ── Expression codegen — result in EAX ──────────────────────────────────── */
 
 STATIC VOID GEN_EXPR(PCNODE n);
+STATIC VOID GEN_MEMBER_ADDR(PCNODE n);
+STATIC VOID GEN_LVALUE_ADDR(PCNODE n);
 
 STATIC VOID GEN_LITERAL(PCNODE n) {
     switch (n->ntype) {
@@ -342,6 +344,75 @@ STATIC VOID GEN_DEREF(PCNODE n) {
         emit("    MOV EAX, [EAX]");
 }
 
+/* Compute the address of a struct member into EAX. */
+STATIC VOID GEN_MEMBER_ADDR(PCNODE n) {
+    PCNODE base = n->children[0];
+    BOOL is_arrow = (n->ntype == CNODE_ARROW_EXPR);
+    if (is_arrow)
+        GEN_EXPR(base);          /* base is a pointer — load the address */
+    else
+        GEN_LVALUE_ADDR(base);   /* base is a value — take its address */
+    if (n->ival)
+        AC_FPRINTF(outf, "    ADD EAX, %u\n", n->ival);
+}
+
+/* Compute the address of an lvalue into EAX. */
+STATIC VOID GEN_LVALUE_ADDR(PCNODE n) {
+    if (!n) { emit("    XOR EAX, EAX"); return; }
+    switch (n->ntype) {
+        case CNODE_IDENT: {
+            SYMBOL *s = FIND_SYM(n->txt);
+            if (!s) { emit("    XOR EAX, EAX"); return; }
+            if (s->kind == SYM_FUNCTION)
+                AC_FPRINTF(outf, "    LEA EAX, [_%s]\n", s->name);
+            else if (s->is_global)
+                AC_FPRINTF(outf, "    LEA EAX, [%s]\n", s->name);
+            else if ((I32)s->offset == 0)
+                AC_FPRINTF(outf, "    LEA EAX, [EBP]\n");
+            else if ((I32)s->offset > 0)
+                AC_FPRINTF(outf, "    LEA EAX, [EBP+%u]\n", s->offset);
+            else
+                AC_FPRINTF(outf, "    LEA EAX, [EBP-%u]\n", (U32)(-(I32)s->offset));
+            return;
+        }
+        case CNODE_INDEX: {
+            GEN_ARR_BASE(n->children[0]);
+            emit("    PUSH EAX");
+            GEN_EXPR(n->children[1]);
+            emit("    POP EBX");
+            U32 es = COMP_TYPE_SIZE(n->dtype);
+            if (es == 1)      emit("    LEA EAX, [EBX + EAX]");
+            else if (es == 2) emit("    LEA EAX, [EBX + EAX*2]");
+            else              emit("    LEA EAX, [EBX + EAX*4]");
+            return;
+        }
+        case CNODE_MEMBER:
+        case CNODE_ARROW_EXPR:
+            GEN_MEMBER_ADDR(n);
+            return;
+        case CNODE_DEREF:
+            GEN_EXPR(n->children[0]);   /* pointer value is the address */
+            return;
+        default:
+            emit("    XOR EAX, EAX");
+            return;
+    }
+}
+
+/* Load (or take the address of) a struct/union member. */
+STATIC VOID GEN_MEMBER(PCNODE n) {
+    GEN_MEMBER_ADDR(n);
+    COMP_TYPE ft = n->dtype;
+    /* A struct/union member is an aggregate, and an array field decays to a
+     * pointer — in both cases the address is the result. */
+    if (ft.base == CTYPE_STRUCT || ft.base == CTYPE_UNION || n->array_size > 0)
+        return;
+    U32 es = COMP_TYPE_SIZE(ft);
+    if (es == 1)      emit("    MOVZX EAX, BYTE [EAX]");
+    else if (es == 2) emit("    MOVZX EAX, WORD [EAX]");
+    else              emit("    MOV EAX, [EAX]");
+}
+
 STATIC VOID GEN_INDEX(PCNODE n) {
     GEN_ARR_BASE(n->children[0]);  /* base address → EAX */
     emit("    PUSH EAX");
@@ -425,6 +496,18 @@ STATIC VOID GEN_EXPR(PCNODE n) {
         case CNODE_ADDR:     GEN_ADDR(n); break;
         case CNODE_DEREF:    GEN_DEREF(n); break;
         case CNODE_INDEX:    GEN_INDEX(n); break;
+        case CNODE_MEMBER:
+        case CNODE_ARROW_EXPR: GEN_MEMBER(n); break;
+        case CNODE_TERNARY: {
+            U32 le = new_label(), lelse = new_label();
+            GEN_EXPR(n->children[0]);
+            AC_FPRINTF(outf, "    TEST EAX, EAX\n    JZ __lbl%u\n", lelse);
+            if (n->child_count > 1) GEN_EXPR(n->children[1]);
+            AC_FPRINTF(outf, "    JMP __lbl%u\n__lbl%u:\n", le, lelse);
+            if (n->child_count > 2) GEN_EXPR(n->children[2]);
+            AC_FPRINTF(outf, "__lbl%u:\n", le);
+            break;
+        }
         case CNODE_POSTFIX:  GEN_POSTFIX(n); break;
         case CNODE_ASSIGN:   GEN_ASSIGN(n); break;
         case CNODE_CAST:     GEN_CAST(n); break;
@@ -725,6 +808,19 @@ BOOL COMP_GEN(PCNODE root, PCOMP_CTX c) {
         AC_FPRINTF(outf, ".org 0x%X\n", cfg->org);
     emit((bits16 ? ".use16" : ".use32"));
     emit(".code");
+    
+    // Emit entry point jump.  Function labels are emitted as `_<NAME>`
+    // where NAME is the upper-cased symbol, so the jump target must match.
+    {
+        U8 buf[64];
+        PU8 ep = (cfg && cfg->entry_point) ? cfg->entry_point : (PU8)"_start";
+        U32 i;
+        AC_STRNCPY(buf, ep, 60);
+        buf[60] = '\0';
+        for (i = 0; buf[i]; i++)
+            if (buf[i] >= 'a' && buf[i] <= 'z') buf[i] -= 32;
+        AC_FPRINTF(outf, "jmp _%s\n", buf);
+    }
 
     /* Emit functions */
     for (U32 i = 0; i < root->child_count; i++) {

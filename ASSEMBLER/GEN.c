@@ -101,6 +101,9 @@ STATIC VOID EMIT(FILE *file, const U8 *buf, U32 len) {
             ptrs.rodata += len;
             break;
         default:
+            /* No explicit section yet — default to code. */
+            dst = code_buf + ptrs.code;
+            ptrs.code += len;
             break;
     }
 
@@ -929,10 +932,11 @@ STATIC BOOL ENCODE_INSTRUCTION(FILE *f, PASM_NODE node) {
  */
 STATIC BOOL ENCODE_DATA_VAR(FILE *f, PASM_NODE node) {
     PASM_VAR var = node->data.var;
-    if (!var || !var->name) return FALSE;
+    if (!var) return FALSE;
 
-    /* Record the variable's address in the label table */
-    ADD_ASM_PTR(var->name, CURRENT_OFFSET(), ptrs.current_section);
+    /* Record the variable's address in the label table (skip bare data) */
+    if (var->name)
+        ADD_ASM_PTR(var->name, CURRENT_OFFSET(), ptrs.current_section);
 
     AC_DEBUG_PRINTF("[ASM GEN] Variable '%s' at offset 0x%X with raw value: %s\n",
                  var->name ? var->name : "(null)", CURRENT_OFFSET(), var->raw_value ? var->raw_value : "(null)");
@@ -1293,7 +1297,6 @@ STATIC VOID RESOLVE_LOCAL_REFS(ASM_AST_ARRAY *ast) {
  *  (Pass 1).  When f is a real file pointer it emits binary data (Pass 2).
  */
 STATIC BOOL GEN_EMIT_PASS(FILE *f, ASM_AST_ARRAY *ast, ASTRAC_ARGS *cfg) {
-
     for (U32 i = 0; i < ast->len; i++) {
         PASM_NODE node = ast->nodes[i];
         if (!node) continue;
@@ -1385,9 +1388,11 @@ STATIC BOOL GEN_EMIT_PASS(FILE *f, ASM_AST_ARRAY *ast, ASTRAC_ARGS *cfg) {
                     return FALSE;
                 }
                 U32 after = CURRENT_OFFSET();
-                /* Record byte_size so $VARNAME can resolve */
-                ASM_PTR *vp = FIND_ASM_PTR(node->data.var->name);
-                if (vp) vp->byte_size = after - before;
+                /* Record byte_size so $VARNAME can resolve (skip bare data) */
+                if (node->data.var->name) {
+                    ASM_PTR *vp = FIND_ASM_PTR(node->data.var->name);
+                    if (vp) vp->byte_size = after - before;
+                }
             }
             break;
 
