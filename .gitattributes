@@ -6,3 +6,4 @@
 *.as linguist-language=Assembly linguist-vendored
 *.AS linguist-language=Assembly linguist-vendored
 *.AC linguist-language=C linguist-vendored
+*.ac linguist-language=C linguist-vendored
