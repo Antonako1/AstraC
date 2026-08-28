@@ -75,5 +75,8 @@ def main():
 
     print(f"Version updated to {new_version}")
 
+    # Copy to script/../ASTRAC/VERSION/
+    
+
 if __name__ == "__main__":
     main()

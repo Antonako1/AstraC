@@ -794,7 +794,7 @@ BOOL COMP_GEN(PCNODE root, PCOMP_CTX c) {
     ctx = c; sym = &c->symtab;
 
     PU8 outfile = c->out_asm;
-    if (!outfile) outfile = (PU8)"/TMP/out.AS";
+    if (!outfile) outfile = (PU8)"/tmp/out.AS";
     if (AC_FILE_EXISTS(outfile)) AC_FILE_DELETE(outfile);
     AC_FILE_CREATE(outfile);
     outf = AC_FOPEN(outfile, MODE_FA);

@@ -7,7 +7,7 @@
  *   2. Strips comments  (; for ASM, // and /* for C)
  *   3. Handles directives: #include, #define, #undef, #ifdef/#ifndef/#elif/#else/#endif, #error, #warning
  *   4. Performs macro substitution on surviving lines
- *   5. Writes the result to a temp file in /TMP/
+ *   5. Writes the result to a temp file in /tmp/
  *
  * The temp file path is collected in ASM_INFO for the lexer.
  */
@@ -940,7 +940,7 @@ VOID FREE_PREPROCESSING_UNITS() {
  * ════════════════════════════════════════════════════════════════════════════
  *  PREPROCESS_ASM — top-level entry point
  * ════════════════════════════════════════════════════════════════════════════
- *  1. Create /TMP/00.AS
+ *  1. Create /tmp/00.AS
  *  2. Open the input file
  *  3. Run PREPROCESS_FILE (recursive for includes)
  *  4. Store the temp path in info->tmp_files[0]
@@ -968,7 +968,7 @@ PASM_INFO PREPROCESS_ASM() {
 
     /* ── Build temp file path ── */
     U8 tmp_path[32];
-    AC_SPRINTF(tmp_path, "/TMP/00.AS");
+    AC_SPRINTF(tmp_path, "/tmp/00.AS");
     if (AC_FILE_EXISTS(tmp_path)) {
         if (!AC_FILE_DELETE(tmp_path)) {
             AC_PRINTF("[PP] Cannot delete existing temp file: %s\n", tmp_path);
@@ -1058,7 +1058,7 @@ PASM_INFO PREPROCESS_C() {
     #ifdef _WIN32
     AC_SPRINTF(tmp_path, "C:\\TMP\\00.AC");
     #else
-    AC_SPRINTF(tmp_path, "/TMP/00.AC");
+    AC_SPRINTF(tmp_path, "/tmp/00.AC");
     #endif
     if (AC_FILE_EXISTS(tmp_path)) {
         if (!AC_FILE_DELETE(tmp_path)) {

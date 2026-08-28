@@ -578,7 +578,7 @@ C preprocessor functionality:
 ### Multi-file compilation
 
 Multiple `.AC` files are combined via `#include`. The preprocessor concatenates
-all included files into a single preprocessed source (`/TMP/00.AC`). There is
+all included files into a single preprocessed source (`/tmp/00.AC`). There is
 no separate object-linking step -- everything compiles to one `.BIN`.
 
 ---

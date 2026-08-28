@@ -40,10 +40,10 @@ Flags:
 ### Output files
 
 ```
-input.AC -> [Preprocessor] -> /TMP/00.AC -> [Compiler] -> input.AS -> [Assembler] -> input.BIN
+input.AC -> [Preprocessor] -> /tmp/00.AC -> [Compiler] -> input.AS -> [Assembler] -> input.BIN
 ```
 
-- With `-E`: outputs preprocessed source to `/TMP/00.AC`
+- With `-E`: outputs preprocessed source to `/tmp/00.AC`
 - With `-S`: outputs assembly source to `input.AS`
 - Default: outputs binary to `input.BIN`
 
@@ -537,7 +537,7 @@ preprocessor:
 ### Multi-file compilation
 
 Multiple `.AC` files are combined via `#include`. The preprocessor concatenates
-all included files into a single preprocessed source (`/TMP/00.AC`). There is
+all included files into a single preprocessed source (`/tmp/00.AC`). There is
 no separate object-linking step -- everything compiles to one `.BIN`.
 
 ---

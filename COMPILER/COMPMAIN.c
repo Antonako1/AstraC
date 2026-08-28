@@ -34,7 +34,7 @@ U32 START_COMPILER() {
     #ifdef _WIN32
     PU8 tmp_src_path = (PU8)"C:\\TMP\\00.AC";
     #else
-    PU8 tmp_src_path = (PU8)"/TMP/00.AC";
+    PU8 tmp_src_path = (PU8)"/tmp/00.AC";
     #endif
 
     PASM_INFO info = PREPROCESS_C();

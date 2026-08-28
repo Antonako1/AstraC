@@ -1,0 +1,33 @@
+/**
+ * STDLIB/TYPEDEF.h - Type definitions for AstraC 
+ *
+ * These are the minimum defines needed by AstraC compiler
+ * Licensed under the MIT License. See LICENSE file in the project root for full license information.
+ */
+#ifndef TYPEDEF_AH
+#define TYPEDEF_AH
+
+#define MAX_U8   0xFF
+#define MAX_U16  0xFFFF
+#define MAX_U32  0xFFFFFFFFU
+#define MAX_I8   0x7F
+#define MAX_I16  0x7FFF
+#define MAX_I32  0x7FFFFFFF
+#define MIN_I8   ((I8)0x80)
+#define MIN_I16  ((I16)0x8000)
+#define MIN_I32  ((I32)0x80000000)
+#define MAX_F32  3.402823466e+38F
+#define MIN_F32  1.175494351e-38F
+
+/*
+#define AC_IS_DIGIT(c)   ((U8)(c) >= '0' && (U8)(c) <= '9')
+#define AC_IS_UPPER(c)   ((U8)(c) >= 'A' && (U8)(c) <= 'Z')
+#define AC_IS_LOWER(c)   ((U8)(c) >= 'a' && (U8)(c) <= 'z')
+#define AC_IS_ALPHA(c)   (AC_IS_UPPER(c) || AC_IS_LOWER(c) || (U8)(c) == '_')
+#define AC_IS_ASCII(c)   ((U8)(c) >= 0x20 && (U8)(c) <= 0x7E)
+#define AC_IS_ALNUM(c)   (AC_IS_ALPHA(c) || AC_IS_DIGIT(c))
+#define AC_IS_HEXDIG(c)  (AC_IS_DIGIT(c) || ((U8)(c)>='A'&&(U8)(c)<='F') || ((U8)(c)>='a'&&(U8)(c)<='f'))
+#define AC_IS_SPACE(c)   ((U8)(c) == ' ' || (U8)(c) == '\t' || (U8)(c) == '\n' || (U8)(c) == '\r')
+*/
+
+#endif // TYPEDEF_AH
