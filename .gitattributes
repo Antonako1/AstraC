@@ -3,3 +3,6 @@
 *.html linguist-detectable=false
 *.css linguist-detectable=false
 *.js linguist-detectable=false
+*.as linguist-language=Assembly linguist-vendored
+*.AS linguist-language=Assembly linguist-vendored
+*.AC linguist-language=C linguist-vendored
