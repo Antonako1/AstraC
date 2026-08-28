@@ -5,5 +5,7 @@
 *.js linguist-detectable=false
 *.as linguist-language=Assembly
 *.AS linguist-language=Assembly
-*.AC linguist-language=C
-*.ac linguist-language=C
+*.AC linguist-language=CPP
+*.ac linguist-language=CPP
+*.AH linguist-language=CPP
+*.ah linguist-language=CPP
