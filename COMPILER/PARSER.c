@@ -54,6 +54,12 @@ STATIC SYMBOL *SYM_LOOKUP(PU8 name) {
     return NULLPTR;
 }
 
+/* TRUE if a symbol names a usable type (typedef, struct, union, or enum). */
+STATIC BOOL SYM_IS_TYPE(SYMBOL *s) {
+    return s && (s->kind == SYM_TYPEDEF || s->kind == SYM_STRUCT
+              || s->kind == SYM_UNION  || s->kind == SYM_ENUM);
+}
+
 STATIC VOID SYM_FREE_ALL() {
     for (U32 i = 0; i < sym->count; i++) {
         if (sym->entries[i].name) AC_MFree(sym->entries[i].name);
@@ -70,12 +76,28 @@ STATIC COMP_TYPE COMP_MAKE_TYPE(COMP_BASE_TYPE base, U8 ptr_depth, PU8 name) {
     return t;
 }
 
+/* Size of a type as used in a struct/union field.  Nested struct/union types
+ * are resolved through the symbol table (COMP_TYPE_SIZE alone returns 0 for
+ * struct/union types). */
+STATIC U32 FIELD_TYPE_SIZE(COMP_TYPE t) {
+    if (t.base == CTYPE_STRUCT || t.base == CTYPE_UNION) {
+        if (t.name) {
+            SYMBOL *s = SYM_LOOKUP(t.name);
+            if (s) return s->total_size;
+        }
+        return 0;
+    }
+    return COMP_TYPE_SIZE(t);
+}
+
 /* ── Forward declarations ─────────────────────────────────────────────────── */
 STATIC PCNODE parse_expr();
 STATIC PCNODE parse_expr_prec(U32 min_prec);
 STATIC PCNODE parse_stmt();
 STATIC PCNODE parse_block();
 STATIC COMP_TYPE parse_type();
+STATIC PCNODE parse_atom();
+STATIC PCNODE parse_postfix(PCNODE lhs);
 
 /* ── Type parsing ─────────────────────────────────────────────────────────── */
 STATIC COMP_TYPE parse_type() {
@@ -118,13 +140,19 @@ STATIC COMP_TYPE parse_type() {
         bt = (bt_tok == CTOK_KW_STRUCT) ? CTYPE_STRUCT :
              (bt_tok == CTOK_KW_UNION)  ? CTYPE_UNION  : CTYPE_ENUM;
     } else if (MATCH(CTOK_IDENT)) {
-        /* Typedef name */
+        /* Typedef name or bare struct/union/enum tag name */
         PCOMP_TOK n = ADV();
         SYMBOL *s = SYM_LOOKUP(n->txt);
         if (s && s->kind == SYM_TYPEDEF) {
             bt   = s->type.base;
             pd   = s->type.ptr_depth;
             name = s->type.name;
+        } else if (s && s->kind == SYM_STRUCT) {
+            bt = CTYPE_STRUCT; pd = 0; name = n->txt;
+        } else if (s && s->kind == SYM_UNION) {
+            bt = CTYPE_UNION;  pd = 0; name = n->txt;
+        } else if (s && s->kind == SYM_ENUM) {
+            bt = CTYPE_ENUM;   pd = 0; name = n->txt;
         } else {
             AC_PRINTF("[PARSE] L%u unknown type '%s'\n", n->line, n->txt);
         }
@@ -193,7 +221,7 @@ STATIC PCNODE parse_atom() {
                      || next == CTOK_KW_UNION || next == CTOK_KW_ENUM;
         if (next == CTOK_IDENT) {
             SYMBOL *ts = SYM_LOOKUP(PEEK()->txt);
-            try_cast = (ts && ts->kind == SYM_TYPEDEF);
+            try_cast = SYM_IS_TYPE(ts);
         }
         if (try_cast) {
             COMP_TYPE ct = parse_type();
@@ -235,8 +263,13 @@ STATIC PCNODE parse_atom() {
         else if (is_pre) n = CNODE_NEW(CNODE_UNARY, t->line, t->col);
         else n = CNODE_NEW(CNODE_UNARY, t->line, t->col);
         n->op = op;
+        /* The operand is a prefix expression: postfix binds tighter than
+         * prefix unary, so `!f()` parses as `!(f())`, `*p->x` as `*(p->x)`. */
         PCNODE a = parse_atom();
-        if (a) CNODE_ADD_CHILD(n, a);
+        if (a) {
+            a = parse_postfix(a);
+            CNODE_ADD_CHILD(n, a);
+        }
         return n;
     }
 
@@ -418,7 +451,7 @@ STATIC PCNODE parse_stmt() {
                    || ft == CTOK_KW_VOID;
             if (ft == CTOK_IDENT) {
                 SYMBOL *ts = SYM_LOOKUP(PEEK()->txt);
-                isType = (ts && ts->kind == SYM_TYPEDEF);
+                isType = SYM_IS_TYPE(ts);
             }
             if (isType) {
                 /* Parse var decl without consuming final semicolon */
@@ -553,7 +586,7 @@ STATIC PCNODE parse_stmt() {
     BOOL is_typedef_name = FALSE;
     if (MATCH(CTOK_IDENT)) {
         SYMBOL *ts = SYM_LOOKUP(PEEK()->txt);
-        if (ts && ts->kind == SYM_TYPEDEF && pos + 1 < toks->len) {
+        if (SYM_IS_TYPE(ts) && pos + 1 < toks->len) {
             /* Only enter type chain if next token is an identifier (var name),
              * * (pointer), or it's a function call like TYPE(...) */
             COMP_TOK_TYPE next = toks->toks[pos + 1]->type;
@@ -756,13 +789,25 @@ STATIC PCNODE parse_toplevel() {
                 COMP_TYPE ft = parse_type();
                 PCOMP_TOK fn = EXPECT(CTOK_IDENT);
                 if (!fn) break;
+
+                /* Optional array dimension: type name[N] */
+                U32 count = 1;
+                if (MATCH(CTOK_LBRACKET)) {
+                    ADV();
+                    PCNODE sz = parse_atom();
+                    if (sz && sz->ntype == CNODE_INT_LIT && sz->ival > 0) count = sz->ival;
+                    EXPECT(CTOK_RBRACKET);
+                }
+
                 if (MATCH(CTOK_SEMICOLON)) {
                     ADV();
-                    U32 fsz = COMP_TYPE_SIZE(ft);
-                    ss->fields[ss->field_count].name   = AC_STRDUP(fn->txt);
-                    ss->fields[ss->field_count].type   = ft;
-                    ss->fields[ss->field_count].offset = is_union ? 0 : ss->total_size;
-                    ss->fields[ss->field_count].size   = fsz;
+                    U32 elem = FIELD_TYPE_SIZE(ft);
+                    U32 fsz  = elem * count;
+                    ss->fields[ss->field_count].name       = AC_STRDUP(fn->txt);
+                    ss->fields[ss->field_count].type       = ft;
+                    ss->fields[ss->field_count].array_size = count;
+                    ss->fields[ss->field_count].offset     = is_union ? 0 : ss->total_size;
+                    ss->fields[ss->field_count].size       = fsz;
                     if (is_union) { if (fsz > ss->total_size) ss->total_size = fsz; }
                     else ss->total_size += fsz;
                     ss->field_count++;
@@ -836,11 +881,11 @@ STATIC PCNODE parse_toplevel() {
     if (MATCH(CTOK_KW_STATIC)) { ADV(); is_static = TRUE; }
     else if (MATCH(CTOK_KW_LOCAL)) { ADV(); is_local = TRUE; }
 
-    /* Check for typedef name as type */
+    /* Check for typedef name or bare tag name as type */
     BOOL is_typedef_name2 = FALSE;
     if (MATCH(CTOK_IDENT)) {
         SYMBOL *ts = SYM_LOOKUP(PEEK()->txt);
-        if (ts && ts->kind == SYM_TYPEDEF && pos + 1 < toks->len) {
+        if (SYM_IS_TYPE(ts) && pos + 1 < toks->len) {
             COMP_TOK_TYPE next = toks->toks[pos + 1]->type;
             is_typedef_name2 = (next == CTOK_IDENT || next == CTOK_STAR || next == CTOK_LPAREN);
         }

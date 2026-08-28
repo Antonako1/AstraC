@@ -27,6 +27,7 @@ CMakeFiles/
 TESTS/KERNEL/KERNEL.AS
 !/TESTS/BUILD
 *.tar.gz
+
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
 

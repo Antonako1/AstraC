@@ -93,6 +93,11 @@ VOID   FREE_MACROS(MACRO_ARR *arr);
 BOOL READ_LOGICAL_LINE(FILE *file, U8 *out, U32 out_size);
 BOOL IS_EMPTY(PU8 line);
 
+/* ── WARNINGS ─────────────────────────────────────────────────────────── */
+/* Returns TRUE when a diagnostic of severity `warning_level` should be
+ * emitted (SHARED/WARNINGS.c). */
+BOOLEAN WARNING(U8 warning_level);
+
 /* ── ARGUMENT STRUCTURE ───────────────────────────────────────────────── */
 typedef struct _ASTRAC_ARGS {
     MACRO_ARR macros;
@@ -118,5 +123,6 @@ typedef struct _ASTRAC_ARGS {
 ASTRAC_ARGS *GET_ARGS();
 VOID         FREE_ARGS();
 ASTRAC_RESULT START_WORKLOAD();
+ASTRAC_RESULT START_MNEMONIC_INFO(PU8 mnemonic);
 
 #endif /* ASTRAC_MAIN_H */

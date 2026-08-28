@@ -24,6 +24,22 @@ STATIC BOOL IS_INTEGER(COMP_TYPE t) {
     return (t.base >= CTYPE_U8 && t.base <= CTYPE_I32) || t.base == CTYPE_BOOL;
 }
 
+STATIC BOOL IS_INTEGER_TYPE(COMP_TYPE t) {
+    return (t.base >= CTYPE_U8 && t.base <= CTYPE_I32) || t.base == CTYPE_BOOL;
+}
+
+/* TRUE if the non-negative integer literal `val` fits in type `dst`. */
+STATIC BOOL CONST_FITS(COMP_TYPE dst, U32 val) {
+    switch (dst.base) {
+        case CTYPE_U8:   return val <= 0xFF;
+        case CTYPE_I8:   return val <= 0x7F;
+        case CTYPE_U16:  return val <= 0xFFFF;
+        case CTYPE_I16:  return val <= 0x7FFF;
+        case CTYPE_BOOL: return val <= 1;
+        default:         return TRUE;   /* U32 / I32 */
+    }
+}
+
 STATIC BOOL IS_POINTER(COMP_TYPE t) {
     return t.base >= CTYPE_PU8 || t.base == CTYPE_VOIDPTR;
 }
@@ -50,6 +66,7 @@ STATIC COMP_TYPE STRIP_PTR_TYPE(COMP_TYPE t) {
 }
 
 STATIC VOID WARN(PU8 msg, U32 line, U32 col) {
+    if (!WARNING(1)) return;   /* respect the --warn level (default: silent) */
     AC_PRINTF("[VERIFY] L%u:%u warning: %s\n", line, col, msg);
     ctx->warnings++;
 }
@@ -267,9 +284,31 @@ STATIC COMP_TYPE VERIFY_NODE(PCNODE n) {
         }
 
         case CNODE_MEMBER:
-        case CNODE_ARROW_EXPR:
-            VERIFY_NODE(n->children[0]);
-            return COMP_MAKE_TYPE(CTYPE_U32, 0, NULLPTR);
+        case CNODE_ARROW_EXPR: {
+            COMP_TYPE base = VERIFY_NODE(n->children[0]);
+            BOOL is_arrow = (n->ntype == CNODE_ARROW_EXPR);
+            COMP_TYPE st = is_arrow ? STRIP_PTR_TYPE(base) : base;
+
+            PU8 fname = (n->child_count > 1 && n->children[1]) ? n->children[1]->txt : NULLPTR;
+            SYMBOL *ss = st.name ? V_FIND_SYM(st.name) : NULLPTR;
+            COMP_TYPE ft = COMP_MAKE_TYPE(CTYPE_U32, 0, NULLPTR);
+            U32 foff = 0;
+            U32 farr = 0;
+            if (ss && fname) {
+                for (U32 j = 0; j < ss->field_count; j++) {
+                    if (ss->fields[j].name && AC_STRCMP(ss->fields[j].name, fname) == 0) {
+                        ft   = ss->fields[j].type;
+                        foff = ss->fields[j].offset;
+                        farr = ss->fields[j].array_size;
+                        break;
+                    }
+                }
+            }
+            n->dtype      = ft;
+            n->ival       = foff;   /* field byte offset, used by codegen */
+            n->array_size = farr;   /* >0 if the field is an array */
+            return ft;
+        }
 
         case CNODE_ASSIGN: {
             COMP_TYPE lt = VERIFY_NODE(n->children[0]);
@@ -278,8 +317,16 @@ STATIC COMP_TYPE VERIFY_NODE(PCNODE n) {
             if (n->children[0] && (n->children[0]->ntype == CNODE_MEMBER
                 || n->children[0]->ntype == CNODE_ARROW_EXPR))
                 ; /* skip type check for member access */
-            else if (lt.base != rt.base && lt.base != CTYPE_NONE && rt.base != CTYPE_NONE)
+            else if (lt.base != rt.base && lt.base != CTYPE_NONE && rt.base != CTYPE_NONE) {
+                /* Don't warn for an integer constant that fits in the
+                 * destination type (e.g. `U8 c = 32;`). */
+                PCNODE rhs = n->children[1];
+                BOOL const_fits = IS_INTEGER_TYPE(lt) && IS_INTEGER_TYPE(rt)
+                               && (rhs && (rhs->ntype == CNODE_INT_LIT || rhs->ntype == CNODE_CHAR_LIT))
+                               && CONST_FITS(lt, rhs->ival);
+            if (!const_fits)
                 WARN("assignment type mismatch", n->line, n->col);
+            }
             n->dtype = lt;
             return lt;
         }

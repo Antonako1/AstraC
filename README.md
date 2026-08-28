@@ -20,6 +20,59 @@ AstraC is a lightweight assembler and compiler for the Intel I386 and Intel I286
 - Own standard library for linkage to other operating systems
 - Whole executable source compiled as one file.
 
+## Install
+
+### Windows
+
+Build the NSIS installer (requires [NSIS](https://nsis.sourceforge.io/)):
+
+```bat
+SCRIPTS\WIN\CREATE_NSIS.BAT
+```
+
+Output: `build\AstraC-Setup-<version>.exe`
+
+### Linux (curl)
+
+One-liner (downloads a release tarball, or builds from source if none matches your arch):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Antonako1/AstraC/main/SCRIPTS/SH/get-astrac.sh | sh
+```
+
+User install (no root, `~/.local`):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Antonako1/AstraC/main/SCRIPTS/SH/get-astrac.sh | sh -s -- --user
+```
+
+### Linux (tarball)
+
+From a GitHub Release asset `AstraC-<version>-linux-<arch>.tar.gz`:
+
+```bash
+tar -xzf AstraC-*-linux-*.tar.gz
+cd AstraC-*-linux-*
+sudo ./install.sh          # system → /usr/local
+# or:  ./install.sh --user # → ~/.local
+```
+
+Build a release tarball yourself (same contents as the NSIS package: binary, icons, LICENSE, examples, docs):
+
+```bash
+./SCRIPTS/SH/CREATE_PACKAGE.sh           # build + package
+./SCRIPTS/SH/CREATE_PACKAGE.sh -nobuild  # package existing binary
+./SCRIPTS/SH/CREATE_PACKAGE.sh -with-src # also include source tree
+```
+
+Output: `build/AstraC-<version>-linux-<arch>.tar.gz`
+
+Uninstall:
+
+```bash
+sudo /usr/local/share/astrac/uninstall.sh
+# or: ~/.local/share/astrac/uninstall.sh
+```
 
 ## Usage
 

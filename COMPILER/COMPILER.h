@@ -158,6 +158,7 @@ typedef struct _TYPE_FIELD {
     COMP_TYPE type;
     U32 offset;
     U32 size;
+    U32 array_size;   /* >0 = array field element count; 0 = scalar */
 } TYPE_FIELD;
 
 typedef struct _SYMBOL {
@@ -235,6 +236,7 @@ typedef struct _CNODE {
         U32 ival;
         F32 fval;
     };
+    U32  array_size;   /* member access: >0 if the field is an array */
     struct _CNODE **children;
     U32  child_count;
     U32  child_cap;
