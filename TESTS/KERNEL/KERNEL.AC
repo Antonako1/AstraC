@@ -1,6 +1,8 @@
 // KERNEL/KERNEL.AC — 32-bit kernel
 // _start() MUST be at org offset 0 — second stage jumps to 0x10000
 
+U32 col = 0;
+U32 row = 0;
 U0 print_c(U8 c);
 U0 print_s(PU8 str);
 U0 clear_screen();
@@ -8,6 +10,15 @@ U0 clear_screen();
 U32 row;
 U32 col;
 U32 offset;
+U0 _start(_BOOTSTRAP *bstrap) {
+    // _CLI
+    // _HLT
+    bootstrap = bstrap;
+
+    // Validate and initialise the SVGA/VBE framebuffer.  Halt if it failed.
+    // if (!SVGA_INIT()) {
+    //     _HLT
+    // }
 
 U0 _start() {
     asm { CLI }
@@ -72,6 +83,19 @@ U0 print_c(U8 c) {
     }
     vga_buffer[offset] = c;
     vga_buffer[offset + 1] = 0x02;
+    PU8 video_memory = (PU8)0xB8000;
+    for (U32 i = 0; i < 80 * 25 * 2; i += 2) {
+        video_memory[i] = ' ';
+        video_memory[i + 1] = 0x07;
+    }
+    return;
+    // SVGA_CLEAR(0x00);
+}
+
+U0 print_c(U8 c) {
+    PU8 video_memory = (PU8)0xB8000;
+    video_memory[(row * 80 + col) * 2] = c;
+    video_memory[(row * 80 + col) * 2 + 1] = 0x07;
     col++;
     if (col >= 80) {
         col = 0;
@@ -83,4 +107,37 @@ U0 print_c(U8 c) {
 U0 print_s(PU8 str) {
     for(U32 i = 0; str[i] != 0; i = i + 1)
         print_c(str[i]);
+        if (row >= 25) {
+            row = 0;
+        }
+    }
+    return;
+    // SVGA_PUTCHAR(c);
+}
+
+U0 print_s(PU8 str) {
+    PU8 video_memory = (PU8)0xB8000;
+    while (*str) {
+        if (*str == '\n') {
+            col = 0;
+            row++;
+            if (row >= 25) {
+                row = 0;
+            }
+        } else {
+            video_memory[(row * 80 + col) * 2] = *str;
+            video_memory[(row * 80 + col) * 2 + 1] = 0x07;
+            col++;
+            if (col >= 80) {
+                col = 0;
+                row++;
+                if (row >= 25) {
+                    row = 0;
+                }
+            }
+        }
+        str++;
+    }
+    return;
+    // SVGA_PUTS(str);
 }

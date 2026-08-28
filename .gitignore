@@ -26,7 +26,7 @@ CMakeFiles/
 # Generated compiler output from .AC sources
 TESTS/KERNEL/KERNEL.AS
 !/TESTS/BUILD
-
+*.tar.gz
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
 

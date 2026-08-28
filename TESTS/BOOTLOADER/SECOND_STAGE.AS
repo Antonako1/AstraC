@@ -15,6 +15,51 @@ main:
     INT 0x13
     JC error
 
+    CLI
+
+#ifdef ENABLE_VBE
+    ; Check if VESA BIOS Extensions (VBE) are supported
+    MOV AX, 0x4F00
+    mov BX, 0x0000
+    MOV ES, BX
+    LEA DI, [bootstrap + 2]     ; VBE info block -> SVGA_INFO_REC
+    INT 0x10
+    CMP AH, 0x00
+    JNE error
+    CMP AL, 0x4F
+    JNE error 
+
+    ; Switch to vga mode 0x13h (320x200 256-color)
+    MOV AX, 0x4f02
+    mov BX, SVGA_MODE
+    INT 0x10
+    CMP AH, 0x00
+    JNE error
+    CMP AL, 0x4F
+    JNE error
+
+    ; Check if vga mode was set correctly
+    MOV AX, 0x4f03
+    INT 0x10
+    CMP AH, 0x00
+    JNE error
+    CMP AL, 0x4F
+    JNE error
+
+    ; Store vga mode info in bootstrap structure
+    MOV AX, 0x4F01
+    MOV CX, SVGA_MODE
+    MOV BX, 0x0000
+    MOV ES, BX
+    LEA DI, [bootstrap + 258]   ; VBE mode info block -> SVGA_MODE_INFO_REC
+    INT 0x10
+    CMP AH, 0x00
+    JNE error
+    CMP AL, 0x4F
+    JNE error
+#endif
+
+
     ; Switch to 32-bit protected mode
     CLI
 
