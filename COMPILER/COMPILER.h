@@ -175,6 +175,8 @@ typedef struct _SYMBOL {
     BOOL is_file_local;       /* 'local' keyword — only visible in defining file */
     U32  file_scope;          /* scope depth for file-local visibility */
     U32  array_size;          /* >0 = array element count; 0 = scalar */
+    U32  init_value;          /* compile-time initializer value (globals) */
+    BOOL has_init;            /* TRUE if init_value is meaningful */
 
     /* Function params */
     U32   param_count;

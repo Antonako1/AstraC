@@ -125,12 +125,18 @@ STATIC COMP_TYPE VERIFY_NODE(PCNODE n) {
         case CNODE_VAR_DECL: {
             SYMBOL *vs = V_FIND_SYM(n->txt);
             if (!vs) { ERR("variable not in symbol table", n->line, n->col); break; }
-            /* Array size child is an INT_LIT; optional initializer follows */
-            if (n->child_count > 0 && n->children[0]->ntype == CNODE_INT_LIT) {
-                vs->array_size = n->children[0]->ival;
-                if (n->child_count > 1) VERIFY_NODE(n->children[1]);
+            /* Arrays: the parser already set vs->array_size; child[0] is the
+             * size expression, not an initializer.  Scalars: child[0] is the
+             * (optional) initializer expression. */
+            if (vs->array_size > 0) {
+                for (U32 i = 1; i < n->child_count; i++) VERIFY_NODE(n->children[i]);
             } else if (n->child_count > 0) {
                 VERIFY_NODE(n->children[0]);
+                /* Capture a constant integer initializer for .data emission. */
+                if (vs->is_global && n->children[0]->ntype == CNODE_INT_LIT) {
+                    vs->init_value = n->children[0]->ival;
+                    vs->has_init = TRUE;
+                }
             }
             break;
         }

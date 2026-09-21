@@ -893,10 +893,11 @@ BOOL COMP_GEN(PCNODE root, PCOMP_CTX c) {
                 U32 count = (s->array_size > 0) ? s->array_size : 1;
                 U32 elem_size = COMP_TYPE_SIZE(s->type);
                 PU8 der = (elem_size == 1) ? "DB" : (elem_size == 2) ? "DW" : "DD";
+                U32 init_val = s->has_init ? s->init_value : 0;
                 if (count == 1)
-                    AC_FPRINTF(outf, "%s %s 0\n", s->name, der);
+                    AC_FPRINTF(outf, "%s %s 0x%X\n", s->name, der, init_val);
                 else
-                    AC_FPRINTF(outf, "%s:\n.times %u %s 0\n", s->name, count, der);
+                    AC_FPRINTF(outf, "%s:\n.times %u %s 0x%X\n", s->name, count, der, init_val);
             }
         }
     }
