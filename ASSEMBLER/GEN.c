@@ -864,7 +864,8 @@ STATIC BOOL ENCODE_INSTRUCTION(FILE *f, PASM_NODE node) {
                 node->instr.operands[1].type == OP_IMM)
                 imm_op = &node->instr.operands[1];
         } else {
-            /* /r form: one operand supplies the reg field, the other r/m */
+            /* /r form: one operand supplies the reg field, the other r/m.
+             * A third operand may be a trailing immediate (e.g. IMUL r, r/m, imm). */
             if (node->instr.operand_count >= 2) {
                 /* Determine direction from the operand type layout:
                  *   tbl->operand[0]==OP_MEM  → op0=r/m, op1=reg
@@ -882,6 +883,10 @@ STATIC BOOL ENCODE_INSTRUCTION(FILE *f, PASM_NODE node) {
                 rm_op = &node->instr.operands[0];
                 reg_field = 0;
             }
+            /* Third operand = trailing immediate (IMUL r, r/m, imm) */
+            if (node->instr.operand_count >= 3 &&
+                node->instr.operands[2].type == OP_IMM)
+                imm_op = &node->instr.operands[2];
         }
 
         /* Emit ModR/M (+ SIB + displacement) */

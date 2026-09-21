@@ -28,6 +28,35 @@ STATIC SYMBOL *FIND_SYM(PU8 name) {
     return NULLPTR;
 }
 
+/* Size of a type, resolving struct/union sizes through the symbol table.
+ * COMP_TYPE_SIZE alone returns 0 for struct/union types. */
+STATIC U32 GEN_TYPE_SIZE(COMP_TYPE t) {
+    if (t.ptr_depth == 0 && (t.base == CTYPE_STRUCT || t.base == CTYPE_UNION)) {
+        SYMBOL *s = FIND_SYM(t.name ? t.name : (PU8)"");
+        return s ? s->total_size : 0;
+    }
+    return COMP_TYPE_SIZE(t);
+}
+
+/* Compute EAX = EBX + EAX * element_size (base in EBX, index in EAX). */
+STATIC VOID GEN_ELEM_ADDR(U32 es) {
+    switch (es) {
+        case 1:  emit("    LEA EAX, [EBX + EAX]");    break;
+        case 2:  emit("    LEA EAX, [EBX + EAX*2]");  break;
+        case 4:  emit("    LEA EAX, [EBX + EAX*4]");  break;
+        case 8:  emit("    LEA EAX, [EBX + EAX*8]");  break;
+        default:
+            AC_FPRINTF(outf, "    IMUL EAX, EAX, %u\n", es);
+            emit("    ADD EAX, EBX");
+            break;
+    }
+}
+
+/* TRUE if a type is an aggregate (struct/union value, not a pointer). */
+STATIC BOOL IS_AGGREGATE_TYPE(COMP_TYPE t) {
+    return t.ptr_depth == 0 && (t.base == CTYPE_STRUCT || t.base == CTYPE_UNION);
+}
+
 /* ── Expression codegen — result in EAX ──────────────────────────────────── */
 
 STATIC VOID GEN_EXPR(PCNODE n);
@@ -177,13 +206,16 @@ STATIC VOID GEN_ASSIGN(PCNODE n) {
         emit("    PUSH EAX");
         GEN_EXPR(lhs->children[1]);
         emit("    POP EBX");
-        es = COMP_TYPE_SIZE(lhs->dtype);
-        if (es == 1)
-            emit("    LEA EAX, [EBX + EAX]");
-        else if (es == 2)
-            emit("    LEA EAX, [EBX + EAX*2]");
-        else
-            emit("    LEA EAX, [EBX + EAX*4]");
+        es = GEN_TYPE_SIZE(lhs->dtype);
+        GEN_ELEM_ADDR(es);
+        emit("    POP EBX");
+        if (es == 1)      emit("    MOV [EAX], BL");
+        else if (es == 2)  emit("    MOV [EAX], BX");
+        else                emit("    MOV [EAX], EBX");
+    } else if (lhs->ntype == CNODE_MEMBER || lhs->ntype == CNODE_ARROW_EXPR) {
+        /* Store to a struct/union member: address → EAX, value → EBX */
+        es = GEN_TYPE_SIZE(lhs->dtype);
+        GEN_LVALUE_ADDR(lhs);
         emit("    POP EBX");
         if (es == 1)      emit("    MOV [EAX], BL");
         else if (es == 2)  emit("    MOV [EAX], BX");
@@ -380,10 +412,8 @@ STATIC VOID GEN_LVALUE_ADDR(PCNODE n) {
             emit("    PUSH EAX");
             GEN_EXPR(n->children[1]);
             emit("    POP EBX");
-            U32 es = COMP_TYPE_SIZE(n->dtype);
-            if (es == 1)      emit("    LEA EAX, [EBX + EAX]");
-            else if (es == 2) emit("    LEA EAX, [EBX + EAX*2]");
-            else              emit("    LEA EAX, [EBX + EAX*4]");
+            U32 es = GEN_TYPE_SIZE(n->dtype);
+            GEN_ELEM_ADDR(es);
             return;
         }
         case CNODE_MEMBER:
@@ -403,9 +433,10 @@ STATIC VOID GEN_LVALUE_ADDR(PCNODE n) {
 STATIC VOID GEN_MEMBER(PCNODE n) {
     GEN_MEMBER_ADDR(n);
     COMP_TYPE ft = n->dtype;
-    /* A struct/union member is an aggregate, and an array field decays to a
-     * pointer — in both cases the address is the result. */
-    if (ft.base == CTYPE_STRUCT || ft.base == CTYPE_UNION || n->array_size > 0)
+    /* A struct/union value is an aggregate, and an array field decays to a
+     * pointer — in both cases the address is the result.  A pointer-typed
+     * field is a scalar and must be dereferenced. */
+    if (IS_AGGREGATE_TYPE(ft) || n->array_size > 0)
         return;
     U32 es = COMP_TYPE_SIZE(ft);
     if (es == 1)      emit("    MOVZX EAX, BYTE [EAX]");
@@ -418,13 +449,17 @@ STATIC VOID GEN_INDEX(PCNODE n) {
     emit("    PUSH EAX");
     GEN_EXPR(n->children[1]);  /* index → EAX */
     emit("    POP EBX");
-    U32 elem_size = COMP_TYPE_SIZE(n->dtype);
+    U32 elem_size = GEN_TYPE_SIZE(n->dtype);
+    GEN_ELEM_ADDR(elem_size);
+    /* Aggregate (struct/union) element → the address is the result */
+    if (IS_AGGREGATE_TYPE(n->dtype))
+        return;
     if (elem_size == 1)
-        emit("    MOVZX EAX, BYTE [EBX + EAX]");
+        emit("    MOVZX EAX, BYTE [EAX]");
     else if (elem_size == 2)
-        emit("    MOVZX EAX, WORD [EBX + EAX*2]");
+        emit("    MOVZX EAX, WORD [EAX]");
     else
-        emit("    MOV EAX, [EBX + EAX*4]");
+        emit("    MOV EAX, [EAX]");
 }
 
 STATIC VOID GEN_CAST(PCNODE n) {

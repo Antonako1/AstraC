@@ -792,11 +792,13 @@ STATIC PCNODE parse_toplevel() {
 
                 /* Optional array dimension: type name[N] */
                 U32 count = 1;
+                BOOL is_array = FALSE;
                 if (MATCH(CTOK_LBRACKET)) {
                     ADV();
                     PCNODE sz = parse_atom();
                     if (sz && sz->ntype == CNODE_INT_LIT && sz->ival > 0) count = sz->ival;
                     EXPECT(CTOK_RBRACKET);
+                    is_array = TRUE;
                 }
 
                 if (MATCH(CTOK_SEMICOLON)) {
@@ -805,7 +807,7 @@ STATIC PCNODE parse_toplevel() {
                     U32 fsz  = elem * count;
                     ss->fields[ss->field_count].name       = AC_STRDUP(fn->txt);
                     ss->fields[ss->field_count].type       = ft;
-                    ss->fields[ss->field_count].array_size = count;
+                    ss->fields[ss->field_count].array_size = is_array ? count : 0;
                     ss->fields[ss->field_count].offset     = is_union ? 0 : ss->total_size;
                     ss->fields[ss->field_count].size       = fsz;
                     if (is_union) { if (fsz > ss->total_size) ss->total_size = fsz; }
