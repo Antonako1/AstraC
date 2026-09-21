@@ -25,7 +25,7 @@ typedef struct {
     U32  node_index;        /* index in AST where this label is defined */
 } LABEL_ENTRY, *PLABEL_ENTRY;
 
-#define MAX_LABELS 512
+#define MAX_LABELS 1024
 
 typedef struct {
     PLABEL_ENTRY entries[MAX_LABELS];
