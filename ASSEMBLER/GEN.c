@@ -677,6 +677,10 @@ STATIC BOOL ENCODE_INSTRUCTION(FILE *f, PASM_NODE node) {
         //        node->line);
         return TRUE;    /* non-fatal: already diagnosed by AST builder */
     }
+
+    /* Record the instruction's start offset (section-relative) so jump
+     * relaxation can compute branch displacements after Pass 1. */
+    node->instr.offset = CURRENT_OFFSET();
     // AC_PRINTF("[ASM GEN] Line %u: encoding '%s' enc=%d sect=%d code=%u\n",
     //        node->line, tbl->name, tbl->encoding, ptrs.current_section, ptrs.code);
 
@@ -807,9 +811,21 @@ STATIC BOOL ENCODE_INSTRUCTION(FILE *f, PASM_NODE node) {
                     EMIT_IMM(f, target + ptrs.origin, tbl->size);
                 }
             } else if (op->type == OP_FAR) {
-                /* Far pointer: lower 16 = offset, upper 16 = segment */
-                U16 off = (U16)(op->immediate & 0xFFFF);
-                U16 seg = (U16)(op->immediate >> 16);
+                /* Far pointer: lower 16 = offset, upper 16 = segment.
+                 * Each half may be an immediate or a symbol (resolved to an
+                 * absolute address). */
+                U32 off, seg;
+                if (op->far_ref) {
+                    seg = op->far_ref->seg_name
+                        ? RESOLVE_SYMBOL_ADDR(op->far_ref->seg_name)
+                        : op->far_ref->seg_val;
+                    off = op->far_ref->off_name
+                        ? RESOLVE_SYMBOL_ADDR(op->far_ref->off_name)
+                        : op->far_ref->off_val;
+                } else {
+                    off = (op->immediate & 0xFFFF);
+                    seg = (op->immediate >> 16) & 0xFFFF;
+                }
                 EMIT_U8(f, (U8)(off & 0xFF));
                 EMIT_U8(f, (U8)(off >> 8));
                 EMIT_U8(f, (U8)(seg & 0xFF));
@@ -1436,6 +1452,75 @@ STATIC BOOL GEN_EMIT_PASS(FILE *f, ASM_AST_ARRAY *ast, ASTRAC_ARGS *cfg) {
 
 /*
  * ════════════════════════════════════════════════════════════════════════════
+ *  JUMP RELAXATION
+ * ════════════════════════════════════════════════════════════════════════════
+ *  Direct conditional branches (Jcc) default to the short (rel8) form and are
+ *  promoted to the near (0F rel32) form when the target is out of ±127 range.
+ *  Promotion is monotonic (short → near), so the fixpoint terminates.
+ */
+STATIC U32 REL_IMM_BYTES(const ASM_MNEMONIC_TABLE *tbl) {
+    switch (tbl->rel_type) {
+        case RL_REL8:  return 1;
+        case RL_REL16: return 2;
+        case RL_REL32:
+            return (ptrs.code_type == DIR_CODE_TYPE_16) ? 2 : 4;
+        default:       return 4;
+    }
+}
+
+/* Displacement of a direct relative branch whose target is a label. */
+STATIC S32 REL_BRANCH_DISP(PASM_NODE node) {
+    const ASM_MNEMONIC_TABLE *tbl = node->instr.table_entry;
+    ASM_OPERAND *op = &node->instr.operands[0];
+    if (op->type != OP_PTR || !op->mem_ref || !op->mem_ref->symbol_name)
+        return 0;
+    U32 target = RESOLVE_SYMBOL(op->mem_ref->symbol_name);
+    U32 pre    = (tbl->opcode_prefix == PFX_0F) ? 2 : 1;
+    U32 imm    = REL_IMM_BYTES(tbl);
+    return (S32)target - (S32)(node->instr.offset + pre + imm);
+}
+
+STATIC BOOL RELAX_JUMPS(ASM_AST_ARRAY *ast, ASTRAC_ARGS *cfg) {
+    for (U32 iter = 0; iter < 64; iter++) {
+        /* Fresh Pass 1 (offset calculation only) with current encodings. */
+        AC_MEMSET(&ptrs, 0, sizeof(ptrs));
+        ptrs.current_section = DIR_NONE;
+        ptrs.code_type       = DIR_CODE_TYPE_32;
+        CURRENT_PASS = FIRST_PASS;
+        if (!GEN_EMIT_PASS(NULLPTR, ast, cfg)) return FALSE;
+
+        BOOL changed = FALSE;
+        for (U32 i = 0; i < ast->len; i++) {
+            PASM_NODE node = ast->nodes[i];
+            if (!node || node->type != NODE_INSTRUCTION) continue;
+            const ASM_MNEMONIC_TABLE *tbl = node->instr.table_entry;
+            if (!tbl || tbl->rel_type != RL_REL8) continue;
+
+            S32 disp = REL_BRANCH_DISP(node);
+            if (disp >= -128 && disp <= 127) continue;   /* still in range */
+
+            if (node->instr.table_entry_alt) {
+                /* Auto branch (Jcc): promote short → near rel32. */
+                node->instr.table_entry     = node->instr.table_entry_alt;
+                node->instr.table_entry_alt = NULLPTR;
+                changed = TRUE;
+            } else {
+                /* Forced short (SHORT keyword / LOOP / JCXZ): hard error. */
+                AC_PRINTF("[ASM GEN] Line %u: short jump target out of range "
+                       "(rel8 displacement %d)\n", node->line, disp);
+                return FALSE;
+            }
+        }
+
+        if (!changed) return TRUE;
+    }
+    AC_PRINTF("[ASM GEN] Jump relaxation did not converge\n");
+    return FALSE;
+}
+
+
+/*
+ * ════════════════════════════════════════════════════════════════════════════
  *  GEN_BINARY  —  main code generation entry point
  * ════════════════════════════════════════════════════════════════════════════
  *
@@ -1467,10 +1552,14 @@ BOOLEAN GEN_BINARY(ASM_AST_ARRAY *ast, PASM_INFO info) {
     /* ── Scope local labels (@@name, .name) to enclosing global label ──── */
     SCOPE_LOCAL_LABELS(ast);
 
+    /* ── Resolve @f / @b references ───────────────────────────────────── */
+    RESOLVE_LOCAL_REFS(ast);
+
     /* ──────────────────────────────────────────────────────────────────
-     *  Pass 1:  Calculate offsets — no file writes (f = NULL)
+     *  Pass 1 + relaxation:  calculate offsets (no file writes, f = NULL)
+     *  and promote out-of-range short conditional branches to near.
      * ────────────────────────────────────────────────────────────────── */
-    if (!GEN_EMIT_PASS(NULLPTR, ast, cfg)) {
+    if (!RELAX_JUMPS(ast, cfg)) {
         AC_PRINTF("[ASM GEN] Pass 1 (offset calculation) failed\n");
         return FALSE;
     }
@@ -1482,9 +1571,6 @@ BOOLEAN GEN_BINARY(ASM_AST_ARRAY *ast, PASM_INFO info) {
     pass1_code_size   = ptrs.code;
     pass1_data_size   = ptrs.data;
     pass1_rodata_size = ptrs.rodata;
-
-    /* ── Resolve @f / @b references ───────────────────────────────────── */
-    RESOLVE_LOCAL_REFS(ast);
 
     /* ── Reset offsets for Pass 2 (keep labels + origin) ──────────────── */
     ptrs.code    = 0;

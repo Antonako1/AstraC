@@ -83,6 +83,7 @@ STATIC CONST KEYWORD s_var_types[] ATTRIB_RODATA = {
     { "PTR",   TYPE_PTR   },
     { "NEAR",  TYPE_NEAR  },
     { "FAR",   TYPE_FAR   },
+    { "SHORT", TYPE_SHORT },
     { NULLPTR, TYPE_NONE  }
 };
 

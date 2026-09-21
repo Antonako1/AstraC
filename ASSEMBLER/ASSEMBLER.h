@@ -81,6 +81,7 @@ typedef enum _ASM_VAR_TYPE {
     TYPE_PTR,
     TYPE_NEAR,
     TYPE_FAR,
+    TYPE_SHORT,
     TYPE_AMOUNT,
 } ASM_VAR_TYPE;
 
@@ -197,6 +198,8 @@ typedef enum {
 typedef enum { ENC_DIRECT, ENC_REG_OPCODE, ENC_MODRM, ENC_IMM } ASM_ENCODING_TYPE;
 typedef enum { OP_NONE, OP_REG, OP_MEM, OP_IMM, OP_SEG, OP_PTR, OP_FAR, OP_MOFFS } ASM_OPERAND_TYPE;
 typedef enum { SZ_NONE = 0, SZ_8BIT = 8, SZ_16BIT = 16, SZ_32BIT = 32 } ASM_OPERAND_SIZE;
+/* Distance hint attached to a branch operand by the NEAR/SHORT/FAR keywords. */
+typedef enum { JD_AUTO = 0, JD_SHORT, JD_NEAR, JD_FAR } ASM_JUMP_DIST;
 typedef enum { OPN_NONE = 0, OPN_ONE = 1, OPN_TWO = 2, OPN_THREE = 3, OPN_FOUR = 4 } ASM_OPERAND_COUNT;
 typedef enum {
     MODRM_NONE = -1,
@@ -314,13 +317,24 @@ typedef struct {
     PU8       symbol_name;
 } ASM_NODE_MEM;
 
+/* Far pointer operand (jmp/call seg:off).  Each part is either an immediate
+ * value (already resolved) or a symbol name resolved during codegen. */
+typedef struct {
+    PU8       seg_name;   /* segment symbol (NULLPTR if numeric) */
+    U32       seg_val;    /* segment value (used when seg_name == NULLPTR) */
+    PU8       off_name;   /* offset symbol (NULLPTR if numeric) */
+    U32       off_val;    /* offset value (used when off_name == NULLPTR) */
+} ASM_NODE_FAR;
+
 typedef struct {
     ASM_OPERAND_TYPE  type;
     ASM_OPERAND_SIZE  size;
+    ASM_JUMP_DIST     jump_dist;
     union {
         ASM_REGS      reg;
         U32           immediate;
         ASM_NODE_MEM *mem_ref;
+        ASM_NODE_FAR *far_ref;
     };
 } ASM_OPERAND;
 
@@ -337,9 +351,11 @@ typedef struct ASM_NODE {
     union {
         struct {
             const ASM_MNEMONIC_TABLE *table_entry;
+            const ASM_MNEMONIC_TABLE *table_entry_alt; /* rel8 <-> rel32 sibling (relaxation) */
             ASM_OPERAND operands[MAX_OPERANDS];
             U32         operand_count;
             BOOL        shift_by_cl;
+            U32         offset;        /* file offset recorded during Pass 1 */
         } instr;
         struct { PU8 name; } label;
         struct { PASM_VAR var; } data;
