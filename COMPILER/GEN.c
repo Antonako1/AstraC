@@ -934,6 +934,28 @@ BOOL COMP_GEN(PCNODE root, PCOMP_CTX c) {
                 U32 count = (s->array_size > 0) ? s->array_size : 1;
                 U32 elem_size = COMP_TYPE_SIZE(s->type);
                 PU8 der = (elem_size == 1) ? "DB" : (elem_size == 2) ? "DW" : "DD";
+
+                /* Brace-enclosed initializer list → emit the values directly. */
+                if (s->init_list && s->init_count > 0) {
+                    AC_FPRINTF(outf, "%s:\n", s->name);
+                    U32 per_line = 16;
+                    U32 j = 0;
+                    while (j < s->init_count) {
+                        AC_FPRINTF(outf, "%s", der);
+                        U32 k = 0;
+                        for (; k < per_line && j < s->init_count; k++, j++) {
+                            AC_FPRINTF(outf, " 0x%X%s", s->init_list[j],
+                                       (k + 1 < per_line && j + 1 < s->init_count) ? "," : "");
+                        }
+                        AC_FPRINTF(outf, "\n");
+                    }
+                    /* Zero-fill any remaining elements not covered by the list. */
+                    if (s->array_size > s->init_count)
+                        AC_FPRINTF(outf, ".times %u %s 0\n",
+                                   s->array_size - s->init_count, der);
+                    continue;
+                }
+
                 U32 init_val = s->has_init ? s->init_value : 0;
                 if (count == 1)
                     AC_FPRINTF(outf, "%s %s 0x%X\n", s->name, der, init_val);

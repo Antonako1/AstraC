@@ -177,6 +177,8 @@ typedef struct _SYMBOL {
     U32  array_size;          /* >0 = array element count; 0 = scalar */
     U32  init_value;          /* compile-time initializer value (globals) */
     BOOL has_init;            /* TRUE if init_value is meaningful */
+    U32 *init_list;           /* heap initializer list (arrays) */
+    U32  init_count;          /* entries in init_list */
 
     /* Function params */
     U32   param_count;

@@ -13,6 +13,7 @@ STATIC PCOMP_CTX      ctx;
 STATIC SYM_TABLE      *sym;
 
 /* ── Helpers ──────────────────────────────────────────────────────────────── */
+STATIC PCOMP_TOK PEEK_PREV()  { return (pos > toks->len) ? toks->toks[pos-1] : NULLPTR; }
 STATIC PCOMP_TOK PEEK()  { return (pos < toks->len) ? toks->toks[pos] : NULLPTR; }
 STATIC PCOMP_TOK ADV()   { return (pos < toks->len) ? toks->toks[pos++] : NULLPTR; }
 STATIC BOOL     MATCH(COMP_TOK_TYPE t) { return (PEEK() && PEEK()->type == t); }
@@ -22,7 +23,12 @@ STATIC PCOMP_TOK EXPECT(COMP_TOK_TYPE t) {
         PEEK()->line, PEEK()->col, t, PEEK()->type);
     return NULLPTR;
 }
-
+STATIC BOOL EXPECT_PREV(COMP_TOK_TYPE t) {
+    if (MATCH(t)) return ADV();
+    if (PEEK_PREV()) AC_PRINTF("[PARSE] L%u:%u expected token type %u, got %u\n",
+        PEEK_PREV()->line, PEEK_PREV()->col, t, PEEK_PREV()->type);
+    return NULLPTR;
+}
 STATIC VOID SKIP_TO_SEMI() {
     while (PEEK() && PEEK()->type != CTOK_SEMICOLON && PEEK()->type != CTOK_RBRACE
            && PEEK()->type != CTOK_EOF) ADV();
@@ -63,6 +69,7 @@ STATIC BOOL SYM_IS_TYPE(SYMBOL *s) {
 STATIC VOID SYM_FREE_ALL() {
     for (U32 i = 0; i < sym->count; i++) {
         if (sym->entries[i].name) AC_MFree(sym->entries[i].name);
+        if (sym->entries[i].init_list) AC_MFree(sym->entries[i].init_list);
         for (U32 j = 0; j < sym->entries[i].param_count; j++)
             if (sym->entries[i].param_names[j]) AC_MFree(sym->entries[i].param_names[j]);
         for (U32 j = 0; j < sym->entries[i].field_count; j++)
@@ -414,6 +421,39 @@ STATIC PCNODE parse_expr_prec(U32 min_prec) {
 
 STATIC PCNODE parse_expr() { return parse_expr_prec(0); }
 
+/* Evaluate a constant initializer element to a U32 (0 if not a literal). */
+STATIC U32 CONST_INIT_VAL(PCNODE e) {
+    if (!e) return 0;
+    if (e->ntype == CNODE_INT_LIT) return e->ival;
+    if (e->ntype == CNODE_UNARY && e->op == CTOK_MINUS && e->child_count > 0
+        && e->children[0] && e->children[0]->ntype == CNODE_INT_LIT)
+        return (U32)(-(I32)e->children[0]->ival);
+    return 0;
+}
+
+/* Parse a brace-enclosed initializer list `{ v0, v1, ... }` into the symbol's
+ * heap-allocated init_list.  Caller has already consumed the `{`. */
+STATIC VOID PARSE_INIT_LIST(SYMBOL *vs) {
+    U32 cap = 64, n = 0;
+    U32 *vals = (U32 *)AC_MAlloc(cap * sizeof(U32));
+    if (!vals) return;
+    while (PEEK() && !MATCH(CTOK_RBRACE) && !MATCH(CTOK_EOF)) {
+        PCNODE e = parse_expr_prec(3);   /* stop at comma (and assignment) */
+        U32 v = CONST_INIT_VAL(e);
+        if (n >= cap) {
+            cap *= 2;
+            U32 *nv = (U32 *)AC_ReAlloc(vals, cap * sizeof(U32));
+            if (!nv) { AC_MFree(vals); return; }
+            vals = nv;
+        }
+        vals[n++] = v;
+        if (MATCH(CTOK_COMMA)) ADV();
+        else break;
+    }
+    vs->init_list  = vals;
+    vs->init_count = n;
+}
+
 /* ── Statement parsing ────────────────────────────────────────────────────── */
 
 STATIC PCNODE parse_stmt() {
@@ -747,9 +787,6 @@ STATIC PCNODE parse_toplevel() {
         if (MATCH(CTOK_ASM_BODY)) {
             PCOMP_TOK body = ADV();
             if (body->txt) n->txt = AC_STRDUP(body->txt);
-        } else {
-            AC_PRINTF("[PARSE] L%u no asm body\n", sl);
-
         }
         return n;
     }
@@ -984,14 +1021,34 @@ STATIC PCNODE parse_toplevel() {
         }
         if (MATCH(CTOK_ASSIGN)) {
             ADV();
-            PCNODE init = parse_expr();
-            if (init) CNODE_ADD_CHILD(n, init);
+            if (MATCH(CTOK_LBRACE)) {
+                ADV();
+                PARSE_INIT_LIST(vs);
+                EXPECT(CTOK_RBRACE);
+            } else {
+                PCNODE init = parse_expr();
+                if (init) CNODE_ADD_CHILD(n, init);
+            }
         }
         EXPECT(CTOK_SEMICOLON);
         return n;
     }
 
-    AC_PRINTF("[PARSE] L%u unexpected token at top level\n", sl);
+    // Check for push/pop
+    BOOL SKIP_TOPLEVEL_LOG = FALSE;
+    ASTRAC_ARGS *args = GET_ARGS();
+    for(U32 i = 0; i < args->PARSER_TOPLEVEL_LOG_PUSH_TAIL; i++) {
+        PU32 push = args->PARSER_TOPLEVEL_LOG_PUSH;
+        if(sl >= push[i]) SKIP_TOPLEVEL_LOG = TRUE;
+    }
+    for(U32 j = 0; j < args->PARSER_TOPLEVEL_LOG_POP_TAIL; j++) {
+        PU32 pop = args->PARSER_TOPLEVEL_LOG_POP;
+        if(pop[j] == sl) {
+            pop[j] = U32_MAX;
+        }
+    }
+    if(!SKIP_TOPLEVEL_LOG)
+        AC_PRINTF("[PARSE] L%u unexpected token at top level of type %u\n", sl, t->type);
     ADV(); return NULLPTR;
 }
 
