@@ -226,7 +226,10 @@ STATIC BOOL verify_instruction(PASM_NODE node, PLABEL_TABLE labels) {
             if (tbl->size != SZ_NONE) {
                 BOOL is_0f_two_op = (tbl->opcode_prefix == PFX_0F
                                      && (U32)tbl->operand_count == 2);
-                if (!(is_0f_two_op && i == 0)) {
+                /* Fixed/implicit register operand (e.g. DX in IN/OUT). */
+                BOOL is_fixed = (tbl->reg_fixed != REG_NONE
+                                 && op->reg == tbl->reg_fixed);
+                if (!(is_0f_two_op && i == 0) && !is_fixed) {
                     ASM_OPERAND_SIZE rs = reg_size(op->reg);
                     if (rs != SZ_NONE && rs != tbl->size) {
                         AC_PRINTF("[AS VERIFY] Line %u: '%s' operand %u - register is %u-bit, "

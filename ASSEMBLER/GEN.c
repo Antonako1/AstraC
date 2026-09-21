@@ -782,7 +782,15 @@ STATIC BOOL ENCODE_INSTRUCTION(FILE *f, PASM_NODE node) {
                     /* For now, emit the raw value; a link pass would fix these. */
                     EMIT_IMM(f, op->immediate, rsz);
                 } else {
-                    EMIT_IMM(f, op->immediate, tbl->size);
+                    /* IN/OUT (E4-E7) take a fixed 8-bit port immediate even
+                     * though tbl->size describes the data register width. */
+                    U8 iopc = (tbl->opcode_prefix == PFX_0F)
+                            ? tbl->opcode[1] : tbl->opcode[0];
+                    ASM_OPERAND_SIZE isz = tbl->size;
+                    if (iopc == 0xE4 || iopc == 0xE5
+                        || iopc == 0xE6 || iopc == 0xE7)
+                        isz = SZ_8BIT;
+                    EMIT_IMM(f, op->immediate, isz);
                 }
             } else if (op->type == OP_PTR && op->mem_ref && op->mem_ref->symbol_name) {
                 /* Label reference in an immediate slot (e.g. CALL label) */

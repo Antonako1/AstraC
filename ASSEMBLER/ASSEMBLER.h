@@ -244,6 +244,8 @@ typedef enum {
 #define OPS_REG_IMM8       { OP_REG,   OP_IMM,  OP_NONE, OP_NONE }
 #define OPS_REG_IMM16      { OP_REG,   OP_IMM,  OP_NONE, OP_NONE }
 #define OPS_REG_IMM32      { OP_REG,   OP_IMM,  OP_NONE, OP_NONE }
+#define OPS_REG_REG        { OP_REG,   OP_REG,  OP_NONE, OP_NONE }
+#define OPS_IMM_REG        { OP_IMM,   OP_REG,  OP_NONE, OP_NONE }
 #define OPS_RM8_IMM8       { OP_MEM,   OP_IMM,  OP_NONE, OP_NONE }
 #define OPS_RM16_IMM16     { OP_MEM,   OP_IMM,  OP_NONE, OP_NONE }
 #define OPS_RM32_IMM32     { OP_MEM,   OP_IMM,  OP_NONE, OP_NONE }

@@ -188,6 +188,11 @@ STATIC const ASM_MNEMONIC_TABLE *RESOLVE_MNEMONIC(
                 if (is_0f_two_op && j == 0) continue; /* skip dest size check */
 
                 if (operands[j].type == OP_REG || operands[j].type == OP_SEG) {
+                    /* Fixed/implicit register operand (e.g. DX in IN/OUT) is
+                     * not subject to the operand-size check. */
+                    if (tbl->reg_fixed != REG_NONE
+                        && operands[j].reg == tbl->reg_fixed)
+                        continue;
                     ASM_OPERAND_SIZE rs = ast_reg_size(operands[j].reg);
                     if (rs != SZ_NONE && rs != tbl->size) { ok = FALSE; break; }
                 }
