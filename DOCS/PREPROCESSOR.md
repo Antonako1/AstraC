@@ -42,3 +42,18 @@ File inclusion is necessary for using the AstraC assembler and compiler if user 
 // And as
 #include "header.as"
 ```
+
+## Push/Pop instructions for lexer, parser, codegen
+
+Usage:
+```c
+#push <instruction>
+...
+#pop <instruction>
+```
+
+Below is a table containing all instructions, what they do and are they supported by the compiler, assembler or both
+
+| Instruction           | Action  | Compiler | Assembler |
+| --------              | ------- | -------  | -------   |
+| PARSER_TOPLEVEL_LOG   | Enables/Disables Parser's top level logging    | X        |           |

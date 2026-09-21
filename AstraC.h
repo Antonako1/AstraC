@@ -62,12 +62,14 @@ typedef enum {
 } OUTPUT_TYPE;
 
 /* ── LIMITS ───────────────────────────────────────────────────────────── */
-#define MAX_MACROS          255
+#define MAX_MACROS          1024
 #define MAX_INCLUDES        255
 #define MAX_INPUT_FILES     255
 #define MAX_MACRO_VALUE     255
 #define BUF_SZ              4096
 #define MAX_FILES           MAX_INPUT_FILES
+#define PUSH_MAX            32
+#define POP_MAX             PUSH_MAX
 
 /* ── PREPROCESSOR MODES ───────────────────────────────────────────────── */
 #define ASM_PREPROCESSOR    1
@@ -118,7 +120,16 @@ typedef struct _ASTRAC_ARGS {
     U32 warning_level;
     BOOL warnings_as_errors;
     BOOL debug;
+
+
+
+    // switches defined by preprocessor
+    U32 PARSER_TOPLEVEL_LOG_PUSH[PUSH_MAX];
+    U32 PARSER_TOPLEVEL_LOG_PUSH_TAIL;
+    U32 PARSER_TOPLEVEL_LOG_POP[POP_MAX];
+    U32 PARSER_TOPLEVEL_LOG_POP_TAIL;
 } ASTRAC_ARGS;
+
 
 ASTRAC_ARGS *GET_ARGS();
 VOID         FREE_ARGS();

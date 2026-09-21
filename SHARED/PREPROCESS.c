@@ -30,6 +30,9 @@ typedef enum {
     IDENT_WARNING,
     IDENT_DEFINE,
     IDENT_UNDEF,
+    IDENT_PUSH,
+    IDENT_POP,
+
     IDENT_MAX,
 } MACRO_IDENT;
 
@@ -49,6 +52,8 @@ static const MACRO_KW macros_kw[] ATTRIB_RODATA = {
     { "#warning",  IDENT_WARNING  },
     { "#define",   IDENT_DEFINE   },
     { "#undef",    IDENT_UNDEF    },
+    { "#push",    IDENT_PUSH    },
+    { "#pop",    IDENT_POP    },
 };
 
 
@@ -118,6 +123,26 @@ STATIC BOOL IF_STACK_IS_ACTIVE() {
     return TRUE;
 }
 
+STATIC VOID PUSH_POP_MACRO_SOLVE(PU8 push_type, BOOL push, U32 line) {
+    ASTRAC_ARGS *args = GET_ARGS();
+    if(AC_STRICMP(push_type, "PARSER_TOPLEVEL_LOG") == 0) {
+        if(push) {
+            if(args->verbose) AC_PRINTF("[PP] #PUSH PARSER_TOPLEVEL_LOG @ L%u\n", line);
+            args->PARSER_TOPLEVEL_LOG_PUSH[args->PARSER_TOPLEVEL_LOG_PUSH_TAIL++] = line;
+        } else {
+            if(args->verbose) AC_PRINTF("[PP] #POP PARSER_TOPLEVEL_LOG @ L%u\n", line);
+            args->PARSER_TOPLEVEL_LOG_POP[args->PARSER_TOPLEVEL_LOG_POP_TAIL++] = line;
+        }
+    }
+} 
+
+STATIC VOID PUSH_MACRO_SOLVE(PU8 push_type, U32 line) {
+    PUSH_POP_MACRO_SOLVE(push_type, TRUE, line);
+}
+
+STATIC VOID POP_MACRO_SOLVE(PU8 push_type, U32 line) {
+    PUSH_POP_MACRO_SOLVE(push_type, FALSE, line);
+}
 
 /*
  * ── Forward declarations ────────────────────────────────────────────────────
@@ -767,9 +792,11 @@ static U32  pp_open_depth ATTRIB_DATA = 0;
  * ════════════════════════════════════════════════════════════════════════════
  *  PREPROCESS A SINGLE FILE  (recursive for #include)
  * ════════════════════════════════════════════════════════════════════════════
+ * 
+ * Returns 0 on failure, otherwise the line count
  */
-STATIC BOOL PREPROCESS_FILE(FILE *file, FILE *tmp_file, MACRO_ARR *mcr,
-                            PREPROCESSING_UNIT *unit, PU8 cur_dir) {
+STATIC U32 PREPROCESS_FILE(FILE *file, FILE *tmp_file, MACRO_ARR *mcr,
+                            PREPROCESSING_UNIT *unit, PU8 cur_dir, U32 *total_lines) {
     U8 buf[BUF_SZ] = { 0 };
     while (READ_LOGICAL_LINE(file, buf, sizeof(buf))) {
         REMOVE_COMMENTS(buf, unit->type);
@@ -793,6 +820,18 @@ STATIC BOOL PREPROCESS_FILE(FILE *file, FILE *tmp_file, MACRO_ARR *mcr,
             PU8 value = EXTRACT_VALUE(buf, matched);
 
             switch (matched) {
+                case IDENT_PUSH: {
+                    PU8 push_type = EXTRACT_SINGLE_VALUE(buf, IDENT_PUSH);
+                    PUSH_MACRO_SOLVE(push_type, *total_lines);
+                    AC_MFree(push_type);
+                    break;
+                }
+                case IDENT_POP: {
+                    PU8 push_type = EXTRACT_SINGLE_VALUE(buf, IDENT_POP);
+                    POP_MACRO_SOLVE(push_type, *total_lines);
+                    AC_MFree(push_type);
+                    break;
+                }
                 case IDENT_IFDEF:  IF_STACK_PUSH(name, mcr, FALSE); break;
                 case IDENT_IFNDEF: IF_STACK_PUSH(name, mcr, TRUE);  break;
                 case IDENT_ELIF:   IF_STACK_ELIF(name, mcr);        break;
@@ -872,7 +911,7 @@ STATIC BOOL PREPROCESS_FILE(FILE *file, FILE *tmp_file, MACRO_ARR *mcr,
                             PP_NORMALIZE(sub_dir);
                             pp_open_depth++;
 
-                            BOOL ok = PREPROCESS_FILE(inc, tmp_file, mcr, unit, sub_dir);
+                            BOOL ok = PREPROCESS_FILE(inc, tmp_file, mcr, unit, sub_dir, total_lines);
 
                             pp_open_depth--;
                             AC_FCLOSE(inc);
@@ -915,6 +954,7 @@ STATIC BOOL PREPROCESS_FILE(FILE *file, FILE *tmp_file, MACRO_ARR *mcr,
             if (!AC_FWRITE(tmp_file, buf, len + 1))
                 return FALSE;
         }
+        (*total_lines)++;
     }
 
     return TRUE;
@@ -1001,14 +1041,14 @@ PASM_INFO PREPROCESS_ASM() {
     }
 
     if (args->verbose) AC_PRINTF("[PP] Processing: %s -> %s\n", args->input_file, tmp_path);
-
+    U32 lines = 0;
     /* ── Run preprocessor ── */
     {
         U8 top_dir[BUF_SZ] = { 0 };
         PP_GET_DIR(args->input_file, top_dir, sizeof(top_dir));
         PP_NORMALIZE(top_dir);
         pp_open_depth = 0;
-        BOOL ok = PREPROCESS_FILE(unit->file, tmp, &unit->macros, unit, top_dir);
+        BOOL ok = PREPROCESS_FILE(unit->file, tmp, &unit->macros, unit, top_dir, &lines);
         pp_open_depth--;
         AC_FCLOSE(tmp);
 
@@ -1099,7 +1139,8 @@ PASM_INFO PREPROCESS_C() {
         PP_GET_DIR(args->input_file, top_dir, sizeof(top_dir));
         PP_NORMALIZE(top_dir);
         pp_open_depth = 0;
-        BOOL ok = PREPROCESS_FILE(unit->file, tmp, &unit->macros, unit, top_dir);
+        U32 lines = 0;
+        BOOL ok = PREPROCESS_FILE(unit->file, tmp, &unit->macros, unit, top_dir, &lines);
         pp_open_depth--;
         AC_FCLOSE(tmp);
 

@@ -270,6 +270,9 @@ U32 main(U32 argc, PPU8 argv) {
         }
         AC_STRCAT(args.outfile, ".BIN");
     }
+    args.PARSER_TOPLEVEL_LOG_PUSH_TAIL = 0;
+    args.PARSER_TOPLEVEL_LOG_POP_TAIL = 0;
+    
     if (args.dsm_bits == 0) args.dsm_bits = 32;
     if (!args.entry_point) args.entry_point = "main";
     if(args.arch == ARCH_NONE) args.arch = ARCH_I386;
