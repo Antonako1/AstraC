@@ -740,6 +740,20 @@ STATIC PCNODE parse_toplevel() {
         }
     }
 
+    /* Top-level asm injection */
+    if (MATCH(CTOK_KW_ASM)) {
+        ADV();
+        PCNODE n = CNODE_NEW(CNODE_ASM_BLOCK, sl, sc);
+        if (MATCH(CTOK_ASM_BODY)) {
+            PCOMP_TOK body = ADV();
+            if (body->txt) n->txt = AC_STRDUP(body->txt);
+        } else {
+            AC_PRINTF("[PARSE] L%u no asm body\n", sl);
+
+        }
+        return n;
+    }
+
     /* struct / union / enum definition */
     if (MATCH(CTOK_KW_STRUCT) || MATCH(CTOK_KW_UNION) || MATCH(CTOK_KW_ENUM)) {
         BOOL is_union = MATCH(CTOK_KW_UNION);

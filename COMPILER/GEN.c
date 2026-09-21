@@ -857,9 +857,15 @@ BOOL COMP_GEN(PCNODE root, PCOMP_CTX c) {
         AC_FPRINTF(outf, "jmp _%s\n", buf);
     }
 
-    /* Emit functions */
+    /* Emit functions and top-level assembly */
     for (U32 i = 0; i < root->child_count; i++) {
         PCNODE n = root->children[i];
+        
+        // Emit top-level assembly blocks
+        if(n->ntype == CNODE_ASM_BLOCK) {
+            GEN_ASM_BLOCK(n); continue;
+        }
+
         if (n->ntype != CNODE_FUNC_DECL) continue;
         if (!n->txt) continue;
         SYMBOL *fs = FIND_SYM(n->txt);
