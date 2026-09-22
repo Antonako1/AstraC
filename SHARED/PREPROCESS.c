@@ -366,25 +366,90 @@ STATIC BOOL PP_TRY_EVAL(PU8 value) {
  *  MACRO TABLE
  * ════════════════════════════════════════════════════════════════════════════ */
 
+/*
+ * Parse a function-like macro definition name of the form "FOO(a, b, c)".
+ * On success, fills `base_name` with "FOO", `params` with the parameter
+ * names, sets `*num_params`, and returns TRUE.  A plain name (no '(' or
+ * not ending with ')') returns FALSE and leaves the name unchanged.
+ */
+STATIC BOOL PARSE_FUNCTION_NAME(PU8 name, U8 *base_name,
+                                U8 params[MAX_MACRO_PARAMS][MAX_MACRO_PARAM_LEN],
+                                U32 *num_params) {
+    U32 nlen = (U32)AC_STRLEN(name);
+    if (nlen == 0 || name[nlen - 1] != ')') return FALSE;
+
+    PU8 paren = AC_STRCHR(name, '(');
+    if (!paren) return FALSE;
+
+    U32 bn = (U32)(paren - name);
+    if (bn == 0 || bn >= MAX_MACRO_VALUE) return FALSE;
+
+    AC_MEMZERO(base_name, MAX_MACRO_VALUE);
+    AC_STRNCPY(base_name, name, bn);
+    base_name[bn] = '\0';
+
+    U32 n = 0;
+    PU8 pp = paren + 1;
+    while (*pp && *pp != ')') {
+        while (*pp == ' ' || *pp == '\t') pp++;
+        PU8 ps = pp;
+        while (*pp && *pp != ',' && *pp != ')') pp++;
+        U32 plen = (U32)(pp - ps);
+        while (plen > 0 && (ps[plen - 1] == ' ' || ps[plen - 1] == '\t')) plen--;
+        if (plen > 0 && n < MAX_MACRO_PARAMS) {
+            if (plen >= MAX_MACRO_PARAM_LEN) plen = MAX_MACRO_PARAM_LEN - 1;
+            AC_MEMZERO(params[n], MAX_MACRO_PARAM_LEN);
+            AC_STRNCPY(params[n], ps, plen);
+            params[n][plen] = '\0';
+            n++;
+        }
+        while (*pp == ' ' || *pp == '\t') pp++;
+        if (*pp == ',') { pp++; continue; }
+        if (*pp == ')') break;
+    }
+
+    *num_params = n;
+    return TRUE;
+}
+
 BOOL DEFINE_MACRO(PU8 name, PU8 value, MACRO_ARR *arr) {
     if (!name || arr->len >= MAX_MACROS) return FALSE;
+
+    /* Detect function-like macros: "FOO(a, b)" → name "FOO", params {a, b}. */
+    U8  base_name[MAX_MACRO_VALUE] = { 0 };
+    U8  params[MAX_MACRO_PARAMS][MAX_MACRO_PARAM_LEN] = { 0 };
+    U32 num_params  = 0;
+    BOOL is_function = PARSE_FUNCTION_NAME(name, base_name, params, &num_params);
+
+    PU8 final_name = is_function ? base_name : name;
+
     /* Update existing entry */
     for (U32 i = 0; i < arr->len; i++) {
-        if (arr->macros[i] && AC_STRCMP(arr->macros[i]->name, name) == 0) {
+        if (arr->macros[i] && AC_STRCMP(arr->macros[i]->name, final_name) == 0) {
             AC_STRNCPY(arr->macros[i]->value, value ? value : "", MAX_MACRO_VALUE - 1);
             arr->macros[i]->value[MAX_MACRO_VALUE - 1] = '\0';
+            arr->macros[i]->is_function = is_function;
+            arr->macros[i]->num_params  = num_params;
+            AC_MEMZERO(arr->macros[i]->params, sizeof(arr->macros[i]->params));
+            for (U32 k = 0; k < num_params; k++)
+                AC_STRNCPY(arr->macros[i]->params[k], params[k], MAX_MACRO_PARAM_LEN - 1);
             return TRUE;
         }
     }
+
     PMACRO m = (PMACRO)AC_MAlloc(sizeof(MACRO));
     if (!m) return FALSE;
     AC_MEMZERO(m, sizeof(MACRO));
-    AC_STRNCPY(m->name, name, MAX_MACRO_VALUE - 1);
+    AC_STRNCPY(m->name, final_name, MAX_MACRO_VALUE - 1);
     m->name[MAX_MACRO_VALUE - 1] = '\0';
     if (value) {
         AC_STRNCPY(m->value, value, MAX_MACRO_VALUE - 1);
         m->value[MAX_MACRO_VALUE - 1] = '\0';
     }
+    m->is_function = is_function;
+    m->num_params  = num_params;
+    for (U32 k = 0; k < num_params; k++)
+        AC_STRNCPY(m->params[k], params[k], MAX_MACRO_PARAM_LEN - 1);
     arr->macros[arr->len++] = m;
     return TRUE;
 }
@@ -613,18 +678,136 @@ STATIC VOID REPLACE_WORD(PU8 line, PU8 name, PU8 value) {
     line[BUF_SZ - 1] = '\0';
 }
 
+/*
+ * Function-like macro expansion: replace every invocation of `m` of the
+ * form  NAME(arg1, arg2, ...)  with its body after substituting each
+ * parameter with the corresponding argument.  Arguments are split on
+ * top-level commas (nested parentheses are respected) and whitespace is
+ * trimmed.  Unbalanced parentheses cause the invocation to be left
+ * untouched.  Modifies `line` in-place (up to BUF_SZ).
+ */
+STATIC VOID REPLACE_FUNCTION_MACRO(PU8 line, PMACRO m) {
+    U32 name_len = (U32)AC_STRLEN(m->name);
+    if (!name_len) return;
+
+    U8  out[BUF_SZ];
+    U32 out_len = 0;
+    PU8 p = line;
+
+    while (*p) {
+        PU8 found = AC_STRSTR(p, m->name);
+        if (!found) {
+            U32 rest = (U32)AC_STRLEN(p);
+            if (out_len + rest < BUF_SZ) {
+                AC_STRNCPY(out + out_len, p, BUF_SZ - out_len - 1);
+                out_len += rest;
+            }
+            break;
+        }
+
+        BOOL left_ok  = (found > line) ? !IS_IDENT_CHAR(*(found - 1)) : TRUE;
+        BOOL right_ok = (*(found + name_len) == '(');
+
+        if (!(left_ok && right_ok)) {
+            /* Not an invocation — copy up to and including the name verbatim. */
+            U32 skip = (U32)(found - p) + name_len;
+            if (out_len + skip < BUF_SZ) {
+                AC_STRNCPY(out + out_len, p, skip);
+                out_len += skip;
+            }
+            p = found + name_len;
+            continue;
+        }
+
+        /* Copy text before the invocation */
+        U32 before = (U32)(found - p);
+        if (out_len + before < BUF_SZ) {
+            AC_STRNCPY(out + out_len, p, before);
+            out_len += before;
+        }
+
+        /* Locate the matching close parenthesis (respecting nesting). */
+        PU8 open = found + name_len;   /* points at '(' */
+        PU8 q    = open + 1;
+        U32 depth = 1;
+        while (*q && depth > 0) {
+            if (*q == '(') depth++;
+            else if (*q == ')') depth--;
+            q++;
+        }
+
+        if (depth != 0) {
+            /* Unterminated — emit the name literally and move past it. */
+            if (out_len + name_len < BUF_SZ) {
+                AC_STRNCPY(out + out_len, m->name, name_len);
+                out_len += name_len;
+            }
+            p = found + name_len;
+            continue;
+        }
+
+        /* Split [open+1, q-1) into arguments on top-level commas. */
+        U8 args[MAX_MACRO_PARAMS][MAX_MACRO_VALUE];
+        U32 num_args = 0;
+        AC_MEMZERO(args, sizeof(args));
+        {
+            PU8 a = open + 1;
+            PU8 end = q - 1;
+            while (a < end && num_args < MAX_MACRO_PARAMS) {
+                while (a < end && (*a == ' ' || *a == '\t')) a++;
+                PU8 s = a;
+                U32 d = 0;
+                while (a < end) {
+                    if (*a == '(') d++;
+                    else if (*a == ')') d--;
+                    else if (*a == ',' && d == 0) break;
+                    a++;
+                }
+                U32 alen = (U32)(a - s);
+                while (alen > 0 && (s[alen - 1] == ' ' || s[alen - 1] == '\t')) alen--;
+                if (alen >= MAX_MACRO_VALUE) alen = MAX_MACRO_VALUE - 1;
+                AC_STRNCPY(args[num_args], s, alen);
+                args[num_args][alen] = '\0';
+                num_args++;
+                if (a < end && *a == ',') a++;
+            }
+        }
+
+        /* Substitute parameters with arguments in a scratch copy of the body. */
+        U8 body[BUF_SZ];
+        AC_STRNCPY(body, m->value, BUF_SZ - 1);
+        body[BUF_SZ - 1] = '\0';
+        for (U32 i = 0; i < m->num_params; i++)
+            REPLACE_WORD(body, m->params[i], (i < num_args) ? args[i] : (PU8)"");
+
+        U32 blen = (U32)AC_STRLEN(body);
+        if (out_len + blen < BUF_SZ) {
+            AC_STRNCPY(out + out_len, body, BUF_SZ - out_len - 1);
+            out_len += blen;
+        }
+
+        p = q;   /* continue after the closing parenthesis */
+    }
+
+    out[out_len] = '\0';
+    AC_STRNCPY(line, out, BUF_SZ - 1);
+    line[BUF_SZ - 1] = '\0';
+}
+
 STATIC VOID REPLACE_MACROS_IN_LINE(PU8 line, MACRO_ARR *local) {
     /* Globals first */
     for (U32 i = 0; i < glb_macros.len; i++) {
         PMACRO m = glb_macros.macros[i];
         if (!m || !AC_STRSTR(line, m->name)) continue;
-        REPLACE_WORD(line, m->name, m->value);
+        if (m->is_function) REPLACE_FUNCTION_MACRO(line, m);
+        else                REPLACE_WORD(line, m->name, m->value);
     }
     /* Then local/per-unit */
     for (U32 i = 0; i < local->len; i++) {
         PMACRO m = local->macros[i];
         if (!m || !AC_STRSTR(line, m->name)) continue;
-        REPLACE_WORD(line, m->name, m->value);
+        if (m->is_function) REPLACE_FUNCTION_MACRO(line, m);
+        else                REPLACE_WORD(line, m->name, m->value);
     }
 }
 

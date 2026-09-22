@@ -106,12 +106,15 @@ STATIC COMP_TYPE RESOLVE_TYPE(COMP_TYPE t) {
 }
 
 STATIC U32 TYPE_SIZE(COMP_TYPE t) {
-    t = RESOLVE_TYPE(t);
-    if (t.base == CTYPE_STRUCT || t.base == CTYPE_UNION) {
+    COMP_TYPE rt = RESOLVE_TYPE(t);
+    /* Pointer-to-struct/union has pointer size (4), not the struct size. */
+    if (rt.ptr_depth == 0 && (rt.base == CTYPE_STRUCT || rt.base == CTYPE_UNION)) {
+        /* RESOLVE_TYPE drops the name, so look the struct/union up by the
+         * original type name (a struct tag or a typedef's target name). */
         SYMBOL *s = V_FIND_SYM(t.name ? t.name : (PU8)"");
         return s ? s->total_size : 0;
     }
-    return COMP_TYPE_SIZE(t);
+    return COMP_TYPE_SIZE(rt);
 }
 
 /* Verify a single node. Returns the resolved type of the expression/subtree. */

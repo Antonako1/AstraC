@@ -67,6 +67,8 @@ typedef enum {
 #define MAX_INCLUDES        255
 #define MAX_INPUT_FILES     255
 #define MAX_MACRO_VALUE     255
+#define MAX_MACRO_PARAMS    16
+#define MAX_MACRO_PARAM_LEN 64
 #define BUF_SZ              4096
 #define MAX_FILES           MAX_INPUT_FILES
 #define PUSH_MAX            32
@@ -80,6 +82,9 @@ typedef enum {
 typedef struct {
     U8 name[MAX_MACRO_VALUE];
     U8 value[MAX_MACRO_VALUE];
+    BOOL is_function;
+    U32 num_params;
+    U8 params[MAX_MACRO_PARAMS][MAX_MACRO_PARAM_LEN];
 } MACRO, *PMACRO;
 
 typedef struct {
