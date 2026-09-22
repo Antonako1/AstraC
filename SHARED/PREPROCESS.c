@@ -161,7 +161,7 @@ VOID FREE_PREPROCESSING_UNITS();
  */
 
 /* Forward declarations for recursive descent */
-STATIC BOOL PP_EVAL_EXPR(PU8 *pp, S32 *out);
+STATIC BOOL PP_EVAL_EXPR(PU8 *pp, S64 *out);
 
 STATIC VOID PP_SKIP_SPACES(PU8 *pp) {
     while (**pp == ' ' || **pp == '\t') (*pp)++;
@@ -172,7 +172,7 @@ STATIC BOOL PP_IS_HEX(U8 c) {
     return PP_IS_DIGIT(c) || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
 }
 
-STATIC BOOL PP_EVAL_ATOM(PU8 *pp, S32 *out) {
+STATIC BOOL PP_EVAL_ATOM(PU8 *pp, S64 *out) {
     PP_SKIP_SPACES(pp);
 
     /* Parenthesized sub-expression */
@@ -211,15 +211,15 @@ STATIC BOOL PP_EVAL_ATOM(PU8 *pp, S32 *out) {
     if (**pp == '0' && ((*pp)[1] == 'x' || (*pp)[1] == 'X')) {
         *pp += 2;
         if (!PP_IS_HEX(**pp)) return FALSE;
-        U32 v = 0;
+        U64 v = 0;
         while (PP_IS_HEX(**pp)) {
             U8 c = **pp;
-            U32 d = PP_IS_DIGIT(c) ? c - '0'
+            U64 d = PP_IS_DIGIT(c) ? c - '0'
                   : (c >= 'a') ? c - 'a' + 10 : c - 'A' + 10;
             v = v * 16 + d;
             (*pp)++;
         }
-        *out = (S32)v;
+        *out = (S64)v;
         return TRUE;
     }
 
@@ -227,23 +227,23 @@ STATIC BOOL PP_EVAL_ATOM(PU8 *pp, S32 *out) {
     if (**pp == '0' && ((*pp)[1] == 'b' || (*pp)[1] == 'B')) {
         *pp += 2;
         if (**pp != '0' && **pp != '1') return FALSE;
-        U32 v = 0;
+        U64 v = 0;
         while (**pp == '0' || **pp == '1') {
             v = v * 2 + (**pp - '0');
             (*pp)++;
         }
-        *out = (S32)v;
+        *out = (S64)v;
         return TRUE;
     }
 
     /* Decimal literal */
     if (PP_IS_DIGIT(**pp)) {
-        U32 v = 0;
+        U64 v = 0;
         while (PP_IS_DIGIT(**pp)) {
             v = v * 10 + (**pp - '0');
             (*pp)++;
         }
-        *out = (S32)v;
+        *out = (S64)v;
         return TRUE;
     }
 
@@ -251,14 +251,14 @@ STATIC BOOL PP_EVAL_ATOM(PU8 *pp, S32 *out) {
 }
 
 /* Multiplicative: *, /, % */
-STATIC BOOL PP_EVAL_MUL(PU8 *pp, S32 *out) {
+STATIC BOOL PP_EVAL_MUL(PU8 *pp, S64 *out) {
     if (!PP_EVAL_ATOM(pp, out)) return FALSE;
     for (;;) {
         PP_SKIP_SPACES(pp);
         U8 op = **pp;
         if (op != '*' && op != '/' && op != '%') break;
         (*pp)++;
-        S32 rhs;
+        S64 rhs;
         if (!PP_EVAL_ATOM(pp, &rhs)) return FALSE;
         if (op == '*') *out *= rhs;
         else if (rhs == 0) return FALSE;   /* div by zero */
@@ -269,14 +269,14 @@ STATIC BOOL PP_EVAL_MUL(PU8 *pp, S32 *out) {
 }
 
 /* Additive: +, - */
-STATIC BOOL PP_EVAL_ADD(PU8 *pp, S32 *out) {
+STATIC BOOL PP_EVAL_ADD(PU8 *pp, S64 *out) {
     if (!PP_EVAL_MUL(pp, out)) return FALSE;
     for (;;) {
         PP_SKIP_SPACES(pp);
         U8 op = **pp;
         if (op != '+' && op != '-') break;
         (*pp)++;
-        S32 rhs;
+        S64 rhs;
         if (!PP_EVAL_MUL(pp, &rhs)) return FALSE;
         if (op == '+') *out += rhs;
         else           *out -= rhs;
@@ -285,57 +285,57 @@ STATIC BOOL PP_EVAL_ADD(PU8 *pp, S32 *out) {
 }
 
 /* Shift: <<, >> */
-STATIC BOOL PP_EVAL_SHIFT(PU8 *pp, S32 *out) {
+STATIC BOOL PP_EVAL_SHIFT(PU8 *pp, S64 *out) {
     if (!PP_EVAL_ADD(pp, out)) return FALSE;
     for (;;) {
         PP_SKIP_SPACES(pp);
         if (**pp == '<' && (*pp)[1] == '<') {
             *pp += 2;
-            S32 rhs; if (!PP_EVAL_ADD(pp, &rhs)) return FALSE;
-            *out = (S32)((U32)*out << rhs);
+            S64 rhs; if (!PP_EVAL_ADD(pp, &rhs)) return FALSE;
+            *out = (S64)((U64)*out << rhs);
         } else if (**pp == '>' && (*pp)[1] == '>') {
             *pp += 2;
-            S32 rhs; if (!PP_EVAL_ADD(pp, &rhs)) return FALSE;
-            *out = (S32)((U32)*out >> rhs);
+            S64 rhs; if (!PP_EVAL_ADD(pp, &rhs)) return FALSE;
+            *out = (S64)((U64)*out >> rhs);
         } else break;
     }
     return TRUE;
 }
 
 /* Bitwise AND */
-STATIC BOOL PP_EVAL_AND(PU8 *pp, S32 *out) {
+STATIC BOOL PP_EVAL_AND(PU8 *pp, S64 *out) {
     if (!PP_EVAL_SHIFT(pp, out)) return FALSE;
     for (;;) {
         PP_SKIP_SPACES(pp);
         if (**pp != '&') break;
         (*pp)++;
-        S32 rhs; if (!PP_EVAL_SHIFT(pp, &rhs)) return FALSE;
+        S64 rhs; if (!PP_EVAL_SHIFT(pp, &rhs)) return FALSE;
         *out &= rhs;
     }
     return TRUE;
 }
 
 /* Bitwise XOR */
-STATIC BOOL PP_EVAL_XOR(PU8 *pp, S32 *out) {
+STATIC BOOL PP_EVAL_XOR(PU8 *pp, S64 *out) {
     if (!PP_EVAL_AND(pp, out)) return FALSE;
     for (;;) {
         PP_SKIP_SPACES(pp);
         if (**pp != '^') break;
         (*pp)++;
-        S32 rhs; if (!PP_EVAL_AND(pp, &rhs)) return FALSE;
+        S64 rhs; if (!PP_EVAL_AND(pp, &rhs)) return FALSE;
         *out ^= rhs;
     }
     return TRUE;
 }
 
 /* Bitwise OR — top-level expression */
-STATIC BOOL PP_EVAL_EXPR(PU8 *pp, S32 *out) {
+STATIC BOOL PP_EVAL_EXPR(PU8 *pp, S64 *out) {
     if (!PP_EVAL_XOR(pp, out)) return FALSE;
     for (;;) {
         PP_SKIP_SPACES(pp);
         if (**pp != '|') break;
         (*pp)++;
-        S32 rhs; if (!PP_EVAL_XOR(pp, &rhs)) return FALSE;
+        S64 rhs; if (!PP_EVAL_XOR(pp, &rhs)) return FALSE;
         *out |= rhs;
     }
     return TRUE;
@@ -350,14 +350,14 @@ STATIC BOOL PP_TRY_EVAL(PU8 value) {
     if (!value || !*value) return FALSE;
 
     PU8 p = value;
-    S32 result;
+    S64 result;
     if (!PP_EVAL_EXPR(&p, &result)) return FALSE;
 
     /* Ensure ALL input was consumed (otherwise it's not a pure expression) */
     PP_SKIP_SPACES(&p);
     if (*p != '\0') return FALSE;
 
-    AC_SPRINTF(value, "%d", result);
+    AC_SPRINTF(value, "%lld", result);
     return TRUE;
 }
 
