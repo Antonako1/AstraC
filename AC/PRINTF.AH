@@ -1,0 +1,19 @@
+#ifndef PRINTF_AH
+#define PRINTF_AH
+
+/* PRINTF.AH — minimal stdio-style interface built on variadic functions. */
+
+/* Write a single character to the console (VGA text mode by default). */
+U0  putc(U8 c);
+
+/* Format into `buf` (max `size` bytes incl. NUL) using an existing va_list. */
+U32 vsnprintf(PU8 buf, U32 size, PU8 fmt, va_list args);
+
+/* Format into `buf`. Returns the number of characters that would have been
+ * written (excluding the NUL terminator). */
+U32 snprintf(PU8 buf, U32 size, PU8 fmt, ...);
+
+/* Format to the console. Supports %c %s %d %u %x %X %%. */
+U0  printf(PU8 fmt, ...);
+
+#endif /* PRINTF_AH */
