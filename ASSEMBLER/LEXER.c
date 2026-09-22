@@ -246,7 +246,7 @@ ASM_TOK_ARRAY *LEX(PASM_INFO info) {
     U8  tokbuf[BUF_SZ];
     U32 lineno = 0;
     BOOL ok = TRUE;
-
+    ASTRAC_ARGS *cfg = GET_ARGS();
     for (U32 f = 0; f < info->tmp_file_count && ok; f++) {
         FILE *file = AC_FOPEN(info->tmp_files[f], MODE_R);
         if (!file) {
@@ -254,6 +254,7 @@ ASM_TOK_ARRAY *LEX(PASM_INFO info) {
             ok = FALSE;
             break;
         }
+        if(cfg->verbose) AC_PRINTF("[AS LEX] Starting lexing of '%s'\n", info->tmp_files[f]);
 
         while (ok && AC_FILE_GET_LINE(file, linebuf, sizeof(linebuf))) {
             lineno++;
@@ -347,6 +348,7 @@ ASM_TOK_ARRAY *LEX(PASM_INFO info) {
     }
 
     if (!ok) {
+        if(cfg->verbose) AC_PRINTF("[AS LEX] Not ok, lexer array count: %u/%u\n", res->len, MAX_TOKENS);
         DESTROY_TOK_ARR(res);
         return NULLPTR;
     }

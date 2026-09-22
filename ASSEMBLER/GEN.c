@@ -20,7 +20,7 @@ typedef struct {
     ASM_DIRECTIVE section; // which section this label belongs to (code/data/rodata) - affects how origin is applied when resolving addresses
 } ASM_PTR;
 
-#define MAX_PTRS 1024
+#define MAX_PTRS 2048
 
 typedef struct {
     U32 code; // current code section offset
@@ -157,7 +157,7 @@ STATIC BOOL ADD_ASM_PTR(PU8 name, U32 offset, ASM_DIRECTIVE section) {
         }
     }
     if (ptrs.arr_tail >= MAX_PTRS) {
-        AC_PRINTF_ERR("[ASM GEN] Error: Exceeded maximum number of labels (%u)\n", MAX_PTRS);
+        AC_PRINTF_ERR("[ASM GEN] Error: Exceeded maximum number of ptrs (%u)\n", MAX_PTRS);
         return FALSE;
     }
     ptrs.ptrs[ptrs.arr_tail].name      = name;
