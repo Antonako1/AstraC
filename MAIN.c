@@ -15,6 +15,50 @@ static ASTRAC_ARGS args ATTRIB_DATA = { 0 };
 
 ASTRAC_ARGS *GET_ARGS() { return &args; }
 
+/*
+ * START_SHOWLINE — print a window of lines from a preprocessed temp file.
+ *
+ *   showline AS 5 10     -> lines 5..15 of 00.AS
+ *   showline AS 5 10 20  -> lines 5..25 of 00.AS
+ *
+ * Output format: "{line number} : {content}".
+ */
+STATIC ASTRAC_RESULT START_SHOWLINE() {
+    #ifdef _WIN32
+    PU8 path = args.showline_is_ac ? (PU8)"C:\\TMP\\00.AC" : (PU8)"C:\\TMP\\00.AS";
+    #else
+    PU8 path = args.showline_is_ac ? (PU8)"/tmp/00.AC" : (PU8)"/tmp/00.AS";
+    #endif
+
+    FILE *f = AC_FOPEN(path, MODE_R | MODE_FAT32);
+    if (!f) {
+        AC_PRINTF_ERR("[SHOWLINE] Cannot open file: %s\n", path);
+        return ASTRAC_ERR_INTERNAL;
+    }
+
+    U32 ctx   = args.showline_ctx;
+    U32 start = args.showline_start;
+    U32 from  = (start > ctx) ? (start - ctx) : 1;
+    U32 to    = args.showline_has_end ? (args.showline_end + ctx)
+                                      : (start + ctx);
+
+    U32 cur  = 1;
+    U8  line[BUF_SZ];
+    while (AC_FILE_GET_LINE(f, line, sizeof(line))) {
+        if (cur >= from && cur <= to) {
+            U32 len = (U32)AC_STRLEN(line);
+            while (len > 0 && (line[len - 1] == '\n' || line[len - 1] == '\r'))
+                line[--len] = '\0';
+            AC_PRINTF("%u : %s\n", cur, line);
+        }
+        cur++;
+        if (cur > to) break;
+    }
+
+    AC_FCLOSE(f);
+    return ASTRAC_OK;
+}
+
 VOID PRINT_HELP() {
     AC_PRINTF("\n%s v%s\n\n", TRADEMARK, VERSION);
     AC_PRINTF(
@@ -26,6 +70,7 @@ VOID PRINT_HELP() {
             "  disasm <file.BIN>                ; Disassemble input file\n"
             "  preproc <file.AC|file.AS>        ; Preprocess file\n"
             "  info <mnemonic>                  ; Show information about a mnemonic\n"
+            "  showline <AS|AC> <ctx> <start> [end] ; Show source lines around a line number\n"
             "  version                          ; Show version information\n"
             "  help                             ; Show this help message\n"
         
@@ -51,7 +96,7 @@ VOID PRINT_VERSION() {
 
 ASTRAC_RESULT START_WORKLOAD() {
     if (args.build_type == BUILD_TYPE_NONE) {
-        AC_PRINTF("[ASTRAC] Error: no build mode selected (use asm, comp, disasm, or preproc)\n");
+        AC_PRINTF_ERR("[ASTRAC] Error: no build mode selected (use asm, comp, disasm, or preproc)\n");
         return ASTRAC_ERR_ARGS;
     }
     switch (args.build_type) {
@@ -60,7 +105,7 @@ ASTRAC_RESULT START_WORKLOAD() {
         case BUILD_TYPE_COMPILE:       return (ASTRAC_RESULT)START_COMPILER();
         case BUILD_TYPE_ASSEMBLE:       return START_ASSEMBLING();
         default:
-            AC_PRINTF("[ASTRAC] Error: unknown build mode 0x%X\n", args.build_type);
+            AC_PRINTF_ERR("[ASTRAC] Error: unknown build mode 0x%X\n", args.build_type);
             return ASTRAC_ERR_INTERNAL;
     }
 }
@@ -91,28 +136,28 @@ U32 main(U32 argc, PPU8 argv) {
         } else if(ARG_CMP1("asm")) {
             args.build_type = BUILD_TYPE_ASSEMBLE;
             if(i + 1 >= argc) {
-                AC_PRINTF("[ASTRAC] Error: assemble requires an input file argument.\n");
+                AC_PRINTF_ERR("[ASTRAC] Error: assemble requires an input file argument.\n");
                 return ASTRAC_ERR_ARGS;
             }
             args.input_file = argv[++i];
         } else if(ARG_CMP1("comp")) {
             args.build_type = BUILD_TYPE_COMPILE;
             if(i + 1 >= argc) {
-                AC_PRINTF("[ASTRAC] Error: compile requires an input file argument.\n");
+                AC_PRINTF_ERR("[ASTRAC] Error: compile requires an input file argument.\n");
                 return ASTRAC_ERR_ARGS;
             }
             args.input_file = argv[++i];
         } else if(ARG_CMP1("disasm")) {
             args.build_type = BUILD_TYPE_DISASSEMBLE;
             if(i + 1 >= argc) {
-                AC_PRINTF("[ASTRAC] Error: disasm requires an input file argument.\n");
+                AC_PRINTF_ERR("[ASTRAC] Error: disasm requires an input file argument.\n");
                 return ASTRAC_ERR_ARGS;
             }
             args.input_file = argv[++i];
         } else if(ARG_CMP1("preproc")) {
             args.build_type = BUILD_TYPE_PREPROCESS_ONLY;
             if(i + 1 >= argc) {
-                AC_PRINTF("[ASTRAC] Error: preproc requires an input file argument.\n");
+                AC_PRINTF_ERR("[ASTRAC] Error: preproc requires an input file argument.\n");
                 return ASTRAC_ERR_ARGS;
             }
             args.input_file = argv[++i];
@@ -120,35 +165,69 @@ U32 main(U32 argc, PPU8 argv) {
         else if(ARG_CMP1("info")) {
             args.build_type = BUILD_TYPE_MNEMONIC_INFO;
             if(i + 1 >= argc) {
-                AC_PRINTF("[ASTRAC] Error: info requires a mnemonic argument.\n");
+                AC_PRINTF_ERR("[ASTRAC] Error: info requires a mnemonic argument.\n");
                 return ASTRAC_ERR_ARGS;
             }
             args.input_file = argv[++i];
+        }
+        else if(ARG_CMP1("showline")) {
+            args.build_type = BUILD_TYPE_SHOWLINE;
+            if (i + 3 >= argc) {
+                AC_PRINTF_ERR("[ASTRAC] Error: showline requires: {AS|AC} {context} {start line} [end line]\n");
+                return ASTRAC_ERR_ARGS;
+            }
+            PU8 kind = argv[++i];
+            if (AC_STRICMP(kind, "AC") == 0)      args.showline_is_ac = TRUE;
+            else if (AC_STRICMP(kind, "AS") == 0) args.showline_is_ac = FALSE;
+            else {
+                AC_PRINTF_ERR("[ASTRAC] Error: showline file kind must be 'AS' or 'AC' (got '%s').\n", kind);
+                return ASTRAC_ERR_ARGS;
+            }
+            PU8 ctx_str = argv[++i];
+            if (!AC_ATOI_E(ctx_str, &args.showline_ctx)) {
+                AC_PRINTF_ERR("[ASTRAC] Error: invalid showline context '%s'.\n", ctx_str);
+                return ASTRAC_ERR_ARGS;
+            }
+            PU8 start_str = argv[++i];
+            if (!AC_ATOI_E(start_str, &args.showline_start)) {
+                AC_PRINTF_ERR("[ASTRAC] Error: invalid showline start line '%s'.\n", start_str);
+                return ASTRAC_ERR_ARGS;
+            }
+            args.showline_has_end = FALSE;
+            args.showline_end     = 0;
+            if (i + 1 < argc) {
+                U32 end_val = 0;
+                if (AC_ATOI_E(argv[i + 1], &end_val)) {
+                    args.showline_end     = end_val;
+                    args.showline_has_end = TRUE;
+                    i++;
+                }
+            }
         }
         
         
         else if(ARG_CMP1("macro")) {
             if (i + 2 >= argc) {
-                AC_PRINTF("[ASTRAC] Error: macro requires two arguments: name and value.\n");
+                AC_PRINTF_ERR("[ASTRAC] Error: macro requires two arguments: name and value.\n");
                 return ASTRAC_ERR_ARGS;
             }
             PU8 name = argv[++i];
             PU8 value = argv[++i];
             if (!DEFINE_MACRO(name, value, &args.macros)) {
-                AC_PRINTF("[ASTRAC] Error: failed to define macro '%s'.\n", name);
+                AC_PRINTF_ERR("[ASTRAC] Error: failed to define macro '%s'.\n", name);
                 return ASTRAC_ERR_INTERNAL;
             }
         } 
         
         else if(ARG_CMP1("stepoff")) {
             if (i + 1 >= argc) {
-                AC_PRINTF("[ASTRAC] Error: stepoff requires one argument: level.\n");
+                AC_PRINTF_ERR("[ASTRAC] Error: stepoff requires one argument: level.\n");
                 return ASTRAC_ERR_ARGS;
             }
             PU8 level_str = argv[++i];
             U32 level = 0;
             if (!AC_ATOI_E(level_str, &level) || level < 1 || level > 3) {
-                AC_PRINTF("[ASTRAC] Error: invalid stepoff level '%s'. Must be 1, 2, or 3.\n", level_str);
+                AC_PRINTF_ERR("[ASTRAC] Error: invalid stepoff level '%s'. Must be 1, 2, or 3.\n", level_str);
                 return ASTRAC_ERR_ARGS;
             }
             args.stepoff_level = (U8)level;
@@ -158,7 +237,7 @@ U32 main(U32 argc, PPU8 argv) {
         
         else if(ARG_CMP1("arch")) {
             if(i + 1 >= argc) {
-                AC_PRINTF("[ASTRAC] Error: arch requires one argument: architecture.\n");
+                AC_PRINTF_ERR("[ASTRAC] Error: arch requires one argument: architecture.\n");
                 return ASTRAC_ERR_ARGS;
             }
             PU8 arch_str = argv[++i];
@@ -167,7 +246,7 @@ U32 main(U32 argc, PPU8 argv) {
             } else if(AC_STRCMP(arch_str, "i286") == 0) {
                 args.arch = ARCH_I286;
             } else {
-                AC_PRINTF("[ASTRAC] Error: unknown architecture '%s'. Supported: i386, i286.\n", arch_str);
+                AC_PRINTF_ERR("[ASTRAC] Error: unknown architecture '%s'. Supported: i386, i286.\n", arch_str);
                 return ASTRAC_ERR_ARGS;
             }
         }
@@ -179,7 +258,7 @@ U32 main(U32 argc, PPU8 argv) {
         }
         else if(ARG_CMP1("bits")) {
             if(i + 1 >= argc) {
-                AC_PRINTF("[ASTRAC] Error: bits requires one argument: 16 or 32.\n");
+                AC_PRINTF_ERR("[ASTRAC] Error: bits requires one argument: 16 or 32.\n");
                 return ASTRAC_ERR_ARGS;
             }
             PU8 bits_str = argv[++i];
@@ -188,26 +267,26 @@ U32 main(U32 argc, PPU8 argv) {
             } else if(AC_STRCMP(bits_str, "32") == 0) {
                 args.dsm_bits = 32;
             } else {
-                AC_PRINTF("[ASTRAC] Error: invalid bits value '%s'. Must be 16 or 32.\n", bits_str);
+                AC_PRINTF_ERR("[ASTRAC] Error: invalid bits value '%s'. Must be 16 or 32.\n", bits_str);
                 return ASTRAC_ERR_ARGS;
             }
         }
         else if(ARG_CMP1("org")) {
             if(i + 1 >= argc) {
-                AC_PRINTF("[ASTRAC] Error: org requires one argument: address.\n");
+                AC_PRINTF_ERR("[ASTRAC] Error: org requires one argument: address.\n");
                 return ASTRAC_ERR_ARGS;
             }
             PU8 addr_str = argv[++i];
             U32 addr = 0;
             if (!AC_ATOI_HEX_E(addr_str, &addr)) {
-                AC_PRINTF("[ASTRAC] Error: invalid org address '%s'. Must be a hexadecimal number.\n", addr_str);
+                AC_PRINTF_ERR("[ASTRAC] Error: invalid org address '%s'. Must be a hexadecimal number.\n", addr_str);
                 return ASTRAC_ERR_ARGS;
             }
             args.org = addr;
         }
         else if(ARG_CMP1("entry")) {
             if(i + 1 >= argc) {
-                AC_PRINTF("[ASTRAC] Error: entry requires one argument: label.\n");
+                AC_PRINTF_ERR("[ASTRAC] Error: entry requires one argument: label.\n");
                 return ASTRAC_ERR_ARGS;
             }
             args.entry_point = argv[++i];
@@ -217,7 +296,7 @@ U32 main(U32 argc, PPU8 argv) {
         }
         else if(ARG_CMP1("warn")) {
             if(i + 1 >= argc) {
-                AC_PRINTF("[ASTRAC] Error: warn requires one argument: level.\n");
+                AC_PRINTF_ERR("[ASTRAC] Error: warn requires one argument: level.\n");
                 return ASTRAC_ERR_ARGS;
             }
             PU8 level_str = argv[++i];
@@ -230,22 +309,28 @@ U32 main(U32 argc, PPU8 argv) {
             } else if(AC_STRCMP(level_str, "err") == 0) {
                 args.warnings_as_errors = TRUE;
             } else {
-                AC_PRINTF("[ASTRAC] Error: invalid warn level '%s'. Must be 0, 1, 2, or 'err'.\n", level_str);
+                AC_PRINTF_ERR("[ASTRAC] Error: invalid warn level '%s'. Must be 0, 1, 2, or 'err'.\n", level_str);
                 return ASTRAC_ERR_ARGS;
             }
         }
         else {
-            AC_PRINTF("[ASTRAC] Error: unrecognized argument '%s'.\n", arg);
+            AC_PRINTF_ERR("[ASTRAC] Error: unrecognized argument '%s'.\n", arg);
         }
     }
 
     if (args.build_type == BUILD_TYPE_NONE) {
-        AC_PRINTF("[ASTRAC] Error: no build mode selected (use asm, comp, disasm, or preproc)\n");
+        AC_PRINTF_ERR("[ASTRAC] Error: no build mode selected (use asm, comp, disasm, or preproc)\n");
         return ASTRAC_ERR_ARGS;
+    }
+
+    if (args.build_type == BUILD_TYPE_SHOWLINE) {
+        ASTRAC_RESULT res = START_SHOWLINE();
+        FREE_ARGS();
+        return (U32)res;
     }
     
     if (!args.input_file) {
-        AC_PRINTF("[ASTRAC] Error: no input file specified.\n");
+        AC_PRINTF_ERR("[ASTRAC] Error: no input file specified.\n");
         return ASTRAC_ERR_ARGS;
     }
     
@@ -260,7 +345,7 @@ U32 main(U32 argc, PPU8 argv) {
     if (!args.outfile) {
         args.outfile = AC_MAlloc(AC_STRLEN(args.input_file) + 5); // +5 for ".bin" and null terminator
         if (!args.outfile) {
-            AC_PRINTF("[ASTRAC] Error: failed to allocate memory for output file name.\n");
+            AC_PRINTF_ERR("[ASTRAC] Error: failed to allocate memory for output file name.\n");
             return ASTRAC_ERR_INTERNAL;
         }
         AC_STRCPY(args.outfile, args.input_file);

@@ -843,19 +843,29 @@ STATIC U32 PREPROCESS_FILE(FILE *file, FILE *tmp_file, MACRO_ARR *mcr,
 
                     switch (matched) {
                         /* ── #define ── */
-                        case IDENT_DEFINE:
+                        case IDENT_DEFINE: {
                             /* Expand macros in the value, then try to evaluate
-                               it as a constant integer expression. */
-                            if (value) {
-                                REPLACE_MACROS_IN_LINE(value, mcr);
-                                PP_TRY_EVAL(value);
+                               it as a constant integer expression.  Expansion
+                               runs in a full-size buffer: `value` is allocated
+                               to the exact source length and macro expansion
+                               (e.g. `#define X (1000/PIT_TICK_H)`) can grow it,
+                               so replacing directly in `value` overflows it. */
+                            U8 exp[BUF_SZ];
+                            PU8 v = value;
+                            if (v) {
+                                AC_STRNCPY(exp, v, BUF_SZ - 1);
+                                exp[BUF_SZ - 1] = '\0';
+                                REPLACE_MACROS_IN_LINE(exp, mcr);
+                                PP_TRY_EVAL(exp);
+                                v = exp;
                             }
-                            if (!DEFINE_MACRO(name, value, mcr)) {
+                            if (!DEFINE_MACRO(name, v, mcr)) {
                                 AC_PRINTF("[PP] Failed to define macro '%s'\n", name);
                                 AC_MFree(name); AC_MFree(value);
                                 return FALSE;
                             }
                             break;
+                        }
 
                         /* ── #undef ── */
                         case IDENT_UNDEF:
@@ -922,7 +932,7 @@ STATIC U32 PREPROCESS_FILE(FILE *file, FILE *tmp_file, MACRO_ARR *mcr,
                         case IDENT_ERROR: {
                             AC_MFree(value);
                             value = EXTRACT_SINGLE_VALUE(buf, matched);
-                            AC_PRINTF("[PP] ERROR: %s\n", value ? value : "(empty)");
+                            AC_PRINTF_ERR("[PP] ERROR: %s\n", value ? value : "(empty)");
                             AC_MFree(name); AC_MFree(value);
                             return FALSE;
                         }
@@ -931,7 +941,7 @@ STATIC U32 PREPROCESS_FILE(FILE *file, FILE *tmp_file, MACRO_ARR *mcr,
                         case IDENT_WARNING: {
                             AC_MFree(value);
                             value = EXTRACT_SINGLE_VALUE(buf, matched);
-                            AC_PRINTF("[PP] WARNING: %s\n", value ? value : "(empty)");
+                            AC_PRINTF_WARN("[PP] WARNING: %s\n", value ? value : "(empty)");
                         } break;
                     }
                     break;

@@ -14,7 +14,7 @@ ASTRAC_RESULT GET_MNEMONIC_INFO(PU8 mnemonic) {
     }
 
     if(index_count == 0) {
-        AC_PRINTF("[ASTRAC] Error: mnemonic '%s' not found.\n", mnemonic);
+        AC_PRINTF_ERR("[ASTRAC] Error: mnemonic '%s' not found.\n", mnemonic);
         return ASTRAC_ERR_INTERNAL;
     }
 
@@ -45,7 +45,7 @@ ASTRAC_RESULT START_MNEMONIC_INFO(PU8 mnemonic) {
     res = GET_MNEMONIC_INFO(mnemonic);
     
     if (res != ASTRAC_OK) {
-        AC_PRINTF("[ASTRAC] Error: Failed to retrieve mnemonic info for '%s'.\n", mnemonic);
+        AC_PRINTF_ERR("[ASTRAC] Error: Failed to retrieve mnemonic info for '%s'.\n", mnemonic);
     }
     
     return res;

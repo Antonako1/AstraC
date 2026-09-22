@@ -17,6 +17,16 @@ STATIC SYMBOL *V_FIND_SYM(PU8 name) {
                 return NULLPTR; /* file-local symbol from another file — invisible */
             return &sym->entries[i];
         }
+    /* Fallback: a bare identifier may name a global variable, which is stored
+     * under its g_-prefixed symbol name. */
+    U8 gname[256];
+    AC_SPRINTF(gname, "g_%s", name ? name : (PU8)"");
+    for (U32 i = 0; i < sym->count; i++)
+        if (sym->entries[i].name && AC_STRCMP(sym->entries[i].name, gname) == 0) {
+            if (sym->entries[i].is_file_local && sym->entries[i].file_scope != ctx->file_scope)
+                return NULLPTR;
+            return &sym->entries[i];
+        }
     return NULLPTR;
 }
 
@@ -67,12 +77,12 @@ STATIC COMP_TYPE STRIP_PTR_TYPE(COMP_TYPE t) {
 
 STATIC VOID WARN(PU8 msg, U32 line, U32 col) {
     if (!WARNING(1)) return;   /* respect the --warn level (default: silent) */
-    AC_PRINTF("[VERIFY] L%u:%u warning: %s\n", line, col, msg);
+    AC_PRINTF_WARN("[VERIFY] L%u:%u warning: %s\n", line, col, msg);
     ctx->warnings++;
 }
 
 STATIC VOID ERR(PU8 msg, U32 line, U32 col) {
-    AC_PRINTF("[VERIFY] L%u:%u error: %s\n", line, col, msg);
+    AC_PRINTF_ERR("[VERIFY] L%u:%u error: %s\n", line, col, msg);
     ctx->errors++;
 }
 
@@ -219,7 +229,7 @@ STATIC COMP_TYPE VERIFY_NODE(PCNODE n) {
         case CNODE_IDENT: {
             SYMBOL *s = V_FIND_SYM(n->txt);
             if (!s) {
-                if (n->txt) AC_PRINTF("[VERIFY] L%u undefined symbol '%s'\n", n->line, n->txt);
+                if (n->txt) AC_PRINTF_ERR("[VERIFY] L%u undefined symbol '%s'\n", n->line, n->txt);
                 ERR("undefined symbol", n->line, n->col);
                 return COMP_MAKE_TYPE(CTYPE_NONE, 0, NULLPTR);
             }
@@ -386,10 +396,10 @@ BOOL COMP_VERIFY(PCNODE root, PCOMP_CTX c) {
     VERIFY_NODE(root);
 
     if (ctx->errors > 0) {
-        AC_PRINTF("[VERIFY] %u error(s), %u warning(s)\n", ctx->errors, ctx->warnings);
+        AC_PRINTF_ERR("[VERIFY] %u error(s), %u warning(s)\n", ctx->errors, ctx->warnings);
         return FALSE;
     }
     if (ctx->verbose)
-        AC_PRINTF("[VERIFY] %u warning(s)\n", ctx->warnings);
+        AC_PRINTF_WARN("[VERIFY] %u warning(s)\n", ctx->warnings);
     return TRUE;
 }

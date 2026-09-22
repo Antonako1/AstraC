@@ -157,7 +157,7 @@ STATIC BOOL ADD_ASM_PTR(PU8 name, U32 offset, ASM_DIRECTIVE section) {
         }
     }
     if (ptrs.arr_tail >= MAX_PTRS) {
-        AC_PRINTF("[ASM GEN] Error: Exceeded maximum number of labels (%u)\n", MAX_PTRS);
+        AC_PRINTF_ERR("[ASM GEN] Error: Exceeded maximum number of labels (%u)\n", MAX_PTRS);
         return FALSE;
     }
     ptrs.ptrs[ptrs.arr_tail].name      = name;
@@ -189,7 +189,7 @@ STATIC U32 RESOLVE_SYMBOL(PU8 name) {
     ASM_PTR *p = FIND_ASM_PTR(name);
     if (!p) {
         if(CURRENT_PASS == SECOND_PASS)
-            AC_PRINTF("[ASM GEN] ERROR: undefined symbol '%s'\n", name);
+            AC_PRINTF_ERR("[ASM GEN] ERROR: undefined symbol '%s'\n", name);
         return 0;
     }
     return p->offset;

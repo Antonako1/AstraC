@@ -587,7 +587,7 @@ BOOLEAN VERIFY_AST(ASM_AST_ARRAY *ast, PASM_INFO info) {
     free_label_table(labels);
 
     if (error_count > 0) {
-        AC_PRINTF("[AS VERIFY] %u error(s) found\n", error_count);
+        AC_PRINTF_ERR("[AS VERIFY] %u error(s) found\n", error_count);
         return FALSE;
     }
 

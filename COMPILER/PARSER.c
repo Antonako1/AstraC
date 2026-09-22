@@ -1005,9 +1005,13 @@ STATIC PCNODE parse_toplevel() {
         }
 
         PCNODE n = CNODE_NEW(CNODE_VAR_DECL, sl, sc);
-        n->txt = AC_STRDUP(it->txt);
         n->dtype = vt;
-        SYMBOL *vs = SYM_ADD(it->txt, SYM_VARIABLE);
+        /* Global variables live under a g_-prefixed symbol name so they never
+         * collide with local variables, function names, or x86 register names. */
+        U8 gname[MAX_MACRO_VALUE + 3];
+        AC_SPRINTF(gname, "g_%s", it->txt);
+        n->txt = AC_STRDUP(gname);
+        SYMBOL *vs = SYM_ADD(gname, SYM_VARIABLE);
         vs->type = vt;
         vs->is_global = TRUE;
         vs->is_file_local = is_local;

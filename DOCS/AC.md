@@ -245,6 +245,13 @@ static U32 counter = 0;         // .data, explicit zero
 local  PU8 msg     = "Hello";   // .data -- pointer to .rodata string
 ```
 
+All global variables are emitted with a `g_` prefix on their assembler symbol
+name (e.g. `counter` becomes `g_COUNTER`). This keeps globals from colliding
+with local variables, function names, or x86 register names, so a global can
+share its name with a local variable, and names such as `eax`, `dx`, or `cx`
+are valid global identifiers. Inside `asm { ... }` blocks, refer to a global
+by its plain name (`counter`), not the `g_`-prefixed form.
+
 ### Stack variables
 
 Function-local and block-local variables live on the stack. **Aggregate

@@ -30,6 +30,7 @@ typedef enum {
     BUILD_TYPE_DISASSEMBLE     = 0x0004,   /* binary     -> readable AS        */
     BUILD_TYPE_PREPROCESS_ONLY = 0x0008,   /* preprocess only                   */
     BUILD_TYPE_MNEMONIC_INFO     = 0x0010,   /* show information about a mnemonic */
+    BUILD_TYPE_SHOWLINE          = 0x0020,   /* show source lines around a given line */
 } BUILD_TYPE;
 
 /* ── RETURN / ERROR CODES ─────────────────────────────────────────────── */
@@ -120,6 +121,13 @@ typedef struct _ASTRAC_ARGS {
     U32 warning_level;
     BOOL warnings_as_errors;
     BOOL debug;
+
+    /* showline arguments */
+    BOOL showline_is_ac;     /* TRUE = show 00.AC, FALSE = show 00.AS */
+    U32  showline_ctx;       /* plus/minus context window size */
+    U32  showline_start;     /* start line number */
+    U32  showline_end;       /* optional end line number (0 = none) */
+    BOOL showline_has_end;   /* TRUE if end line was provided */
 
 
 

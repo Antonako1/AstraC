@@ -18,7 +18,7 @@
 U32 START_COMPILER() {
     ASTRAC_ARGS *cfg = GET_ARGS();
     if (!cfg || !cfg->input_file) {
-        AC_PRINTF("[COMP] Error: no input file\n");
+        AC_PRINTF_ERR("[COMP] Error: no input file\n");
         return ASTRAC_ERR_INTERNAL;
     }
 
@@ -39,7 +39,7 @@ U32 START_COMPILER() {
 
     PASM_INFO info = PREPROCESS_C();
     if (!info) {
-        AC_PRINTF("[COMP] Preprocessor failed\n");
+        AC_PRINTF_ERR("[COMP] Preprocessor failed\n");
         AC_MFree(comp_ctx);
         return ASTRAC_ERR_PREPROCESS;
     }
@@ -100,7 +100,7 @@ U32 START_COMPILER() {
     if (cfg->verbose) AC_PRINTF("[COMP] Stage 2/5: Lexing...\n");
     PCOMP_TOK_ARRAY toks = COMP_LEX(comp_ctx);
     if (!toks) {
-        AC_PRINTF("[COMP] Lexer failed\n");
+        AC_PRINTF_ERR("[COMP] Lexer failed\n");
         AC_MFree(comp_ctx);
         return ASTRAC_ERR_LEX;
     }
@@ -109,7 +109,7 @@ U32 START_COMPILER() {
     if (cfg->verbose) AC_PRINTF("[COMP] Stage 3/5: Parsing...\n");
     PCNODE ast = COMP_PARSE(toks, comp_ctx);
     if (!ast) {
-        AC_PRINTF("[COMP] Parser failed\n");
+        AC_PRINTF_ERR("[COMP] Parser failed\n");
         DESTROY_COMP_TOK_ARRAY(toks);
         AC_MFree(comp_ctx);
         return ASTRAC_ERR_AST;
@@ -118,7 +118,7 @@ U32 START_COMPILER() {
     /* ── Stage 4: Verify ────────────────────────────────────────────────── */
     if (cfg->verbose) AC_PRINTF("[COMP] Stage 4/5: Verifying...\n");
     if (!COMP_VERIFY(ast, comp_ctx)) {
-        AC_PRINTF("[COMP] Verification failed\n");
+        AC_PRINTF_ERR("[COMP] Verification failed\n");
         DESTROY_CNODE_TREE(ast);
         DESTROY_COMP_TOK_ARRAY(toks);
         AC_MFree(comp_ctx);
@@ -144,7 +144,7 @@ U32 START_COMPILER() {
     }
 
     if (!COMP_GEN(ast, comp_ctx)) {
-        AC_PRINTF("[COMP] Code generation failed\n");
+        AC_PRINTF_ERR("[COMP] Code generation failed\n");
         DESTROY_CNODE_TREE(ast);
         DESTROY_COMP_TOK_ARRAY(toks);
         AC_MFree(comp_ctx);

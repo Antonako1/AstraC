@@ -1325,12 +1325,12 @@ ASM_AST_ARRAY *ASM_BUILD_AST(ASM_TOK_ARRAY *toks) {
                     if (current_section == DIR_NONE) {
                         if (WARNING(1)) {
                             if (GET_ARGS()->warnings_as_errors) {
-                                AC_PRINTF("[AST] Error: variable declared outside a data section at L%u\n",
+                                AC_PRINTF_ERR("[AST] Error: variable declared outside a data section at L%u\n",
                                     node->line);
                                 DESTROY_AST_ARR(arr);
                                 return NULLPTR;
                             }
-                            AC_PRINTF("[AST] Warning: variable declared outside a data section at L%u\n",
+                            AC_PRINTF_WARN("[AST] Warning: variable declared outside a data section at L%u\n",
                                 node->line);
                         }
                     }
@@ -1341,7 +1341,7 @@ ASM_AST_ARRAY *ASM_BUILD_AST(ASM_TOK_ARRAY *toks) {
 
             /* Otherwise, emit as raw identifier token — skip for now */
             if (WARNING(2)) {
-                AC_PRINTF("[AST] Warning: unexpected identifier '%s' at L%u C%u\n",
+                AC_PRINTF_WARN("[AST] Warning: unexpected identifier '%s' at L%u C%u\n",
                     t->txt, t->line, t->col);
                 if (GET_ARGS()->warnings_as_errors) {
                     DESTROY_AST_ARR(arr);
@@ -1374,7 +1374,7 @@ ASM_AST_ARRAY *ASM_BUILD_AST(ASM_TOK_ARRAY *toks) {
 
         /* ── Anything else — skip ─────────────────────────────────── */
         if (WARNING(2)) {
-            AC_PRINTF("[AST] Warning: skipping unexpected token '%s' (%s) at L%u C%u\n",
+            AC_PRINTF_WARN("[AST] Warning: skipping unexpected token '%s' (%s) at L%u C%u\n",
                 t->txt, TOKEN_TYPE_STR(t->type), t->line, t->col);
             if (GET_ARGS()->warnings_as_errors) {
                 DESTROY_AST_ARR(arr);

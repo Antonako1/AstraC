@@ -10,18 +10,18 @@
 ASTRAC_RESULT START_DISSASEMBLER() {
     ASTRAC_ARGS *cfg = GET_ARGS();
     if (!cfg) {
-        AC_PRINTF("[DISASM] Internal error: ASTRAC_ARGS is null.\n");
+        AC_PRINTF_ERR("[DISASM] Internal error: ASTRAC_ARGS is null.\n");
         return ASTRAC_ERR_INTERNAL;
     }
 
     U32 slen = AC_STRLEN(cfg->outfile);
     if (slen == 0) {
-        AC_PRINTF("[DISASM] Internal error: output filename is empty.\n");
+        AC_PRINTF_ERR("[DISASM] Internal error: output filename is empty.\n");
         return ASTRAC_ERR_INTERNAL;
     }
     PU8 outfile = (PU8)AC_MAlloc(slen + 5);
     if (!outfile) {
-        AC_PRINTF("[DISASM] Internal error: failed to allocate memory for output filename.\n");
+        AC_PRINTF_ERR("[DISASM] Internal error: failed to allocate memory for output filename.\n");
         return ASTRAC_ERR_INTERNAL;
     }
 
@@ -37,19 +37,19 @@ ASTRAC_RESULT START_DISSASEMBLER() {
 
     if (AC_FILE_EXISTS(outfile)) {
         if (!AC_FILE_DELETE(outfile)) {
-            AC_PRINTF("[DISASM] Internal error: failed to delete existing output file: %s\n", outfile);
+            AC_PRINTF_ERR("[DISASM] Internal error: failed to delete existing output file: %s\n", outfile);
             AC_MFree(outfile);
             return ASTRAC_ERR_INTERNAL;
         }
     }
     if (!AC_FILE_CREATE(outfile)) {
-        AC_PRINTF("[DISASM] Internal error: failed to create output file: %s\n", outfile);
+        AC_PRINTF_ERR("[DISASM] Internal error: failed to create output file: %s\n", outfile);
         AC_MFree(outfile);
         return ASTRAC_ERR_INTERNAL;
     }
     FILE *f = AC_FOPEN(outfile, MODE_FA);
     if (!f) {
-        AC_PRINTF("[DISASM] Internal error: failed to open output file: %s\n", outfile);
+        AC_PRINTF_ERR("[DISASM] Internal error: failed to open output file: %s\n", outfile);
         AC_MFree(outfile);
         return ASTRAC_ERR_INTERNAL;
     }
@@ -59,7 +59,7 @@ ASTRAC_RESULT START_DISSASEMBLER() {
 
     FILE *input = AC_FOPEN(cfg->input_file, MODE_R);
     if (!input) {
-        AC_PRINTF("[DISASM] Error: failed to open input file: %s\n", cfg->input_file);
+        AC_PRINTF_ERR("[DISASM] Error: failed to open input file: %s\n", cfg->input_file);
         AC_FCLOSE(f);
         return ASTRAC_ERR_DISASSEMBLE;
     }
@@ -73,7 +73,7 @@ ASTRAC_RESULT START_DISSASEMBLER() {
     AC_FCLOSE(f);
 
     if (!success) {
-        AC_PRINTF("[DISASM] Error: disassembly failed.\n");
+        AC_PRINTF_ERR("[DISASM] Error: disassembly failed.\n");
         return ASTRAC_ERR_DISASSEMBLE;
     }
 

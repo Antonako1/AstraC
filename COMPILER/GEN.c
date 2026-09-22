@@ -25,6 +25,13 @@ STATIC SYMBOL *FIND_SYM(PU8 name) {
     for (U32 i = 0; i < sym->count; i++)
         if (sym->entries[i].name && AC_STRCMP(sym->entries[i].name, name) == 0)
             return &sym->entries[i];
+    /* Fallback: a bare identifier may name a global variable, which is stored
+     * under its g_-prefixed symbol name. */
+    U8 gname[256];
+    AC_SPRINTF(gname, "g_%s", name ? name : (PU8)"");
+    for (U32 i = 0; i < sym->count; i++)
+        if (sym->entries[i].name && AC_STRCMP(sym->entries[i].name, gname) == 0)
+            return &sym->entries[i];
     return NULLPTR;
 }
 
