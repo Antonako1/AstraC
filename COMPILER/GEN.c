@@ -15,6 +15,7 @@ STATIC FILE      *outf;
 STATIC U32 new_label()     { return ++ctx->label_counter; }
 STATIC VOID emit(PU8 s)    { AC_FPRINTF(outf, "%s\n", s); }
 STATIC I32  local_offset;  /* growing negative for local vars */
+STATIC U32  cur_param_count; /* fixed params of the function being emitted */
 
 /* Helpers for asm block variable substitution */
 STATIC BOOL II_START(U8 c) { return (c>='A'&&c<='Z')||(c>='a'&&c<='z')||c=='_'; }
@@ -524,6 +525,43 @@ STATIC VOID GEN_POSTFIX(PCNODE n) {
     }
 }
 
+STATIC VOID GEN_VA_START(PCNODE n) {
+    /* va_list args = address of the first variadic argument.  Fixed params
+     * occupy EBP+8 .. EBP+8+4*(fixed-1), so variadic args begin at
+     * EBP + 8 + 4*cur_param_count. */
+    SYMBOL *s = FIND_SYM(n->txt);
+    if (!s) return;
+    U32 off = 8 + cur_param_count * 4;
+    AC_FPRINTF(outf, "    LEA EAX, [EBP+%u]\n", off);
+    if (s->is_global)
+        AC_FPRINTF(outf, "    MOV [%s], EAX\n", s->name);
+    else if ((I32)s->offset == 0)
+        emit("    MOV [EBP], EAX");
+    else if ((I32)s->offset > 0)
+        AC_FPRINTF(outf, "    MOV [EBP+%u], EAX\n", s->offset);
+    else
+        AC_FPRINTF(outf, "    MOV [EBP-%u], EAX\n", (U32)(-(I32)s->offset));
+}
+
+STATIC VOID GEN_VA_ARG(PCNODE n) {
+    PCNODE ap = n->children[0];
+    GEN_LVALUE_ADDR(ap);            /* &ap -> EAX */
+    emit("    MOV EBX, [EAX]");     /* EBX = ap (pointer to next arg) */
+    U32 es = COMP_TYPE_SIZE(n->dtype);
+    if (es == 1)      emit("    MOVZX EAX, BYTE [EBX]");
+    else if (es == 2) emit("    MOVZX EAX, WORD [EBX]");
+    else              emit("    MOV EAX, [EBX]");
+    emit("    PUSH EAX");           /* save the value */
+    emit("    ADD EBX, 4");         /* advance ap past this argument */
+    GEN_LVALUE_ADDR(ap);            /* &ap -> EAX */
+    emit("    MOV [EAX], EBX");     /* store ap back */
+    emit("    POP EAX");            /* value -> EAX */
+}
+
+STATIC VOID GEN_VA_END(PCNODE n) {
+    (void)n; /* no-op: nothing to release in the cdecl stack model */
+}
+
 STATIC VOID GEN_EXPR(PCNODE n) {
     if (!n) { emit("    XOR EAX, EAX"); return; }
     switch (n->ntype) {
@@ -555,6 +593,9 @@ STATIC VOID GEN_EXPR(PCNODE n) {
         case CNODE_CAST:     GEN_CAST(n); break;
         case CNODE_SIZEOF_TYPE:
         case CNODE_SIZEOF_EXPR: GEN_SIZEOF(n); break;
+        case CNODE_VA_START: GEN_VA_START(n); break;
+        case CNODE_VA_ARG:   GEN_VA_ARG(n);   break;
+        case CNODE_VA_END:   GEN_VA_END(n);   break;
         default: emit("    XOR EAX, EAX"); break;
     }
 }
@@ -882,6 +923,8 @@ BOOL COMP_GEN(PCNODE root, PCOMP_CTX c) {
         for (U32 j = 0; j < n->child_count; j++)
             if (n->children[j]->ntype != CNODE_PARAM) { has_body = TRUE; break; }
         if (!has_body) continue;
+
+        cur_param_count = fs->param_count;
 
         if (!bootloader) {
             GEN_DEBUG_LINE(n);

@@ -378,6 +378,16 @@ STATIC COMP_TYPE VERIFY_NODE(PCNODE n) {
             VERIFY_NODE(n->children[0]);
             return n->dtype;
 
+        case CNODE_VA_START:
+        case CNODE_VA_END:
+            if (n->child_count > 0) VERIFY_NODE(n->children[0]);
+            return COMP_MAKE_TYPE(CTYPE_NONE, 0, NULLPTR);
+
+        case CNODE_VA_ARG: {
+            if (n->child_count > 0) VERIFY_NODE(n->children[0]);
+            return n->dtype;
+        }
+
         case CNODE_PARAM:
             return n->dtype;
 

@@ -327,6 +327,44 @@ STATIC PCNODE parse_postfix(PCNODE lhs) {
         if (tt == CTOK_LPAREN) {
             /* Function call */
             ADV();
+            /* Variadic built-ins: va_start / va_arg / va_end */
+            if (lhs->txt && AC_STRCMP(lhs->txt, "VA_START") == 0) {
+                PCNODE n = CNODE_NEW(CNODE_VA_START, lhs->line, lhs->col);
+                PCOMP_TOK ap = EXPECT(CTOK_IDENT);
+                if (ap) n->txt = AC_STRDUP(ap->txt);
+                if (MATCH(CTOK_COMMA)) {
+                    ADV();
+                    PCNODE last = parse_expr_prec(2);
+                    if (last) CNODE_ADD_CHILD(n, last);
+                }
+                EXPECT(CTOK_RPAREN);
+                lhs = n;
+                continue;
+            }
+            if (lhs->txt && AC_STRCMP(lhs->txt, "VA_ARG") == 0) {
+                PCNODE n = CNODE_NEW(CNODE_VA_ARG, lhs->line, lhs->col);
+                if (!MATCH(CTOK_RPAREN)) {
+                    PCNODE ap = parse_expr_prec(2);
+                    if (ap) CNODE_ADD_CHILD(n, ap);
+                }
+                if (MATCH(CTOK_COMMA)) {
+                    ADV();
+                    n->dtype = parse_type();
+                }
+                EXPECT(CTOK_RPAREN);
+                lhs = n;
+                continue;
+            }
+            if (lhs->txt && AC_STRCMP(lhs->txt, "VA_END") == 0) {
+                PCNODE n = CNODE_NEW(CNODE_VA_END, lhs->line, lhs->col);
+                if (!MATCH(CTOK_RPAREN)) {
+                    PCNODE ap = parse_expr_prec(2);
+                    if (ap) CNODE_ADD_CHILD(n, ap);
+                }
+                EXPECT(CTOK_RPAREN);
+                lhs = n;
+                continue;
+            }
             PCNODE n = CNODE_NEW(CNODE_CALL, lhs->line, lhs->col);
             n->txt = lhs->txt ? AC_STRDUP(lhs->txt) : NULLPTR;
             if (!MATCH(CTOK_RPAREN)) {
@@ -1062,6 +1100,11 @@ PCNODE COMP_PARSE(PCOMP_TOK_ARRAY t, PCOMP_CTX c) {
     if (!t || !c) return NULLPTR;
     toks = t; pos = 0; ctx = c; sym = &c->symtab;
     AC_MEMZERO(sym, sizeof(SYM_TABLE));
+
+    /* Built-in `va_list` type: a pointer into the caller's variadic argument
+     * area (fixed args are at EBP+8.., variadic args follow them). */
+    SYMBOL *vl = SYM_ADD((PU8)"VA_LIST", SYM_TYPEDEF);
+    if (vl) vl->type = COMP_MAKE_TYPE(CTYPE_VOIDPTR, 0, NULLPTR);
 
     PCNODE root = CNODE_NEW(CNODE_PROGRAM, 0, 0);
 
