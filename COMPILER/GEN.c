@@ -263,6 +263,10 @@ STATIC VOID GEN_BINOP(PCNODE n) {
         case CTOK_SHL: emit("    MOV ECX, EBX"); emit("    SHL EAX, CL"); break;
         case CTOK_SHR: emit("    MOV ECX, EBX"); emit("    SHR EAX, CL"); break;
 
+        /* Logical: CTOK_AND (&&), CTOK_OR (||) */
+        case CTOK_AND: emit("    AND EAX, EBX"); break;
+        case CTOK_OR:  emit("    OR EAX, EBX"); break;
+
         /* Relational: set EAX=1/0 */
         case CTOK_EQ: emit("    CMP EAX, EBX\n    SETE AL\n    MOVZX EAX, AL"); break;
         case CTOK_NEQ: emit("    CMP EAX, EBX\n    SETNE AL\n    MOVZX EAX, AL"); break;
