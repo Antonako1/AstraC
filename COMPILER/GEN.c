@@ -41,7 +41,12 @@ STATIC SYMBOL *FIND_SYM(PU8 name) {
 STATIC U32 GEN_TYPE_SIZE(COMP_TYPE t) {
     if (t.ptr_depth == 0 && (t.base == CTYPE_STRUCT || t.base == CTYPE_UNION)) {
         SYMBOL *s = FIND_SYM(t.name ? t.name : (PU8)"");
-        return s ? s->total_size : 0;
+        if (s) {
+            if (s->kind == SYM_TYPEDEF)
+                return GEN_TYPE_SIZE(s->type);
+            return s->total_size;
+        }
+        return 0;
     }
     return COMP_TYPE_SIZE(t);
 }
@@ -843,7 +848,7 @@ STATIC VOID ASSIGN_LOCAL_OFFSETS(PCNODE n) {
     if (n->ntype == CNODE_VAR_DECL && n->txt) {
         SYMBOL *s = FIND_SYM(n->txt);
         if (s && !s->is_global) {
-            U32 es = COMP_TYPE_SIZE(n->dtype);
+            U32 es = GEN_TYPE_SIZE(n->dtype);
             if (es == 0) es = 4;
             U32 align = (es >= 4) ? 4 : (es == 2 ? 2 : 1);
             U32 count = (s->array_size > 0) ? s->array_size : 1;
@@ -1001,7 +1006,8 @@ BOOL COMP_GEN(PCNODE root, PCOMP_CTX c) {
             if (s->kind == SYM_VARIABLE && s->is_global && !s->is_defined) {
                 if (!has_globals) { emit("\n.data"); has_globals = TRUE; }
                 U32 count = (s->array_size > 0) ? s->array_size : 1;
-                U32 elem_size = COMP_TYPE_SIZE(s->type);
+                U32 elem_size = GEN_TYPE_SIZE(s->type);
+                if (elem_size == 0) elem_size = 4;
                 PU8 der = (elem_size == 1) ? "DB" : (elem_size == 2) ? "DW" : "DD";
 
                 /* Brace-enclosed initializer list → emit the values directly. */
@@ -1026,10 +1032,15 @@ BOOL COMP_GEN(PCNODE root, PCOMP_CTX c) {
                 }
 
                 U32 init_val = s->has_init ? s->init_value : 0;
-                if (count == 1)
+                BOOL is_struct_or_union = (s->type.ptr_depth == 0 && (s->type.base == CTYPE_STRUCT || s->type.base == CTYPE_UNION));
+                if (is_struct_or_union || (elem_size != 1 && elem_size != 2 && elem_size != 4)) {
+                    U32 total_bytes = count * elem_size;
+                    AC_FPRINTF(outf, "%s:\n.times %u DB 0x%X\n", s->name, total_bytes, init_val);
+                } else if (count == 1) {
                     AC_FPRINTF(outf, "%s %s 0x%X\n", s->name, der, init_val);
-                else
+                } else {
                     AC_FPRINTF(outf, "%s:\n.times %u %s 0x%X\n", s->name, count, der, init_val);
+                }
             }
         }
     }

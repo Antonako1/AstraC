@@ -109,10 +109,14 @@ STATIC COMP_TYPE COMP_MAKE_TYPE(COMP_BASE_TYPE base, U8 ptr_depth, PU8 name) {
  * are resolved through the symbol table (COMP_TYPE_SIZE alone returns 0 for
  * struct/union types). */
 STATIC U32 FIELD_TYPE_SIZE(COMP_TYPE t) {
-    if (t.base == CTYPE_STRUCT || t.base == CTYPE_UNION) {
+    if (t.ptr_depth == 0 && (t.base == CTYPE_STRUCT || t.base == CTYPE_UNION)) {
         if (t.name) {
             SYMBOL *s = SYM_LOOKUP(t.name);
-            if (s) return s->total_size;
+            if (s) {
+                if (s->kind == SYM_TYPEDEF)
+                    return FIELD_TYPE_SIZE(s->type);
+                return s->total_size;
+            }
         }
         return 0;
     }
