@@ -770,8 +770,9 @@ STATIC PCNODE parse_stmt() {
                             fs->param_types[fs->param_count] = pt;
                             fs->param_names[fs->param_count] = AC_STRDUP(pn->txt);
                             SYMBOL *pv = SYM_ADD(pn->txt, SYM_VARIABLE);
-                            pv->type      = pt;
-                            pv->is_global = FALSE;
+                            pv->type       = pt;
+                            pv->is_global  = FALSE;
+                            pv->array_size = 0;
                             fs->param_count++;
                         } else if (fs->param_count < PARAM_MAX_COUNT) {
                             fs->param_types[fs->param_count] = pt;
@@ -784,8 +785,9 @@ STATIC PCNODE parse_stmt() {
                         fs->param_names[fs->param_count] = AC_STRDUP(pn->txt);
                         /* Also add as variable in symbol table */
                         SYMBOL *pv = SYM_ADD(pn->txt, SYM_VARIABLE);
-                        pv->type      = pt;
-                        pv->is_global = FALSE;
+                        pv->type       = pt;
+                        pv->is_global  = FALSE;
+                        pv->array_size = 0;
                         fs->param_count++;
                     }
                 } while (MATCH(CTOK_COMMA) && ADV());
@@ -1085,8 +1087,9 @@ STATIC PCNODE parse_toplevel() {
                             fs->param_types[fs->param_count] = pt;
                             fs->param_names[fs->param_count] = AC_STRDUP(pn->txt);
                             SYMBOL *pv = SYM_ADD(pn->txt, SYM_VARIABLE);
-                            pv->type      = pt;
-                            pv->is_global = FALSE;
+                            pv->type       = pt;
+                            pv->is_global  = FALSE;
+                            pv->array_size = 0;
                             fs->param_count++;
                         } else if (fs->param_count < PARAM_MAX_COUNT) {
                             fs->param_types[fs->param_count] = pt;
@@ -1099,8 +1102,9 @@ STATIC PCNODE parse_toplevel() {
                         fs->param_names[fs->param_count] = AC_STRDUP(pn->txt);
                         /* Also add as variable in symbol table */
                         SYMBOL *pv = SYM_ADD(pn->txt, SYM_VARIABLE);
-                        pv->type      = pt;
-                        pv->is_global = FALSE;
+                        pv->type       = pt;
+                        pv->is_global  = FALSE;
+                        pv->array_size = 0;
                         fs->param_count++;
                     }
                 } while (MATCH(CTOK_COMMA) && ADV());

@@ -105,14 +105,13 @@ STATIC VOID GEN_IDENT(PCNODE n) {
         AC_FPRINTF(outf, "    MOV EAX, _%s\n", s->name);
         return;
     }
-    /* Array names decay to pointer-to-first-element (address, not value) */
-    if (s->array_size > 0) {
+    /* Array names decay to pointer-to-first-element (address, not value).
+     * Parameters (offset > 0) are stack slots holding values/pointers, not inline arrays. */
+    if (s->array_size > 0 && (I32)s->offset <= 0) {
         if (s->is_global)
             AC_FPRINTF(outf, "    LEA EAX, [%s]\n", s->name);
         else if ((I32)s->offset == 0)
             AC_FPRINTF(outf, "    LEA EAX, [EBP]\n");
-        else if ((I32)s->offset > 0)
-            AC_FPRINTF(outf, "    LEA EAX, [EBP+%u]\n", s->offset);
         else
             AC_FPRINTF(outf, "    LEA EAX, [EBP-%u]\n", (U32)(-(I32)s->offset));
         return;
@@ -359,8 +358,8 @@ STATIC BOOL IS_PTR_DTYPE(COMP_TYPE t) {
  * array base, so `buf[i]` must take that address (LEA). */
 STATIC BOOL IS_PTR_VAR_SYMBOL(SYMBOL *s) {
     if (!s || s->kind != SYM_VARIABLE) return FALSE;
-    if (s->array_size > 0) return FALSE;     /* declared array → address-of */
-    return IS_PTR_DTYPE(s->type);
+    if (s->array_size > 0 && (I32)s->offset <= 0) return FALSE;     /* declared local/global array → address-of */
+    return IS_PTR_DTYPE(s->type) || (I32)s->offset > 0;             /* parameters and pointer variables → value */
 }
 
 STATIC VOID GEN_ARR_BASE(PCNODE base) {
@@ -846,9 +845,13 @@ STATIC VOID ASSIGN_LOCAL_OFFSETS(PCNODE n) {
         if (s && !s->is_global) {
             U32 es = COMP_TYPE_SIZE(n->dtype);
             if (es == 0) es = 4;
+            U32 align = (es >= 4) ? 4 : (es == 2 ? 2 : 1);
             U32 count = (s->array_size > 0) ? s->array_size : 1;
             U32 sz = es * count;
-            local_offset -= (I32)sz;
+            U32 pos_off = (U32)(-local_offset);
+            pos_off = (pos_off + (align - 1)) & ~(align - 1);
+            pos_off += sz;
+            local_offset = -(I32)pos_off;
             s->offset = (U32)local_offset;
         }
     }
@@ -959,6 +962,11 @@ BOOL COMP_GEN(PCNODE root, PCOMP_CTX c) {
         /* Assign stack offsets to local variables */
         local_offset = 0;
         ASSIGN_LOCAL_OFFSETS(n);
+        if (local_offset < 0) {
+            U32 pos_off = (U32)(-local_offset);
+            pos_off = (pos_off + 3) & ~3;
+            local_offset = -(I32)pos_off;
+        }
         /* Make space for locals */
         if (!bootloader && local_offset < 0)
             AC_FPRINTF(outf, "    SUB ESP, %u\n", (U32)(-local_offset));
