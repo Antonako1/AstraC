@@ -237,8 +237,13 @@ STATIC COMP_TYPE VERIFY_NODE(PCNODE n) {
                 ERR("undefined symbol", n->line, n->col);
                 return COMP_MAKE_TYPE(CTYPE_NONE, 0, NULLPTR);
             }
-            if (s->kind == SYM_VARIABLE || s->kind == SYM_FUNCTION) {
+            if (s->kind == SYM_VARIABLE) {
                 n->dtype = s->type;
+                n->array_size = s->array_size;
+                return n->dtype;
+            }
+            if (s->kind == SYM_FUNCTION) {
+                n->dtype = COMP_MAKE_TYPE(CTYPE_VOIDPTR, 0, NULLPTR);
                 return n->dtype;
             }
             if (s->kind == SYM_ENUM) { n->dtype = COMP_MAKE_TYPE(CTYPE_ENUM, 0, NULLPTR); return n->dtype; }
@@ -366,14 +371,33 @@ STATIC COMP_TYPE VERIFY_NODE(PCNODE n) {
             return n->dtype;
         }
 
-        case CNODE_SIZEOF_TYPE:
+        case CNODE_SIZEOF_TYPE: {
             n->ival = TYPE_SIZE(n->dtype);
+            if (n->dtype.name) {
+                SYMBOL *s = V_FIND_SYM(n->dtype.name);
+                if (s && s->kind == SYM_TYPEDEF && s->array_size > 0) {
+                    n->ival *= s->array_size;
+                }
+            }
             n->dtype = COMP_MAKE_TYPE(CTYPE_U32, 0, NULLPTR);
             return n->dtype;
+        }
 
         case CNODE_SIZEOF_EXPR: {
             COMP_TYPE st = VERIFY_NODE(n->children[0]);
-            n->ival = TYPE_SIZE(st);
+            U32 elem_size = TYPE_SIZE(st);
+            U32 count = 1;
+            if (n->children[0]) {
+                if (n->children[0]->array_size > 0) {
+                    count = n->children[0]->array_size;
+                } else if (n->children[0]->ntype == CNODE_IDENT && n->children[0]->txt) {
+                    SYMBOL *s = V_FIND_SYM(n->children[0]->txt);
+                    if (s && s->array_size > 0) {
+                        count = s->array_size;
+                    }
+                }
+            }
+            n->ival = elem_size * count;
             n->dtype = COMP_MAKE_TYPE(CTYPE_U32, 0, NULLPTR);
             return n->dtype;
         }

@@ -71,6 +71,23 @@ STATIC BOOL SYM_IS_TYPE(SYMBOL *s) {
               || s->kind == SYM_UNION  || s->kind == SYM_ENUM);
 }
 
+STATIC BOOL IS_TYPE_START(VOID) {
+    if (!PEEK()) return FALSE;
+    if (MATCH(CTOK_IDENT)) {
+        SYMBOL *ts = SYM_LOOKUP(PEEK()->txt);
+        return SYM_IS_TYPE(ts);
+    }
+    return MATCH(CTOK_KW_U8) || MATCH(CTOK_KW_U16) || MATCH(CTOK_KW_U32)
+        || MATCH(CTOK_KW_I8) || MATCH(CTOK_KW_I16) || MATCH(CTOK_KW_I32)
+        || MATCH(CTOK_KW_F32) || MATCH(CTOK_KW_BOOL) || MATCH(CTOK_KW_U0)
+        || MATCH(CTOK_KW_VOIDPTR) || MATCH(CTOK_KW_PU8) || MATCH(CTOK_KW_PU16)
+        || MATCH(CTOK_KW_PU32) || MATCH(CTOK_KW_PPU8) || MATCH(CTOK_KW_PPU16)
+        || MATCH(CTOK_KW_PPU32) || MATCH(CTOK_KW_PI8) || MATCH(CTOK_KW_PI16)
+        || MATCH(CTOK_KW_PI32) || MATCH(CTOK_KW_PPI8) || MATCH(CTOK_KW_PPI16)
+        || MATCH(CTOK_KW_PPI32) || MATCH(CTOK_KW_STRUCT) || MATCH(CTOK_KW_UNION)
+        || MATCH(CTOK_KW_ENUM) || MATCH(CTOK_KW_VOID);
+}
+
 STATIC VOID SYM_FREE_ALL() {
     for (U32 i = 0; i < sym->count; i++) {
         if (sym->entries[i].name) AC_MFree(sym->entries[i].name);
@@ -259,11 +276,19 @@ STATIC PCNODE parse_atom() {
         BOOL is_pre = (op == CTOK_PLUSPLUS || op == CTOK_MINUSMINUS);
         if (op == CTOK_KW_SIZEOF) {
             if (MATCH(CTOK_LPAREN)) {
-                U32 s2 = pos; ADV();
-                COMP_TYPE st = parse_type();
-                if (st.base != CTYPE_NONE && MATCH(CTOK_RPAREN)) { ADV(); n = CNODE_NEW(CNODE_SIZEOF_TYPE, t->line, t->col); n->dtype = st; return n; }
-                pos = s2; PCNODE se = parse_expr(); EXPECT(CTOK_RPAREN);
-                n = CNODE_NEW(CNODE_SIZEOF_EXPR, t->line, t->col); if (se) CNODE_ADD_CHILD(n, se); return n;
+                ADV();
+                if (IS_TYPE_START()) {
+                    COMP_TYPE st = parse_type();
+                    EXPECT(CTOK_RPAREN);
+                    n = CNODE_NEW(CNODE_SIZEOF_TYPE, t->line, t->col);
+                    n->dtype = st;
+                    return n;
+                }
+                PCNODE se = parse_expr();
+                EXPECT(CTOK_RPAREN);
+                n = CNODE_NEW(CNODE_SIZEOF_EXPR, t->line, t->col);
+                if (se) CNODE_ADD_CHILD(n, se);
+                return n;
             }
             PCNODE se = parse_atom();
             n = CNODE_NEW(CNODE_SIZEOF_EXPR, t->line, t->col);
@@ -726,7 +751,34 @@ STATIC PCNODE parse_stmt() {
                         break;
                     }
                     COMP_TYPE pt = parse_type();
-                    if (MATCH(CTOK_IDENT) && fs->param_count < PARAM_MAX_COUNT) {
+                    if (MATCH(CTOK_LPAREN) && pos + 1 < toks->len && toks->toks[pos + 1]->type == CTOK_STAR) {
+                        /* Function pointer param: ret_type (*param_name)(sub_params...) */
+                        ADV(); /* skip ( */
+                        ADV(); /* skip * */
+                        PCOMP_TOK pn = NULLPTR;
+                        if (MATCH(CTOK_IDENT)) pn = ADV();
+                        if (MATCH(CTOK_RPAREN)) ADV();
+                        if (MATCH(CTOK_LPAREN)) ADV();
+                        U32 pd = 1;
+                        while (PEEK() && pd > 0) {
+                            if (MATCH(CTOK_LPAREN)) pd++;
+                            else if (MATCH(CTOK_RPAREN)) pd--;
+                            ADV();
+                        }
+                        pt = COMP_MAKE_TYPE(CTYPE_VOIDPTR, 1, NULLPTR);
+                        if (pn && fs->param_count < PARAM_MAX_COUNT) {
+                            fs->param_types[fs->param_count] = pt;
+                            fs->param_names[fs->param_count] = AC_STRDUP(pn->txt);
+                            SYMBOL *pv = SYM_ADD(pn->txt, SYM_VARIABLE);
+                            pv->type      = pt;
+                            pv->is_global = FALSE;
+                            fs->param_count++;
+                        } else if (fs->param_count < PARAM_MAX_COUNT) {
+                            fs->param_types[fs->param_count] = pt;
+                            fs->param_names[fs->param_count] = NULLPTR;
+                            fs->param_count++;
+                        }
+                    } else if (MATCH(CTOK_IDENT) && fs->param_count < PARAM_MAX_COUNT) {
                         PCOMP_TOK pn = ADV();
                         fs->param_types[fs->param_count] = pt;
                         fs->param_names[fs->param_count] = AC_STRDUP(pn->txt);
@@ -749,7 +801,7 @@ STATIC PCNODE parse_stmt() {
             for (U32 p = 0; p < fs->param_count; p++) {
                 PCNODE pn = CNODE_NEW(CNODE_PARAM, sl, sc);
                 pn->dtype = fs->param_types[p];
-                pn->txt   = AC_STRDUP(fs->param_names[p]);
+                if (fs->param_names[p]) pn->txt = AC_STRDUP(fs->param_names[p]);
                 CNODE_ADD_CHILD(fn, pn);
             }
 
@@ -1003,7 +1055,7 @@ STATIC PCNODE parse_toplevel() {
             ADV();
             SYMBOL *fs = SYM_ADD(it->txt, SYM_FUNCTION);
             fs->ret_type  = vt;
-            fs->is_global = is_static;
+            fs->is_global = !is_static;
             fs->param_count = 0;
             fs->is_variadic = FALSE;
             if (!MATCH(CTOK_RPAREN)) {
@@ -1014,7 +1066,34 @@ STATIC PCNODE parse_toplevel() {
                         ADV(); ADV(); ADV(); fs->is_variadic = TRUE; break;
                     }
                     COMP_TYPE pt = parse_type();
-                    if (MATCH(CTOK_IDENT) && fs->param_count < PARAM_MAX_COUNT) {
+                    if (MATCH(CTOK_LPAREN) && pos + 1 < toks->len && toks->toks[pos + 1]->type == CTOK_STAR) {
+                        /* Function pointer param: ret_type (*param_name)(sub_params...) */
+                        ADV(); /* skip ( */
+                        ADV(); /* skip * */
+                        PCOMP_TOK pn = NULLPTR;
+                        if (MATCH(CTOK_IDENT)) pn = ADV();
+                        if (MATCH(CTOK_RPAREN)) ADV();
+                        if (MATCH(CTOK_LPAREN)) ADV();
+                        U32 pd = 1;
+                        while (PEEK() && pd > 0) {
+                            if (MATCH(CTOK_LPAREN)) pd++;
+                            else if (MATCH(CTOK_RPAREN)) pd--;
+                            ADV();
+                        }
+                        pt = COMP_MAKE_TYPE(CTYPE_VOIDPTR, 1, NULLPTR);
+                        if (pn && fs->param_count < PARAM_MAX_COUNT) {
+                            fs->param_types[fs->param_count] = pt;
+                            fs->param_names[fs->param_count] = AC_STRDUP(pn->txt);
+                            SYMBOL *pv = SYM_ADD(pn->txt, SYM_VARIABLE);
+                            pv->type      = pt;
+                            pv->is_global = FALSE;
+                            fs->param_count++;
+                        } else if (fs->param_count < PARAM_MAX_COUNT) {
+                            fs->param_types[fs->param_count] = pt;
+                            fs->param_names[fs->param_count] = NULLPTR;
+                            fs->param_count++;
+                        }
+                    } else if (MATCH(CTOK_IDENT) && fs->param_count < PARAM_MAX_COUNT) {
                         PCOMP_TOK pn = ADV();
                         fs->param_types[fs->param_count] = pt;
                         fs->param_names[fs->param_count] = AC_STRDUP(pn->txt);
@@ -1035,7 +1114,7 @@ STATIC PCNODE parse_toplevel() {
             for (U32 p = 0; p < fs->param_count; p++) {
                 PCNODE pn = CNODE_NEW(CNODE_PARAM, sl, sc);
                 pn->dtype = fs->param_types[p];
-                pn->txt   = AC_STRDUP(fs->param_names[p]);
+                if (fs->param_names[p]) pn->txt = AC_STRDUP(fs->param_names[p]);
                 CNODE_ADD_CHILD(fn, pn);
             }
             if (MATCH(CTOK_SEMICOLON)) { ADV(); fs->is_defined = FALSE; return fn; }

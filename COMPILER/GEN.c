@@ -100,6 +100,11 @@ STATIC VOID GEN_LITERAL(PCNODE n) {
 STATIC VOID GEN_IDENT(PCNODE n) {
     SYMBOL *s = FIND_SYM(n->txt);
     if (!s) { emit("    XOR EAX, EAX"); return; }
+    /* Function names decay to pointer to function entry point */
+    if (s->kind == SYM_FUNCTION) {
+        AC_FPRINTF(outf, "    MOV EAX, _%s\n", s->name);
+        return;
+    }
     /* Array names decay to pointer-to-first-element (address, not value) */
     if (s->array_size > 0) {
         if (s->is_global)
@@ -755,6 +760,8 @@ STATIC VOID GEN_ASM_BLOCK(PCNODE n) {
                 else
                     AC_FPRINTF(outf, "[EBP-%u]", (U32)(-(I32)s->offset));
             }
+        } else if (s && s->kind == SYM_FUNCTION) {
+            AC_FPRINTF(outf, "_%s", s->name);
         } else if (s && s->is_global) {
             AC_FPRINTF(outf, "[%s]", s->name);
         } else {
