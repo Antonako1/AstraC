@@ -161,6 +161,8 @@ typedef struct _TYPE_FIELD {
     U32 array_size;   /* >0 = array field element count; 0 = scalar */
 } TYPE_FIELD;
 
+#define PARAM_MAX_COUNT 16
+
 typedef struct _SYMBOL {
     PU8 name;
     SYM_KIND kind;
@@ -182,8 +184,8 @@ typedef struct _SYMBOL {
 
     /* Function params */
     U32   param_count;
-    COMP_TYPE param_types[16];
-    PU8       param_names[16];
+    COMP_TYPE param_types[PARAM_MAX_COUNT];
+    PU8       param_names[PARAM_MAX_COUNT];
 
     /* Struct/union fields */
     TYPE_FIELD fields[64];
@@ -193,8 +195,10 @@ typedef struct _SYMBOL {
     /* Enum values: enum constant name -> U32 value stored via type */
 } SYMBOL;
 
+#define SYM_MAX_ENTRIES 1024
+
 typedef struct _SYM_TABLE {
-    SYMBOL entries[512];
+    SYMBOL entries[SYM_MAX_ENTRIES];
     U32    count;
 } SYM_TABLE;
 

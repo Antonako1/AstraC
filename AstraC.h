@@ -1,4 +1,4 @@
-/**
+﻿/**
  * AstraC.h — Master header for the AstraC hosted port.
  *
  * Pulls in the STDLIB shell layer and defines all pipeline types.
@@ -106,6 +106,9 @@ BOOL IS_EMPTY(PU8 line);
 /* Returns TRUE when a diagnostic of severity `warning_level` should be
  * emitted (SHARED/WARNINGS.c). */
 BOOLEAN WARNING(U8 warning_level);
+
+// Returns TRUE if the --warnings-as-errors flag is set (SHARED/WARNINGS.c).
+BOOLEAN WARNINGS_AS_ERRORS();
 
 /* ── ARGUMENT STRUCTURE ───────────────────────────────────────────────── */
 typedef struct _ASTRAC_ARGS {

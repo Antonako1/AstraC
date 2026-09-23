@@ -75,15 +75,16 @@ STATIC COMP_TYPE STRIP_PTR_TYPE(COMP_TYPE t) {
     }
 }
 
-STATIC VOID WARN(PU8 msg, U32 line, U32 col) {
-    if (!WARNING(1)) return;   /* respect the --warn level (default: silent) */
-    AC_PRINTF_WARN("[VERIFY] L%u:%u warning: %s\n", line, col, msg);
-    ctx->warnings++;
-}
-
 STATIC VOID ERR(PU8 msg, U32 line, U32 col) {
     AC_PRINTF_ERR("[VERIFY] L%u:%u error: %s\n", line, col, msg);
     ctx->errors++;
+}
+
+STATIC VOID WARN(PU8 msg, U32 line, U32 col) {
+    if (!WARNING(1)) return;   /* respect the --warn level (default: silent) */
+    if(WARNINGS_AS_ERRORS()) { ERR(msg, line, col); return; }
+    AC_PRINTF_WARN("[VERIFY] L%u:%u warning: %s\n", line, col, msg);
+    ctx->warnings++;
 }
 
 STATIC BOOL TYPES_EQUAL(COMP_TYPE a, COMP_TYPE b) {

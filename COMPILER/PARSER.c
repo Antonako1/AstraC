@@ -35,14 +35,19 @@ STATIC VOID SKIP_TO_SEMI() {
 }
 
 STATIC SYMBOL *SYM_ADD(PU8 name, SYM_KIND kind) {
-    for (U32 i = 0; i < sym->count; i++)
+    for (U32 i = 0; i < sym->count; i++) {
         if (sym->entries[i].name && AC_STRCMP(sym->entries[i].name, name) == 0) {
             /* File-local symbols from different scopes don't collide */
             if (sym->entries[i].is_file_local && sym->entries[i].file_scope != ctx->file_scope)
                 continue;
             return &sym->entries[i];
         }
-    if (sym->count >= 512) return NULLPTR;
+    }
+    if (sym->count >= SYM_MAX_ENTRIES) {
+        AC_PRINTF_ERR("[PARSE] Symbol table full\n");
+        ctx->errors++;
+        return NULLPTR;
+    }
     SYMBOL *s = &sym->entries[sym->count++];
     AC_MEMZERO(s, sizeof(SYMBOL));
     s->name = AC_STRDUP(name);
@@ -721,7 +726,7 @@ STATIC PCNODE parse_stmt() {
                         break;
                     }
                     COMP_TYPE pt = parse_type();
-                    if (MATCH(CTOK_IDENT) && fs->param_count < 16) {
+                    if (MATCH(CTOK_IDENT) && fs->param_count < PARAM_MAX_COUNT) {
                         PCOMP_TOK pn = ADV();
                         fs->param_types[fs->param_count] = pt;
                         fs->param_names[fs->param_count] = AC_STRDUP(pn->txt);
@@ -809,7 +814,6 @@ STATIC PCNODE parse_toplevel() {
     PCOMP_TOK t = PEEK();
     if (!t || MATCH(CTOK_EOF)) return NULLPTR;
     U32 sl = t->line, sc = t->col;
-
     /* If 'typedef struct/union/enum', consume typedef and delegate to struct handler */
     if (MATCH(CTOK_KW_TYPEDEF) && pos + 1 < toks->len) {
         COMP_TOK_TYPE nt = toks->toks[pos + 1]->type;
@@ -939,10 +943,10 @@ STATIC PCNODE parse_toplevel() {
                 EXPECT(CTOK_LPAREN); /* skip ( */
                 /* Parse params */
                 U32 pc = 0;
-                COMP_TYPE pt[16];
+                COMP_TYPE pt[PARAM_MAX_COUNT];
                 if (!MATCH(CTOK_RPAREN)) {
                     do {
-                        if (pc < 16) { pt[pc] = parse_type(); if (MATCH(CTOK_IDENT)) ADV(); pc++; }
+                        if (pc < PARAM_MAX_COUNT) { pt[pc] = parse_type(); if (MATCH(CTOK_IDENT)) ADV(); pc++; }
                     } while (MATCH(CTOK_COMMA) && ADV());
                 }
                 EXPECT(CTOK_RPAREN);
@@ -990,6 +994,7 @@ STATIC PCNODE parse_toplevel() {
         || MATCH(CTOK_KW_PI32) || MATCH(CTOK_KW_PPI8) || MATCH(CTOK_KW_PPI16)
         || MATCH(CTOK_KW_PPI32) || MATCH(CTOK_KW_STRUCT) || MATCH(CTOK_KW_UNION)
         || MATCH(CTOK_KW_ENUM) || MATCH(CTOK_KW_VOID)) {
+        
         COMP_TYPE vt = parse_type();
         PCOMP_TOK it = EXPECT(CTOK_IDENT);
         if (!it) { SKIP_TO_SEMI(); return NULLPTR; }
@@ -1009,7 +1014,7 @@ STATIC PCNODE parse_toplevel() {
                         ADV(); ADV(); ADV(); fs->is_variadic = TRUE; break;
                     }
                     COMP_TYPE pt = parse_type();
-                    if (MATCH(CTOK_IDENT) && fs->param_count < 16) {
+                    if (MATCH(CTOK_IDENT) && fs->param_count < PARAM_MAX_COUNT) {
                         PCOMP_TOK pn = ADV();
                         fs->param_types[fs->param_count] = pt;
                         fs->param_names[fs->param_count] = AC_STRDUP(pn->txt);
