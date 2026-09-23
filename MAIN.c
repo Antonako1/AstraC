@@ -68,6 +68,7 @@ VOID PRINT_HELP() {
             "  asm <file.AS>                    ; Assemble input file\n"
             "  comp <file.AC>                   ; Compile input file\n"
             "  disasm <file.BIN>                ; Disassemble input file\n"
+            "  objdump <file.BIN>               ; Dump ACFH binary header and tables\n"
             "  preproc <file.AC|file.AS>        ; Preprocess file\n"
             "  info <mnemonic>                  ; Show information about a mnemonic\n"
             "  showline <AS|AC> <ctx> <start> [end] ; Show source lines around a line number\n"
@@ -96,11 +97,12 @@ VOID PRINT_VERSION() {
 
 ASTRAC_RESULT START_WORKLOAD() {
     if (args.build_type == BUILD_TYPE_NONE) {
-        AC_PRINTF_ERR("[ASTRAC] Error: no build mode selected (use asm, comp, disasm, or preproc)\n");
+        AC_PRINTF_ERR("[ASTRAC] Error: no build mode selected (use asm, comp, disasm, objdump, or preproc)\n");
         return ASTRAC_ERR_ARGS;
     }
     switch (args.build_type) {
         case BUILD_TYPE_DISASSEMBLE:    return START_DISSASEMBLER();
+        case BUILD_TYPE_OBJDUMP:        return START_OBJDUMP();
         case BUILD_TYPE_PREPROCESS_ONLY: return ASTRAC_OK;
         case BUILD_TYPE_COMPILE:       return (ASTRAC_RESULT)START_COMPILER();
         case BUILD_TYPE_ASSEMBLE:       return START_ASSEMBLING();
@@ -151,6 +153,13 @@ U32 main(U32 argc, PPU8 argv) {
             args.build_type = BUILD_TYPE_DISASSEMBLE;
             if(i + 1 >= argc) {
                 AC_PRINTF_ERR("[ASTRAC] Error: disasm requires an input file argument.\n");
+                return ASTRAC_ERR_ARGS;
+            }
+            args.input_file = argv[++i];
+        } else if(ARG_CMP1("objdump")) {
+            args.build_type = BUILD_TYPE_OBJDUMP;
+            if(i + 1 >= argc) {
+                AC_PRINTF_ERR("[ASTRAC] Error: objdump requires an input file argument.\n");
                 return ASTRAC_ERR_ARGS;
             }
             args.input_file = argv[++i];
@@ -337,6 +346,12 @@ U32 main(U32 argc, PPU8 argv) {
     if(args.build_type == BUILD_TYPE_MNEMONIC_INFO) {
         AC_PRINTF("[ASTRAC] Info mode selected for mnemonic: '%s'\n", args.input_file);
         ASTRAC_RESULT res = START_MNEMONIC_INFO(args.input_file);
+        FREE_ARGS();
+        return (U32)res;
+    }
+
+    if(args.build_type == BUILD_TYPE_OBJDUMP) {
+        ASTRAC_RESULT res = START_OBJDUMP();
         FREE_ARGS();
         return (U32)res;
     }

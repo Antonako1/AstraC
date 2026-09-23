@@ -1,4 +1,4 @@
-﻿/*
+/*
  * AstraC.c — Unity build entry point.
  *
  * This single translation unit compiles the entire AstraC toolchain.
@@ -61,6 +61,7 @@
  *  Top-level: full-build orchestrator + argument parsing / main()
  * ══════════════════════════════════════════════════════════════════════ */
 #include "FULL_BUILD.c"
+#include "OBJDUMP.c"
 #include "MAIN.c"
 #include "SHARED/WARNINGS.c"
 #include "SHARED/MNEM_INFO.c"

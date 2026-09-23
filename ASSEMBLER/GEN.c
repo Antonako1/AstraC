@@ -57,6 +57,23 @@ STATIC PU8 code_buf   ATTRIB_DATA;
 STATIC PU8 data_buf   ATTRIB_DATA;
 STATIC PU8 rodata_buf ATTRIB_DATA;
 
+/* ── Relocation Table ───────────────────────────────────────────────────── */
+STATIC PU32 reloc_buf   ATTRIB_DATA;
+STATIC U32  reloc_count ATTRIB_DATA;
+STATIC U32  reloc_cap   ATTRIB_DATA;
+
+STATIC VOID RECORD_RELOC(U32 instr_offset) {
+    if (CURRENT_PASS != SECOND_PASS) return;
+    if (reloc_count > 0 && reloc_buf && reloc_buf[reloc_count - 1] == instr_offset) return;
+    if (reloc_count >= reloc_cap) {
+        reloc_cap = (reloc_cap == 0) ? 256 : reloc_cap * 2;
+        reloc_buf = (PU32)AC_ReAlloc(reloc_buf, reloc_cap * sizeof(U32));
+    }
+    if (reloc_buf) {
+        reloc_buf[reloc_count++] = instr_offset;
+    }
+}
+
 
 /*
  * ════════════════════════════════════════════════════════════════════════════
@@ -750,6 +767,7 @@ STATIC BOOL ENCODE_INSTRUCTION(FILE *f, PASM_NODE node) {
                  node->instr.operands[1].type == OP_PTR &&
                  node->instr.operands[1].mem_ref &&
                  node->instr.operands[1].mem_ref->symbol_name) {
+            RECORD_RELOC(node->instr.offset);
             U32 addr = RESOLVE_SYMBOL_ADDR(node->instr.operands[1].mem_ref->symbol_name);
             EMIT_IMM(f, addr, tbl->size);
         }
@@ -816,12 +834,16 @@ STATIC BOOL ENCODE_INSTRUCTION(FILE *f, PASM_NODE node) {
                     EMIT_IMM(f, (U32)rel, rsz);
                 } else {
                     /* Absolute: include origin */
+                    RECORD_RELOC(node->instr.offset);
                     EMIT_IMM(f, target + ptrs.origin, tbl->size);
                 }
             } else if (op->type == OP_FAR) {
                 /* Far pointer: lower 16 = offset, upper 16 = segment.
                  * Each half may be an immediate or a symbol (resolved to an
                  * absolute address). */
+                if (op->far_ref && (op->far_ref->seg_name || op->far_ref->off_name)) {
+                    RECORD_RELOC(node->instr.offset);
+                }
                 U32 off, seg;
                 if (op->far_ref) {
                     seg = op->far_ref->seg_name
@@ -899,6 +921,9 @@ STATIC BOOL ENCODE_INSTRUCTION(FILE *f, PASM_NODE node) {
 
         /* Emit ModR/M (+ SIB + displacement) */
         if (rm_op) {
+            if (rm_op->type == OP_MEM && rm_op->mem_ref && rm_op->mem_ref->symbol_name) {
+                RECORD_RELOC(node->instr.offset);
+            }
             /* Choose 16-bit or 32-bit addressing.
              *
              * Default comes from the current code mode (.use16 / .use32).
@@ -1648,6 +1673,7 @@ BOOLEAN GEN_BINARY(ASM_AST_ARRAY *ast, PASM_INFO info) {
      *  Pass 2:  Emit binary
      * ────────────────────────────────────────────────────────────────── */
     CURRENT_PASS = SECOND_PASS;
+    reloc_count = 0;
     AC_DEBUG_PRINTF("[ASM GEN] Starting Pass 2: emitting binary to %s\n", outputfile);
 
     AC_MEMZERO(&h, sizeof(AC_FILE_HEADER));
@@ -1661,14 +1687,20 @@ BOOLEAN GEN_BINARY(ASM_AST_ARRAY *ast, PASM_INFO info) {
         AC_MFree(code_buf);   code_buf   = NULLPTR;
         AC_MFree(data_buf);   data_buf   = NULLPTR;
         AC_MFree(rodata_buf); rodata_buf = NULLPTR;
+        if (reloc_buf) {
+            AC_MFree(reloc_buf);
+            reloc_buf = NULLPTR;
+        }
+        reloc_count = 0;
+        reloc_cap = 0;
         return FALSE;
     }
 
-    AC_DEBUG_PRINTF("[ASM GEN] Pass 2 complete: code=%u bytes, data=%u bytes, rodata=%u bytes\n",
-                 ptrs.code, ptrs.data, ptrs.rodata);
+    AC_DEBUG_PRINTF("[ASM GEN] Pass 2 complete: code=%u bytes, data=%u bytes, rodata=%u bytes, relocs=%u\n",
+                 ptrs.code, ptrs.data, ptrs.rodata, reloc_count);
 
     /* ──────────────────────────────────────────────────────────────────
-     *  Write the output file in fixed layout:  [header] code data rodata
+     *  Write the output file in fixed layout:  [header] code data rodata [relocs]
      *
      *  RESOLVE_SYMBOL_ADDR() computes absolute addresses as
      *      data:   symbol.offset + pass1_code_size                   + origin
@@ -1684,6 +1716,9 @@ BOOLEAN GEN_BINARY(ASM_AST_ARRAY *ast, PASM_INFO info) {
         AC_MEMCPY(h.magic, AC_FILE_MAGIC, AC_FILE_MAGIC_LEN);
         AC_MEMZERO(h.reserved, sizeof(h.reserved));
         h.version = AC_FILE_VERSION;
+        if (cfg->output_type == OUTPUT_EXE) h.flags |= AC_FLAG_EXECUTABLE;
+        if (cfg->output_type == OUTPUT_LIB) h.flags |= AC_FLAG_DYNAMIC;
+        if (reloc_count > 0)                h.flags |= AC_FLAG_HAS_RELOCS;
         h.entry_point_offset = main_ptr ? main_ptr->offset : OFFSET_NON_EXISTENT;
 
         h.code_offset   = sizeof(AC_FILE_HEADER);
@@ -1694,22 +1729,34 @@ BOOLEAN GEN_BINARY(ASM_AST_ARRAY *ast, PASM_INFO info) {
         h.rodata_size   = ptrs.rodata;
         h.bss_offset    = sizeof(AC_FILE_HEADER) + ptrs.code + ptrs.data + ptrs.rodata;
         h.bss_size      = 0;
+        h.reloc_offset  = (reloc_count > 0) ? (sizeof(AC_FILE_HEADER) + ptrs.code + ptrs.data + ptrs.rodata) : OFFSET_NON_EXISTENT;
+        h.reloc_size    = reloc_count * sizeof(U32);
 
-        AC_DEBUG_PRINTF("[ASM GEN] Writing file header (entry=0x%X, code=0x%X+0x%X, data=0x%X+0x%X, rodata=0x%X+0x%X)\n",
+        AC_DEBUG_PRINTF("[ASM GEN] Writing file header (entry=0x%X, code=0x%X+0x%X, data=0x%X+0x%X, rodata=0x%X+0x%X, reloc=0x%X+0x%X)\n",
                     h.entry_point_offset,
                     h.code_offset, h.code_size,
                     h.data_offset, h.data_size,
-                    h.rodata_offset, h.rodata_size);
+                    h.rodata_offset, h.rodata_size,
+                    h.reloc_offset, h.reloc_size);
         AC_FWRITE(out, (VOIDPTR)&h, sizeof(h));
     }
 
     if (ptrs.code)   AC_FWRITE(out, (VOIDPTR)code_buf,   ptrs.code);
     if (ptrs.data)   AC_FWRITE(out, (VOIDPTR)data_buf,   ptrs.data);
     if (ptrs.rodata) AC_FWRITE(out, (VOIDPTR)rodata_buf, ptrs.rodata);
+    if (cfg->output_type != OUTPUT_NONE && reloc_count > 0 && reloc_buf) {
+        AC_FWRITE(out, (VOIDPTR)reloc_buf, h.reloc_size);
+    }
 
     AC_MFree(code_buf);   code_buf   = NULLPTR;
     AC_MFree(data_buf);   data_buf   = NULLPTR;
     AC_MFree(rodata_buf); rodata_buf = NULLPTR;
+    if (reloc_buf) {
+        AC_MFree(reloc_buf);
+        reloc_buf = NULLPTR;
+    }
+    reloc_count = 0;
+    reloc_cap = 0;
 
     if (cfg->verbose) AC_PRINTF("[ASM GEN] Finished writing output file: %s, sz %u bytes\n", outputfile, AC_FSIZE(out));
     if (asd_out) AC_FCLOSE(asd_out);
