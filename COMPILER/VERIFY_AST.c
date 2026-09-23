@@ -31,11 +31,13 @@ STATIC SYMBOL *V_FIND_SYM(PU8 name) {
 }
 
 STATIC BOOL IS_INTEGER(COMP_TYPE t) {
-    return (t.base >= CTYPE_U8 && t.base <= CTYPE_I32) || t.base == CTYPE_BOOL;
+    if (t.ptr_depth > 0) return FALSE;
+    return (t.base >= CTYPE_U8 && t.base <= CTYPE_I32) || t.base == CTYPE_BOOL || t.base == CTYPE_ENUM;
 }
 
 STATIC BOOL IS_INTEGER_TYPE(COMP_TYPE t) {
-    return (t.base >= CTYPE_U8 && t.base <= CTYPE_I32) || t.base == CTYPE_BOOL;
+    if (t.ptr_depth > 0) return FALSE;
+    return (t.base >= CTYPE_U8 && t.base <= CTYPE_I32) || t.base == CTYPE_BOOL || t.base == CTYPE_ENUM;
 }
 
 /* TRUE if the non-negative integer literal `val` fits in type `dst`. */
@@ -51,7 +53,16 @@ STATIC BOOL CONST_FITS(COMP_TYPE dst, U32 val) {
 }
 
 STATIC BOOL IS_POINTER(COMP_TYPE t) {
-    return t.base >= CTYPE_PU8 || t.base == CTYPE_VOIDPTR;
+    return t.ptr_depth > 0 || (t.base >= CTYPE_PU8 && t.base <= CTYPE_PPI32) || t.base == CTYPE_VOIDPTR;
+}
+
+STATIC BOOL ARE_TYPES_ASSIGNABLE(COMP_TYPE lt, COMP_TYPE rt, PCNODE rhs) {
+    if (lt.base == CTYPE_NONE || rt.base == CTYPE_NONE) return TRUE;
+    if (TYPES_EQUAL(lt, rt)) return TRUE;
+    if (IS_INTEGER_TYPE(lt) && IS_INTEGER_TYPE(rt)) return TRUE;
+    if (IS_POINTER(lt) && IS_POINTER(rt)) return TRUE;
+    if (IS_POINTER(lt) && rhs && (rhs->ntype == CNODE_NULLPTR || (rhs->ntype == CNODE_INT_LIT && rhs->ival == 0))) return TRUE;
+    return FALSE;
 }
 
 STATIC COMP_TYPE STRIP_PTR_TYPE(COMP_TYPE t) {
@@ -145,7 +156,9 @@ STATIC COMP_TYPE VERIFY_NODE(PCNODE n) {
             if (vs->array_size > 0) {
                 for (U32 i = 1; i < n->child_count; i++) VERIFY_NODE(n->children[i]);
             } else if (n->child_count > 0) {
-                VERIFY_NODE(n->children[0]);
+                COMP_TYPE it = VERIFY_NODE(n->children[0]);
+                if (!ARE_TYPES_ASSIGNABLE(vs->type, it, n->children[0]))
+                    WARN("assignment type mismatch", n->line, n->col);
                 /* Capture a constant integer initializer for .data emission. */
                 if (vs->is_global && n->children[0]->ntype == CNODE_INT_LIT) {
                     vs->init_value = n->children[0]->ival;
@@ -159,7 +172,7 @@ STATIC COMP_TYPE VERIFY_NODE(PCNODE n) {
             SYMBOL *cf = (ctx->cur_func) ? V_FIND_SYM(ctx->cur_func->txt) : NULLPTR;
             if (n->child_count > 0) {
                 COMP_TYPE rt = VERIFY_NODE(n->children[0]);
-                if (cf && cf->ret_type.base != CTYPE_U0 && !TYPES_EQUAL(cf->ret_type, rt))
+                if (cf && cf->ret_type.base != CTYPE_U0 && !ARE_TYPES_ASSIGNABLE(cf->ret_type, rt, n->children[0]))
                     WARN("return type mismatch", n->line, n->col);
             }
             break;
@@ -342,14 +355,7 @@ STATIC COMP_TYPE VERIFY_NODE(PCNODE n) {
             if (n->children[0] && (n->children[0]->ntype == CNODE_MEMBER
                 || n->children[0]->ntype == CNODE_ARROW_EXPR))
                 ; /* skip type check for member access */
-            else if (lt.base != rt.base && lt.base != CTYPE_NONE && rt.base != CTYPE_NONE) {
-                /* Don't warn for an integer constant that fits in the
-                 * destination type (e.g. `U8 c = 32;`). */
-                PCNODE rhs = n->children[1];
-                BOOL const_fits = IS_INTEGER_TYPE(lt) && IS_INTEGER_TYPE(rt)
-                               && (rhs && (rhs->ntype == CNODE_INT_LIT || rhs->ntype == CNODE_CHAR_LIT))
-                               && CONST_FITS(lt, rhs->ival);
-            if (!const_fits)
+            else if (!ARE_TYPES_ASSIGNABLE(lt, rt, n->children[1])) {
                 WARN("assignment type mismatch", n->line, n->col);
             }
             n->dtype = lt;
