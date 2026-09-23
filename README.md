@@ -14,11 +14,14 @@ AstraC is a lightweight assembler and compiler for the Intel I386 and Intel I286
 
 ## Features
 
-- Lightweight assembler and compiler for x86 architecture
-- Outputs raw binary, or asm files.
-- Cross-platform for Windows and Linux
+- Lightweight assembler and compiler for x86 architecture (i386 / i286)
+- Assembler features automatic multi-pass jump relaxation and `SHORT`/`NEAR`/`FAR` distance specifiers
+- Compiler supports C-like syntax with global initializers, array brace-initialization, variadic functions (`va_start`/`va_arg`/`va_end`), top-level inline assembly, and cdecl ABI
+- Shared C-style preprocessor supporting object-like and function-like macros, conditional compilation (`#if`, `#ifdef`, `#ifndef`), and `#push`/`#pop` pragmas
+- Outputs raw binary, ACFH executables/libraries (`--exe`/`--lib`), or assembly files
+- Cross-platform for Windows and Linux with colorized diagnostics and source line previews (`--showline`)
 - Own standard library for linkage to other operating systems
-- Whole executable source compiled as one file.
+- Whole executable source compiled as one file (unity build)
 
 ## Install
 
@@ -89,9 +92,10 @@ Options:
     help                            ; Show this help message
  
 Flags:
-    macro <name> <value>            ; Define a macro for preprocessing
+    macro <name> <value>            ; Define a macro for preprocessing (up to 64 CLI macros)
     stepoff <level>                 ; Levels: 1=After preprocessing, 2=After assembling 3=After compiling
     verbose                         ; Verbose output
+    showline                        ; Show offending source line for errors/warnings
     debug                           ; Debug output to files. (AC->AS, AS->ASD)
     arch <architecture>             ; Specify target architecture: i386 or i286. Default=i386
     exe                             ; Specify to output a binary file with a simple header. Off by default.

@@ -32,6 +32,8 @@ AstraC.exe comp <file.AC> [flags]
     -S                  ; Stop after codegen (emit .AS)
     --stepoff <1|2|3>   ; Stop after given stage
     --verbose           ; Print progress
+    --showline          ; Show offending source line for errors/warnings
+    macro <name> <v>    ; Define preprocessor macro (up to 64 CLI macros)
 ```
 
 ---
@@ -230,12 +232,10 @@ typedef struct _POINT { U32 x; U32 y; } POINT, *PPOINT;
 
 ### Global variables
 
-Globals are placed in `.data` (mutable) or `.rodata` (read-only). If no
-initializer is provided, the value defaults to **zero**. There is no `.bss`
-section.
+Globals are placed in `.data` (mutable) or `.rodata` (read-only). Scalar globals support compile-time constant initializers. Uninitialized globals default to **zero**. There is no `.bss` section.
 
 ```c
-U32  counter = 0;           // .data, explicit zero
+U32  counter = 42;          // .data, initialized constant
 PU8  msg     = "Hello";     // .data -- pointer to .rodata string
 ```
 
@@ -246,10 +246,18 @@ share its name with a local variable, and names such as `eax`, `dx`, or `cx`
 are valid global identifiers. Inside `asm { ... }` blocks, refer to a global
 by its plain name (`counter`), not the `g_`-prefixed form.
 
+### Array Brace-Initialization
+
+Global arrays support compile-time brace-enclosed initializer lists (`{ v0, v1, ... }`). Uninitialized trailing elements are automatically zero-filled using `.times`:
+
+```c
+U32 numbers[] = { 10, 20, 30, 40 };      // array of 4 U32s
+U32 table[10] = { 1, 2, 3 };            // 3 values initialized, 7 zero-filled
+```
+
 ### Stack variables
 
-Function-local and block-local variables live on the stack. **Aggregate
-initialization is not supported** -- initialize field-by-field:
+Function-local and block-local variables live on the stack:
 
 ```c
 U32 arr[256];

@@ -21,9 +21,10 @@ Flags:
     -S                 ; Stop after codegen (emit .AS)
     --stepoff <1|2|3>  ; Stop after given stage
     --verbose          ; Print progress information
+    --showline         ; Show offending source line for errors/warnings
     --warn 0|1|2|err   ; Warning level (err = treat as errors)
     --org <addr>       ; Origin address (hex, no 0x prefix)
-    macro <name> <v>   ; Define preprocessor macro
+    macro <name> <v>   ; Define preprocessor macro (up to 64 CLI macros)
 ```
 
 ### Pipeline stages
@@ -237,11 +238,10 @@ typedef struct _POINT { U32 x; U32 y; } POINT, *PPOINT;
 
 ### Global variables
 
-Placed in `.data` (mutable) or `.rodata` (read-only). Default to **zero** if no
-initializer is provided. There is no `.bss` section.
+Placed in `.data` (mutable) or `.rodata` (read-only). Global scalar variables support compile-time constant initializers. Uninitialized globals default to zero. There is no `.bss` section.
 
 ```c
-static U32 counter = 0;         // .data, explicit zero
+static U32 counter = 42;        // .data, initialized value
 local  PU8 msg     = "Hello";   // .data -- pointer to .rodata string
 ```
 
@@ -252,10 +252,18 @@ share its name with a local variable, and names such as `eax`, `dx`, or `cx`
 are valid global identifiers. Inside `asm { ... }` blocks, refer to a global
 by its plain name (`counter`), not the `g_`-prefixed form.
 
+### Array Brace-Initialization
+
+Global arrays support compile-time brace-enclosed initializer lists (`{ v0, v1, ... }`). Any uninitialized trailing elements are automatically zero-filled using `.times`:
+
+```c
+static U32 numbers[] = { 10, 20, 30, 40 };      // array with 4 elements
+static U32 table[10] = { 1, 2, 3 };            // 3 elements initialized, 7 zero-filled
+```
+
 ### Stack variables
 
-Function-local and block-local variables live on the stack. **Aggregate
-initialization is not supported** -- initialize field-by-field:
+Function-local and block-local variables live on the stack:
 
 ```c
 U32 arr[256];
@@ -494,9 +502,16 @@ U32 main() {
 
 ## Assembly Block
 
-Inline assembly using `asm { ... }`:
+Inline assembly using `asm { ... }` can be used inside functions or at top-level scope (file level):
 
 ```c
+// Top-level assembly block (emitted directly at top-level in generated .AS)
+asm {
+    .data
+    custom_flag db 1
+    .code
+}
+
 U32 main() {
     U32 result;
     asm {
@@ -509,11 +524,10 @@ U32 main() {
 ```
 
 - The `asm` block is **literally pasted** into the `.AS` output. No validation.
-- Variables declared in the enclosing scope are automatically translated to
-  their stack addresses (`[EBP+offset]` or `[EBP-offset]`).
+- Top-level `asm { ... }` blocks allow emitting custom assembly directives, data variables, or subroutines outside function definitions.
+- Variables declared in the enclosing function scope are automatically translated to their stack addresses (`[EBP+offset]` or `[EBP-offset]`).
 - Struct member access (`student.id`) is also translated to the correct EBP offset.
-- The asm block is a **clobber-everything barrier**: all registers are assumed
-  modified.
+- The asm block inside a function is a **clobber-everything barrier**: all registers are assumed modified.
 - Any valid assembler syntax including labels and raw opcodes is permitted.
 
 ---
