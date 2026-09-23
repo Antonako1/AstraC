@@ -1,4 +1,4 @@
-﻿/**
+/**
  * AstraC.h — Master header for the AstraC hosted port.
  *
  * Pulls in the STDLIB shell layer and defines all pipeline types.
@@ -32,6 +32,7 @@ typedef enum {
     BUILD_TYPE_MNEMONIC_INFO     = 0x0010,   /* show information about a mnemonic */
     BUILD_TYPE_SHOWLINE          = 0x0020,   /* show source lines around a given line */
     BUILD_TYPE_OBJDUMP           = 0x0040,   /* dump binary header and tables      */
+    BUILD_TYPE_STRDUMP           = 0x0080,   /* dump strings from .rodata section  */
 } BUILD_TYPE;
 
 /* ── RETURN / ERROR CODES ─────────────────────────────────────────────── */
@@ -153,5 +154,6 @@ VOID         FREE_ARGS();
 ASTRAC_RESULT START_WORKLOAD();
 ASTRAC_RESULT START_MNEMONIC_INFO(PU8 mnemonic);
 ASTRAC_RESULT START_OBJDUMP(VOID);
+ASTRAC_RESULT START_STRDUMP(VOID);
 
 #endif /* ASTRAC_MAIN_H */

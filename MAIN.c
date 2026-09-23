@@ -69,6 +69,7 @@ VOID PRINT_HELP() {
             "  comp <file.AC>                   ; Compile input file\n"
             "  disasm <file.BIN>                ; Disassemble input file\n"
             "  objdump <file.BIN>               ; Dump ACFH binary header and tables\n"
+            "  strdump <file.BIN>               ; Dump strings from ACFH binary rodata section\n"
             "  preproc <file.AC|file.AS>        ; Preprocess file\n"
             "  info <mnemonic>                  ; Show information about a mnemonic\n"
             "  showline <AS|AC> <ctx> <start> [end] ; Show source lines around a line number\n"
@@ -103,6 +104,7 @@ ASTRAC_RESULT START_WORKLOAD() {
     switch (args.build_type) {
         case BUILD_TYPE_DISASSEMBLE:    return START_DISSASEMBLER();
         case BUILD_TYPE_OBJDUMP:        return START_OBJDUMP();
+        case BUILD_TYPE_STRDUMP:        return START_STRDUMP();
         case BUILD_TYPE_PREPROCESS_ONLY: return ASTRAC_OK;
         case BUILD_TYPE_COMPILE:       return (ASTRAC_RESULT)START_COMPILER();
         case BUILD_TYPE_ASSEMBLE:       return START_ASSEMBLING();
@@ -160,6 +162,13 @@ U32 main(U32 argc, PPU8 argv) {
             args.build_type = BUILD_TYPE_OBJDUMP;
             if(i + 1 >= argc) {
                 AC_PRINTF_ERR("[ASTRAC] Error: objdump requires an input file argument.\n");
+                return ASTRAC_ERR_ARGS;
+            }
+            args.input_file = argv[++i];
+        } else if(ARG_CMP1("strdump")) {
+            args.build_type = BUILD_TYPE_STRDUMP;
+            if(i + 1 >= argc) {
+                AC_PRINTF_ERR("[ASTRAC] Error: strdump requires an input file argument.\n");
                 return ASTRAC_ERR_ARGS;
             }
             args.input_file = argv[++i];
@@ -352,6 +361,12 @@ U32 main(U32 argc, PPU8 argv) {
 
     if(args.build_type == BUILD_TYPE_OBJDUMP) {
         ASTRAC_RESULT res = START_OBJDUMP();
+        FREE_ARGS();
+        return (U32)res;
+    }
+
+    if(args.build_type == BUILD_TYPE_STRDUMP) {
+        ASTRAC_RESULT res = START_STRDUMP();
         FREE_ARGS();
         return (U32)res;
     }

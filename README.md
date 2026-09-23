@@ -87,6 +87,7 @@ Options:
   comp <file.AC>                   ; Compile input file
   disasm <file.BIN>                ; Disassemble input file
   objdump <file.BIN>               ; Dump ACFH binary header and tables
+  strdump <file.BIN>               ; Dump strings from ACFH binary rodata section
   preproc <file.AC|file.AS>        ; Preprocess file
   info <mnemonic>                  ; Show information about a mnemonic
   showline <AS|AC> <ctx> <start> [end] ; Show source lines around a line number

@@ -62,6 +62,7 @@
  * ══════════════════════════════════════════════════════════════════════ */
 #include "FULL_BUILD.c"
 #include "OBJDUMP.c"
+#include "STRDUMP.c"
 #include "MAIN.c"
 #include "SHARED/WARNINGS.c"
 #include "SHARED/MNEM_INFO.c"
