@@ -11,31 +11,43 @@ bare-metal applications.
 ## Compiler CLI
 
 ```
-AstraC.exe comp <file.AC> [flags]
+ASTRAC.EXE [options] [flags]
+
+Options:
+  asm <file.AS>                    ; Assemble input file
+  comp <file.AC>                   ; Compile input file
+  disasm <file.BIN>                ; Disassemble input file
+  objdump <file.BIN>               ; Dump ACFH binary header and tables
+  preproc <file.AC|file.AS>        ; Preprocess file
+  info <mnemonic>                  ; Show information about a mnemonic
+  showline <AS|AC> <ctx> <start> [end] ; Show source lines around a line number
+  version                          ; Show version information
+  help                             ; Show this help message
 
 Flags:
-    --arch i386|i286   ; Target architecture (default: i386)
-    --bits 16|32       ; Code mode (default: 32)
-    --entry <label>    ; Override entry point (default: main)
-    -E                 ; Stop after preprocessing (emit .AC)
-    -S                 ; Stop after codegen (emit .AS)
-    --stepoff <1|2|3>  ; Stop after given stage
-    --verbose          ; Print progress information
-    --showline         ; Show offending source line for errors/warnings
-    --warn 0|1|2|err   ; Warning level (err = treat as errors)
-    --org <addr>       ; Origin address (hex, no 0x prefix)
-    macro <name> <v>   ; Define preprocessor macro (up to 64 CLI macros)
+  macro <name> <value>             ; Define a macro for preprocessing
+  stepoff <level>                  ; Levels: 1=After preprocessing, 2=After assembling 3=After compiling
+  verbose                          ; Verbose output
+  debug                            ; Debug output to files. (AC->AS, AS->ASD)
+  arch <architecture>              ; Specify target architecture: i386 or i286. Default=i386
+  exe                              ; Specify to output a binary file with a simple header. Off by default.
+  lib                              ; Specify to output a binary file with a simple header. Off by default.
+  bits <16|32>                     ; Force 16-bit or 32-bit instruction encoding
+  org <address>                    ; Specify memory origin address for raw binaries (e.g., 0x7C00)
+  entry <label>                    ; Define the entry point for executables
+  warn <level>                     ; Warning level (0=none, 1=standard, 2=all, err=treat as errors)
+  debug                           ; Emit source-line comments in generated .AS for debugging
 ```
 
 ### Pipeline stages
 
 | Stage | Description | Stop flag |
 |-------|-------------|-----------|
-| 1. Preprocessing | Handle `#include`, `#define`, `#if`/`#else`/`#endif` | `-E` / `stepoff 1` |
+| 1. Preprocessing | Handle `#include`, `#define`, `#if`/`#else`/`#endif` | `stepoff 1` |
 | 2. Lexical analysis | Tokenize into keywords, identifiers, literals, operators | -- |
 | 3. Parsing | Build Abstract Syntax Tree (AST) from token stream | -- |
 | 4. Verification | Semantic checks -- types, scopes, forward declarations | -- |
-| 5. Code generation | Emit `.AS` assembly source | `-S` / `stepoff 2` |
+| 5. Code generation | Emit `.AS` assembly source | `stepoff 2` |
 | 6. Assembly | Assemble `.AS` -> flat `.BIN` binary | `stepoff 3` |
 
 ### Output files
@@ -44,18 +56,18 @@ Flags:
 input.AC -> [Preprocessor] -> /tmp/00.AC -> [Compiler] -> input.AS -> [Assembler] -> input.BIN
 ```
 
-- With `-E`: outputs preprocessed source to `/tmp/00.AC`
-- With `-S`: outputs assembly source to `input.AS`
+- With `stepoff 1`: outputs preprocessed source to `/tmp/00.AC`
+- With `stepoff 2`: outputs assembly source to `input.AS`
 - Default: outputs binary to `input.BIN`
 
 ### Supported architectures
 
 | Flag | Target |
 |------|--------|
-| `--arch i386` (default) | 32-bit protected mode, full i386 ISA |
-| `--arch i286` | 16-bit real mode, 80286 subset |
+| `arch i386` (default) | 32-bit protected mode, full i386 ISA |
+| `arch i286` | 16-bit real mode, 80286 subset |
 
-The `--bits` flag controls the default operand/address size. Use `--bits 16` for
+The `bits` flag controls the default operand/address size. Use `bits 16` for
 16-bit real-mode code.
 
 ### Error codes
@@ -454,7 +466,7 @@ mandatory `PUSH EBP; MOV EBP, ESP` stack frame.
 ### Entry point
 
 Default entry point: `U32 main(U32 argc, PPU8 argv)`.
-Override with `--entry <label>` flag.
+Override with `entry <label>` flag.
 
 `argc` and `argv` are set up by the program loader -- the compiler does not
 manage them. If no loader is present, `argc` will be 0 and `argv` will be
@@ -568,7 +580,7 @@ no separate object-linking step -- everything compiles to one `.BIN`.
 ### Target
 
 The compiler emits x86 `.AS` assembly source, then assembles to flat binary.
-Default mode is 32-bit protected mode (i386). 16-bit real mode via `--bits 16`.
+Default mode is 32-bit protected mode (i386). 16-bit real mode via `bits 16`.
 
 ### Memory layout
 

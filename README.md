@@ -18,8 +18,8 @@ AstraC is a lightweight assembler and compiler for the Intel I386 and Intel I286
 - Assembler features automatic multi-pass jump relaxation and `SHORT`/`NEAR`/`FAR` distance specifiers
 - Compiler supports C-like syntax with global initializers, array brace-initialization, variadic functions (`va_start`/`va_arg`/`va_end`), top-level inline assembly, and cdecl ABI
 - Shared C-style preprocessor supporting object-like and function-like macros, conditional compilation (`#if`, `#ifdef`, `#ifndef`), and `#push`/`#pop` pragmas
-- Outputs raw binary, ACFH executables/libraries (`--exe`/`--lib`), or assembly files
-- Cross-platform for Windows and Linux with colorized diagnostics and source line previews (`--showline`)
+- Outputs raw binary, ACFH executables/libraries (`exe`/`lib`), or assembly files
+- Cross-platform for Windows and Linux with colorized diagnostics and source line previews (`showline`)
 - Own standard library for linkage to other operating systems
 - Whole executable source compiled as one file (unity build)
 
@@ -83,27 +83,29 @@ sudo /usr/local/share/astrac/uninstall.sh
 ASTRAC.EXE [options] [flags]
 
 Options:
-    asm <file.AS>                   ; Assemble input file
-    comp <file.AC>                  ; Compile input file
-    disasm <file.BIN>               ; Disassemble input file
-    preproc <file.AC|file.AS>       ; Preprocess file
-    info <mnemonic>                 ; Show information about a mnemonic
-    version                         ; Show version information
-    help                            ; Show this help message
- 
+  asm <file.AS>                    ; Assemble input file
+  comp <file.AC>                   ; Compile input file
+  disasm <file.BIN>                ; Disassemble input file
+  objdump <file.BIN>               ; Dump ACFH binary header and tables
+  preproc <file.AC|file.AS>        ; Preprocess file
+  info <mnemonic>                  ; Show information about a mnemonic
+  showline <AS|AC> <ctx> <start> [end] ; Show source lines around a line number
+  version                          ; Show version information
+  help                             ; Show this help message
+
 Flags:
-    macro <name> <value>            ; Define a macro for preprocessing (up to 64 CLI macros)
-    stepoff <level>                 ; Levels: 1=After preprocessing, 2=After assembling 3=After compiling
-    verbose                         ; Verbose output
-    showline                        ; Show offending source line for errors/warnings
-    debug                           ; Debug output to files. (AC->AS, AS->ASD)
-    arch <architecture>             ; Specify target architecture: i386 or i286. Default=i386
-    exe                             ; Specify to output a binary file with a simple header. Off by default.
-    lib                             ; Specify to output a binary file with a simple header. Off by default.
-    bits <16|32>                    ; Force 16-bit or 32-bit instruction encoding
-    org <address>                   ; Specify memory origin address for raw binaries (e.g., 0x7C00)
-    entry <label>                   ; Define the entry point for executables
-    warn <level>                    ; Warning level (0=none, 1=standard, 2=all, err=treat as errors)
+  macro <name> <value>             ; Define a macro for preprocessing
+  stepoff <level>                  ; Levels: 1=After preprocessing, 2=After assembling 3=After compiling
+  verbose                          ; Verbose output
+  debug                            ; Debug output to files. (AC->AS, AS->ASD)
+  arch <architecture>              ; Specify target architecture: i386 or i286. Default=i386
+  exe                              ; Specify to output a binary file with a simple header. Off by default.
+  lib                              ; Specify to output a binary file with a simple header. Off by default.
+  bits <16|32>                     ; Force 16-bit or 32-bit instruction encoding
+  org <address>                    ; Specify memory origin address for raw binaries (e.g., 0x7C00)
+  entry <label>                    ; Define the entry point for executables
+  warn <level>                     ; Warning level (0=none, 1=standard, 2=all, err=treat as errors)
+  debug                           ; Emit source-line comments in generated .AS for debugging
 ```
 
 ### Examples

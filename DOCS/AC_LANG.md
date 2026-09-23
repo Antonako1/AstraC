@@ -13,27 +13,42 @@ bootloaders, embedded firmware, and bare-metal applications.
 
 | Stage | Description | Stop flag |
 |-------|-------------|-----------|
-| Preprocess | Handle `#include`, `#define`, `#if`/`#else`/`#endif` | `-E` / `stepoff 1` |
+| Preprocess | Handle `#include`, `#define`, `#if`/`#else`/`#endif` | `stepoff 1` |
 | Lex | Tokenize into keyword, identifier, literal, and operator tokens | -- |
 | Parse | Build AST from token stream | -- |
 | Verify | Semantic checks -- types, scopes, forward declarations | -- |
-| Codegen | Emit `.AS` assembly source | `-S` / `stepoff 2` |
+| Codegen | Emit `.AS` assembly source | `stepoff 2` |
 | Assemble | Assemble `.AS` -> flat `.BIN` binary | `stepoff 3` |
 
-The pipeline is controlled via CLI flags:
+The pipeline is controlled via CLI options and flags:
 
 ```
-AstraC.exe comp <file.AC> [flags]
+ASTRAC.EXE [options] [flags]
 
-    --arch i386|i286    ; Target architecture (default: i386)
-    --bits 16|32        ; Code mode (default: 32)
-    --entry <label>     ; Override entry point (default: main)
-    -E                  ; Stop after preprocessing
-    -S                  ; Stop after codegen (emit .AS)
-    --stepoff <1|2|3>   ; Stop after given stage
-    --verbose           ; Print progress
-    --showline          ; Show offending source line for errors/warnings
-    macro <name> <v>    ; Define preprocessor macro (up to 64 CLI macros)
+Options:
+  asm <file.AS>                    ; Assemble input file
+  comp <file.AC>                   ; Compile input file
+  disasm <file.BIN>                ; Disassemble input file
+  objdump <file.BIN>               ; Dump ACFH binary header and tables
+  preproc <file.AC|file.AS>        ; Preprocess file
+  info <mnemonic>                  ; Show information about a mnemonic
+  showline <AS|AC> <ctx> <start> [end] ; Show source lines around a line number
+  version                          ; Show version information
+  help                             ; Show this help message
+
+Flags:
+  macro <name> <value>             ; Define a macro for preprocessing
+  stepoff <level>                  ; Levels: 1=After preprocessing, 2=After assembling 3=After compiling
+  verbose                          ; Verbose output
+  debug                            ; Debug output to files. (AC->AS, AS->ASD)
+  arch <architecture>              ; Specify target architecture: i386 or i286. Default=i386
+  exe                              ; Specify to output a binary file with a simple header. Off by default.
+  lib                              ; Specify to output a binary file with a simple header. Off by default.
+  bits <16|32>                     ; Force 16-bit or 32-bit instruction encoding
+  org <address>                    ; Specify memory origin address for raw binaries (e.g., 0x7C00)
+  entry <label>                    ; Define the entry point for executables
+  warn <level>                     ; Warning level (0=none, 1=standard, 2=all, err=treat as errors)
+  debug                           ; Emit source-line comments in generated .AS for debugging
 ```
 
 ---
@@ -483,7 +498,7 @@ No leaf-function optimization or `__noframe__` attribute is available.
 
 ### Entry point
 
-Default entry point: `U32 main(U32 argc, PPU8 argv)`. Override with `--entry`.
+Default entry point: `U32 main(U32 argc, PPU8 argv)`. Override with `entry`.
 
 `argc` and `argv` are set up by the program loader or bootloader -- the compiler
 does not manage them. If no loader is present, `argc` will be 0 and `argv` will
@@ -604,7 +619,7 @@ no separate object-linking step -- everything compiles to one `.BIN`.
 
 The compiler emits x86 `.AS` assembly source, which the assembler then converts
 to a flat binary. Default mode is 32-bit protected mode (i386). 16-bit real mode
-is enabled via `--bits 16`.
+is enabled via `bits 16`.
 
 ### Memory layout
 
