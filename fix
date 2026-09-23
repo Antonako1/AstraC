@@ -1,2 +1,0 @@
-compiler:
-    variable names cannot be register names: eax, dx, cx etc.
