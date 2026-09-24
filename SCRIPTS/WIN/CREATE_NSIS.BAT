@@ -54,6 +54,9 @@ if defined NOBUILD (
     if not exist "%BUILD_DIR%" mkdir "%BUILD_DIR%"
     pushd "%BUILD_DIR%"
     cmake -G "Visual Studio 17 2022" -A x64 ..
+    if %ERRORLEVEL% neq 0 (
+        cmake -A x64 ..
+    )
     if %ERRORLEVEL% neq 0 ( 
         if defined BATCH (
             echo Build configuration failed. Exiting.
@@ -66,6 +69,7 @@ if defined NOBUILD (
             mkdir "%BUILD_DIR%"
             pushd "%BUILD_DIR%"
             cmake -G "Visual Studio 17 2022" -A x64 ..
+            if %ERRORLEVEL% neq 0 ( cmake -A x64 .. )
             if %ERRORLEVEL% neq 0 ( popd & popd & exit /b 1 )
         ) else (
             echo Build failed. Exiting.

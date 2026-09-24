@@ -38,6 +38,7 @@ All notable changes to AstraC will be documented in this file.
 - Added GitHub Actions pre-release workflow (`.github/workflows/pre-release.yml`) triggering on pushes to `main` to automatically extract commit changelogs, increment the patch version (`SCRIPTS/UPGRADE_VERSION.py 0 0 1`), commit and tag `v<version>`, and publish a pre-release named `patch-build-<version>` with both Windows NSIS installer and Linux package artifacts attached.
 - Fixed Linux package build: corrected source filename casing in `CMakeLists.txt` (`"AstraC.c"` / `"AstraC.h"`) to support case-sensitive Linux filesystems and made `ASTRAC.rc` Windows-only (`if (WIN32)`).
 - Fixed Windows NSIS installer job in CI: added automatic NSIS installation (`choco install nsis`) in `.github/workflows/pre-release.yml` and added PATH and Chocolatey discovery to `SCRIPTS/WIN/CREATE_NSIS.BAT`.
+- Pinned Windows CI jobs (`test-windows` and `build-windows`) to `windows-2022` to guarantee availability of Visual Studio 17 2022 and added automatic fallback to `cmake -A x64` in workflow files, `SCRIPTS/WIN/CREATE_NSIS.BAT`, and `SCRIPTS/WIN/MAKE.BAT`.
 - Added non-interactive `-batch` and `-ci` flag support to `SCRIPTS/WIN/CREATE_NSIS.BAT` and non-interactive handling to `SCRIPTS/SH/MAKE.sh`.
 
 ### Documentation & Website

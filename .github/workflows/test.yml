@@ -26,13 +26,14 @@ concurrency:
 jobs:
   test-windows:
     name: Test Windows (MSVC x64)
-    runs-on: windows-latest
+    runs-on: windows-2022
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Configure CMake
-        run: cmake -B build -G "Visual Studio 17 2022" -A x64
+        shell: bash
+        run: cmake -B build -G "Visual Studio 17 2022" -A x64 || cmake -B build -A x64
 
       - name: Build AstraC (Release)
         run: cmake --build build --config Release

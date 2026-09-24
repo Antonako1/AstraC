@@ -15,6 +15,9 @@ if not exist build (
 cd build
 cmake -G "Visual Studio 17 2022" -A x64 ..
 if %errorlevel% neq 0 (
+    cmake -A x64 ..
+)
+if %errorlevel% neq 0 (
     echo CMake configuration failed.
     exit /b %errorlevel%
 )
