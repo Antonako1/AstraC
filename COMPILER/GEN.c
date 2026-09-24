@@ -15,6 +15,8 @@ STATIC FILE      *outf;
 STATIC U32 new_label()     { return ++ctx->label_counter; }
 STATIC VOID emit(PU8 s)    { AC_FPRINTF(outf, "%s\n", s); }
 STATIC I32  local_offset;  /* growing negative for local vars */
+STATIC U32  cur_param_count; /* fixed params of the function being emitted */
+STATIC PU8  cur_func_name;
 
 /* Helpers for asm block variable substitution */
 STATIC BOOL II_START(U8 c) { return (c>='A'&&c<='Z')||(c>='a'&&c<='z')||c=='_'; }
@@ -22,10 +24,121 @@ STATIC BOOL II_CONT(U8 c)  { return II_START(c)||(c>='0'&&c<='9'); }
 STATIC VOID II_UPPER(PU8 s, U32 n) { for(U32 i=0;i<n;i++) if(s[i]>='a'&&s[i]<='z') s[i]-=32; }
 
 STATIC SYMBOL *FIND_SYM(PU8 name) {
-    for (U32 i = 0; i < sym->count; i++)
-        if (sym->entries[i].name && AC_STRCMP(sym->entries[i].name, name) == 0)
-            return &sym->entries[i];
+    if (!name || !*name) return NULLPTR;
+    /* First: check local symbols in the current function */
+    if (cur_func_name) {
+        for (U32 i = 0; i < sym->count; i++) {
+            if (sym->entries[i].name && AC_STRCMP(sym->entries[i].name, name) == 0) {
+                if (sym->entries[i].func_name && AC_STRCMP(sym->entries[i].func_name, cur_func_name) == 0)
+                    return &sym->entries[i];
+            }
+        }
+    }
+    /* Second: check global symbols */
+    for (U32 i = 0; i < sym->count; i++) {
+        if (sym->entries[i].name && AC_STRCMP(sym->entries[i].name, name) == 0) {
+            if (!sym->entries[i].func_name)
+                return &sym->entries[i];
+        }
+    }
+    /* Fallback: a bare identifier may name a global variable, which is stored
+     * under its g_-prefixed symbol name. */
+    U8 gname[256];
+    AC_SPRINTF(gname, "g_%s", name);
+    for (U32 i = 0; i < sym->count; i++) {
+        if (sym->entries[i].name && AC_STRCMP(sym->entries[i].name, gname) == 0) {
+            if (!sym->entries[i].func_name)
+                return &sym->entries[i];
+        }
+    }
     return NULLPTR;
+}
+
+/* Size of a type, resolving struct/union sizes through the symbol table.
+ * COMP_TYPE_SIZE alone returns 0 for struct/union types. */
+STATIC U32 GEN_TYPE_SIZE(COMP_TYPE t) {
+    if (t.ptr_depth == 0 && (t.base == CTYPE_STRUCT || t.base == CTYPE_UNION)) {
+        SYMBOL *s = FIND_SYM(t.name ? t.name : (PU8)"");
+        if (s) {
+            if (s->kind == SYM_TYPEDEF)
+                return GEN_TYPE_SIZE(s->type);
+            return s->total_size;
+        }
+        return 0;
+    }
+    return COMP_TYPE_SIZE(t);
+}
+
+/* Compute EAX = EBX + EAX * element_size (base in EBX, index in EAX). */
+STATIC VOID GEN_ELEM_ADDR(U32 es) {
+    switch (es) {
+        case 1:  emit("    LEA EAX, [EBX + EAX]");    break;
+        case 2:  emit("    LEA EAX, [EBX + EAX*2]");  break;
+        case 4:  emit("    LEA EAX, [EBX + EAX*4]");  break;
+        case 8:  emit("    LEA EAX, [EBX + EAX*8]");  break;
+        default:
+            AC_FPRINTF(outf, "    IMUL EAX, EAX, %u\n", es);
+            emit("    ADD EAX, EBX");
+            break;
+    }
+}
+
+/* TRUE if a type is an aggregate (struct/union value, not a pointer). */
+STATIC BOOL IS_AGGREGATE_TYPE(COMP_TYPE t) {
+    return t.ptr_depth == 0 && (t.base == CTYPE_STRUCT || t.base == CTYPE_UNION);
+}
+
+/* Copy `es` bytes from source address [EBX] to destination address [EAX]. */
+STATIC VOID GEN_STRUCT_COPY(U32 es) {
+    if (es == 0) return;
+    if (es <= 64) {
+        U32 off = 0;
+        while (off + 4 <= es) {
+            if (off == 0) {
+                emit("    MOV EDX, [EBX]");
+                emit("    MOV [EAX], EDX");
+            } else {
+                AC_FPRINTF(outf, "    MOV EDX, [EBX+%u]\n", off);
+                AC_FPRINTF(outf, "    MOV [EAX+%u], EDX\n", off);
+            }
+            off += 4;
+        }
+        if (off + 2 <= es) {
+            if (off == 0) {
+                emit("    MOV DX, [EBX]");
+                emit("    MOV [EAX], DX");
+            } else {
+                AC_FPRINTF(outf, "    MOV DX, [EBX+%u]\n", off);
+                AC_FPRINTF(outf, "    MOV [EAX+%u], DX\n", off);
+            }
+            off += 2;
+        }
+        if (off < es) {
+            if (off == 0) {
+                emit("    MOV DL, [EBX]");
+                emit("    MOV [EAX], DL");
+            } else {
+                AC_FPRINTF(outf, "    MOV DL, [EBX+%u]\n", off);
+                AC_FPRINTF(outf, "    MOV [EAX+%u], DL\n", off);
+            }
+            off += 1;
+        }
+    } else {
+        emit("    PUSH ESI");
+        emit("    PUSH EDI");
+        emit("    PUSH ECX");
+        emit("    MOV EDI, EAX");
+        emit("    MOV ESI, EBX");
+        if (es / 4 > 0) {
+            AC_FPRINTF(outf, "    MOV ECX, %u\n", es / 4);
+            emit("    REP MOVSD");
+        }
+        if (es % 4 >= 2) emit("    MOVSW");
+        if (es % 2 == 1) emit("    MOVSB");
+        emit("    POP ECX");
+        emit("    POP EDI");
+        emit("    POP ESI");
+    }
 }
 
 /* ── Expression codegen — result in EAX ──────────────────────────────────── */
@@ -63,14 +176,18 @@ STATIC VOID GEN_LITERAL(PCNODE n) {
 STATIC VOID GEN_IDENT(PCNODE n) {
     SYMBOL *s = FIND_SYM(n->txt);
     if (!s) { emit("    XOR EAX, EAX"); return; }
-    /* Array names decay to pointer-to-first-element (address, not value) */
-    if (s->array_size > 0) {
+    /* Function names decay to pointer to function entry point */
+    if (s->kind == SYM_FUNCTION) {
+        AC_FPRINTF(outf, "    MOV EAX, _%s\n", s->name);
+        return;
+    }
+    /* Array names decay to pointer-to-first-element (address, not value).
+     * Parameters (offset > 0) are stack slots holding values/pointers, not inline arrays. */
+    if (s->array_size > 0 && (I32)s->offset <= 0) {
         if (s->is_global)
             AC_FPRINTF(outf, "    LEA EAX, [%s]\n", s->name);
         else if ((I32)s->offset == 0)
             AC_FPRINTF(outf, "    LEA EAX, [EBP]\n");
-        else if ((I32)s->offset > 0)
-            AC_FPRINTF(outf, "    LEA EAX, [EBP+%u]\n", s->offset);
         else
             AC_FPRINTF(outf, "    LEA EAX, [EBP-%u]\n", (U32)(-(I32)s->offset));
         return;
@@ -136,8 +253,19 @@ STATIC VOID GEN_ASSIGN(PCNODE n) {
         s = FIND_SYM(lhs->txt);
         if (!s) { emit("    POP EAX"); return; }
         emit("    POP EAX");
-        es = COMP_TYPE_SIZE(s->type);
-        if (es == 1) {
+        es = GEN_TYPE_SIZE(s->type);
+        if (IS_AGGREGATE_TYPE(s->type) || es > 4) {
+            emit("    MOV EBX, EAX");
+            if (s->is_global)
+                AC_FPRINTF(outf, "    LEA EAX, [%s]\n", s->name);
+            else if ((I32)s->offset == 0)
+                AC_FPRINTF(outf, "    LEA EAX, [EBP]\n");
+            else if ((I32)s->offset > 0)
+                AC_FPRINTF(outf, "    LEA EAX, [EBP+%u]\n", s->offset);
+            else
+                AC_FPRINTF(outf, "    LEA EAX, [EBP-%u]\n", (U32)(-(I32)s->offset));
+            GEN_STRUCT_COPY(es);
+        } else if (es == 1) {
             if (s->is_global)
                 AC_FPRINTF(outf, "    MOV [%s], AL\n", s->name);
             else if ((I32)s->offset == 0)
@@ -167,27 +295,48 @@ STATIC VOID GEN_ASSIGN(PCNODE n) {
         }
     } else if (lhs->ntype == CNODE_DEREF) {
         GEN_EXPR(lhs->children[0]);
-        es = COMP_TYPE_SIZE(lhs->dtype);
+        es = GEN_TYPE_SIZE(lhs->dtype);
         emit("    POP EBX");
-        if (es == 1)      emit("    MOV [EAX], BL");
-        else if (es == 2)  emit("    MOV [EAX], BX");
-        else                emit("    MOV [EAX], EBX");
+        if (IS_AGGREGATE_TYPE(lhs->dtype) || es > 4) {
+            GEN_STRUCT_COPY(es);
+        } else if (es == 1) {
+            emit("    MOV [EAX], BL");
+        } else if (es == 2) {
+            emit("    MOV [EAX], BX");
+        } else {
+            emit("    MOV [EAX], EBX");
+        }
     } else if (lhs->ntype == CNODE_INDEX) {
         GEN_ARR_BASE(lhs->children[0]);
         emit("    PUSH EAX");
         GEN_EXPR(lhs->children[1]);
         emit("    POP EBX");
-        es = COMP_TYPE_SIZE(lhs->dtype);
-        if (es == 1)
-            emit("    LEA EAX, [EBX + EAX]");
-        else if (es == 2)
-            emit("    LEA EAX, [EBX + EAX*2]");
-        else
-            emit("    LEA EAX, [EBX + EAX*4]");
+        es = GEN_TYPE_SIZE(lhs->dtype);
+        GEN_ELEM_ADDR(es);
         emit("    POP EBX");
-        if (es == 1)      emit("    MOV [EAX], BL");
-        else if (es == 2)  emit("    MOV [EAX], BX");
-        else                emit("    MOV [EAX], EBX");
+        if (IS_AGGREGATE_TYPE(lhs->dtype) || es > 4) {
+            GEN_STRUCT_COPY(es);
+        } else if (es == 1) {
+            emit("    MOV [EAX], BL");
+        } else if (es == 2) {
+            emit("    MOV [EAX], BX");
+        } else {
+            emit("    MOV [EAX], EBX");
+        }
+    } else if (lhs->ntype == CNODE_MEMBER || lhs->ntype == CNODE_ARROW_EXPR) {
+        /* Store to a struct/union member: address → EAX, value → EBX */
+        es = GEN_TYPE_SIZE(lhs->dtype);
+        GEN_LVALUE_ADDR(lhs);
+        emit("    POP EBX");
+        if (IS_AGGREGATE_TYPE(lhs->dtype) || es > 4) {
+            GEN_STRUCT_COPY(es);
+        } else if (es == 1) {
+            emit("    MOV [EAX], BL");
+        } else if (es == 2) {
+            emit("    MOV [EAX], BX");
+        } else {
+            emit("    MOV [EAX], EBX");
+        }
     } else {
         emit("    POP EAX");
         emit("    XOR EAX, EAX");
@@ -217,6 +366,10 @@ STATIC VOID GEN_BINOP(PCNODE n) {
         case CTOK_CARET: emit("    XOR EAX, EBX"); break;
         case CTOK_SHL: emit("    MOV ECX, EBX"); emit("    SHL EAX, CL"); break;
         case CTOK_SHR: emit("    MOV ECX, EBX"); emit("    SHR EAX, CL"); break;
+
+        /* Logical: CTOK_AND (&&), CTOK_OR (||) */
+        case CTOK_AND: emit("    AND EAX, EBX"); break;
+        case CTOK_OR:  emit("    OR EAX, EBX"); break;
 
         /* Relational: set EAX=1/0 */
         case CTOK_EQ: emit("    CMP EAX, EBX\n    SETE AL\n    MOVZX EAX, AL"); break;
@@ -310,15 +463,15 @@ STATIC BOOL IS_PTR_DTYPE(COMP_TYPE t) {
  * array base, so `buf[i]` must take that address (LEA). */
 STATIC BOOL IS_PTR_VAR_SYMBOL(SYMBOL *s) {
     if (!s || s->kind != SYM_VARIABLE) return FALSE;
-    if (s->array_size > 0) return FALSE;     /* declared array → address-of */
-    return IS_PTR_DTYPE(s->type);
+    if (s->array_size > 0 && (I32)s->offset <= 0) return FALSE;     /* declared local/global array → address-of */
+    return IS_PTR_DTYPE(s->type) || (I32)s->offset > 0;             /* parameters and pointer variables → value */
 }
 
 STATIC VOID GEN_ARR_BASE(PCNODE base) {
     if (base->ntype == CNODE_IDENT) {
         SYMBOL *s = FIND_SYM(base->txt);
         if (!s) { emit("    XOR EAX, EAX"); return; }
-        BOOL use_value = IS_PTR_VAR_SYMBOL(s);
+        BOOL use_value = IS_PTR_VAR_SYMBOL(s) || (base->dtype.ptr_depth > 0) || IS_PTR_DTYPE(base->dtype);
         if (s->is_global)
             AC_FPRINTF(outf, "    %s EAX, [%s]\n", use_value ? "MOV" : "LEA", s->name);
         else if ((I32)s->offset == 0)
@@ -335,7 +488,9 @@ STATIC VOID GEN_ARR_BASE(PCNODE base) {
 
 STATIC VOID GEN_DEREF(PCNODE n) {
     GEN_EXPR(n->children[0]);
-    U32 elem_size = COMP_TYPE_SIZE(n->dtype);
+    if (IS_AGGREGATE_TYPE(n->dtype))
+        return;
+    U32 elem_size = GEN_TYPE_SIZE(n->dtype);
     if (elem_size == 1)
         emit("    MOVZX EAX, BYTE [EAX]");
     else if (elem_size == 2)
@@ -380,10 +535,8 @@ STATIC VOID GEN_LVALUE_ADDR(PCNODE n) {
             emit("    PUSH EAX");
             GEN_EXPR(n->children[1]);
             emit("    POP EBX");
-            U32 es = COMP_TYPE_SIZE(n->dtype);
-            if (es == 1)      emit("    LEA EAX, [EBX + EAX]");
-            else if (es == 2) emit("    LEA EAX, [EBX + EAX*2]");
-            else              emit("    LEA EAX, [EBX + EAX*4]");
+            U32 es = GEN_TYPE_SIZE(n->dtype);
+            GEN_ELEM_ADDR(es);
             return;
         }
         case CNODE_MEMBER:
@@ -403,11 +556,12 @@ STATIC VOID GEN_LVALUE_ADDR(PCNODE n) {
 STATIC VOID GEN_MEMBER(PCNODE n) {
     GEN_MEMBER_ADDR(n);
     COMP_TYPE ft = n->dtype;
-    /* A struct/union member is an aggregate, and an array field decays to a
-     * pointer — in both cases the address is the result. */
-    if (ft.base == CTYPE_STRUCT || ft.base == CTYPE_UNION || n->array_size > 0)
+    /* A struct/union value is an aggregate, and an array field decays to a
+     * pointer — in both cases the address is the result.  A pointer-typed
+     * field is a scalar and must be dereferenced. */
+    if (IS_AGGREGATE_TYPE(ft) || n->array_size > 0)
         return;
-    U32 es = COMP_TYPE_SIZE(ft);
+    U32 es = GEN_TYPE_SIZE(ft);
     if (es == 1)      emit("    MOVZX EAX, BYTE [EAX]");
     else if (es == 2) emit("    MOVZX EAX, WORD [EAX]");
     else              emit("    MOV EAX, [EAX]");
@@ -418,13 +572,17 @@ STATIC VOID GEN_INDEX(PCNODE n) {
     emit("    PUSH EAX");
     GEN_EXPR(n->children[1]);  /* index → EAX */
     emit("    POP EBX");
-    U32 elem_size = COMP_TYPE_SIZE(n->dtype);
+    U32 elem_size = GEN_TYPE_SIZE(n->dtype);
+    GEN_ELEM_ADDR(elem_size);
+    /* Aggregate (struct/union) element → the address is the result */
+    if (IS_AGGREGATE_TYPE(n->dtype))
+        return;
     if (elem_size == 1)
-        emit("    MOVZX EAX, BYTE [EBX + EAX]");
+        emit("    MOVZX EAX, BYTE [EAX]");
     else if (elem_size == 2)
-        emit("    MOVZX EAX, WORD [EBX + EAX*2]");
+        emit("    MOVZX EAX, WORD [EAX]");
     else
-        emit("    MOV EAX, [EBX + EAX*4]");
+        emit("    MOV EAX, [EAX]");
 }
 
 STATIC VOID GEN_CAST(PCNODE n) {
@@ -482,6 +640,43 @@ STATIC VOID GEN_POSTFIX(PCNODE n) {
     }
 }
 
+STATIC VOID GEN_VA_START(PCNODE n) {
+    /* va_list args = address of the first variadic argument.  Fixed params
+     * occupy EBP+8 .. EBP+8+4*(fixed-1), so variadic args begin at
+     * EBP + 8 + 4*cur_param_count. */
+    SYMBOL *s = FIND_SYM(n->txt);
+    if (!s) return;
+    U32 off = 8 + cur_param_count * 4;
+    AC_FPRINTF(outf, "    LEA EAX, [EBP+%u]\n", off);
+    if (s->is_global)
+        AC_FPRINTF(outf, "    MOV [%s], EAX\n", s->name);
+    else if ((I32)s->offset == 0)
+        emit("    MOV [EBP], EAX");
+    else if ((I32)s->offset > 0)
+        AC_FPRINTF(outf, "    MOV [EBP+%u], EAX\n", s->offset);
+    else
+        AC_FPRINTF(outf, "    MOV [EBP-%u], EAX\n", (U32)(-(I32)s->offset));
+}
+
+STATIC VOID GEN_VA_ARG(PCNODE n) {
+    PCNODE ap = n->children[0];
+    GEN_LVALUE_ADDR(ap);            /* &ap -> EAX */
+    emit("    MOV EBX, [EAX]");     /* EBX = ap (pointer to next arg) */
+    U32 es = COMP_TYPE_SIZE(n->dtype);
+    if (es == 1)      emit("    MOVZX EAX, BYTE [EBX]");
+    else if (es == 2) emit("    MOVZX EAX, WORD [EBX]");
+    else              emit("    MOV EAX, [EBX]");
+    emit("    PUSH EAX");           /* save the value */
+    emit("    ADD EBX, 4");         /* advance ap past this argument */
+    GEN_LVALUE_ADDR(ap);            /* &ap -> EAX */
+    emit("    MOV [EAX], EBX");     /* store ap back */
+    emit("    POP EAX");            /* value -> EAX */
+}
+
+STATIC VOID GEN_VA_END(PCNODE n) {
+    (void)n; /* no-op: nothing to release in the cdecl stack model */
+}
+
 STATIC VOID GEN_EXPR(PCNODE n) {
     if (!n) { emit("    XOR EAX, EAX"); return; }
     switch (n->ntype) {
@@ -513,6 +708,9 @@ STATIC VOID GEN_EXPR(PCNODE n) {
         case CNODE_CAST:     GEN_CAST(n); break;
         case CNODE_SIZEOF_TYPE:
         case CNODE_SIZEOF_EXPR: GEN_SIZEOF(n); break;
+        case CNODE_VA_START: GEN_VA_START(n); break;
+        case CNODE_VA_ARG:   GEN_VA_ARG(n);   break;
+        case CNODE_VA_END:   GEN_VA_END(n);   break;
         default: emit("    XOR EAX, EAX"); break;
     }
 }
@@ -650,6 +848,9 @@ STATIC VOID GEN_ASM_BLOCK(PCNODE n) {
                 fname[fi] = '\0';
                 II_UPPER(fname, fi);
                 SYMBOL *ts = FIND_SYM(s->type.name);
+                while (ts && ts->kind == SYM_TYPEDEF) {
+                    ts = FIND_SYM(ts->type.name);
+                }
                 U32 foff = 0;
                 if (ts) {
                     for (U32 j = 0; j < ts->field_count; j++) {
@@ -672,6 +873,8 @@ STATIC VOID GEN_ASM_BLOCK(PCNODE n) {
                 else
                     AC_FPRINTF(outf, "[EBP-%u]", (U32)(-(I32)s->offset));
             }
+        } else if (s && s->kind == SYM_FUNCTION) {
+            AC_FPRINTF(outf, "_%s", s->name);
         } else if (s && s->is_global) {
             AC_FPRINTF(outf, "[%s]", s->name);
         } else {
@@ -750,11 +953,15 @@ STATIC VOID ASSIGN_LOCAL_OFFSETS(PCNODE n) {
     if (n->ntype == CNODE_VAR_DECL && n->txt) {
         SYMBOL *s = FIND_SYM(n->txt);
         if (s && !s->is_global) {
-            U32 es = COMP_TYPE_SIZE(n->dtype);
+            U32 es = GEN_TYPE_SIZE(n->dtype);
             if (es == 0) es = 4;
+            U32 align = (es >= 4) ? 4 : (es == 2 ? 2 : 1);
             U32 count = (s->array_size > 0) ? s->array_size : 1;
             U32 sz = es * count;
-            local_offset -= (I32)sz;
+            U32 pos_off = (U32)(-local_offset);
+            pos_off = (pos_off + (align - 1)) & ~(align - 1);
+            pos_off += sz;
+            local_offset = -(I32)pos_off;
             s->offset = (U32)local_offset;
         }
     }
@@ -792,9 +999,10 @@ STATIC VOID EMIT_RODATA_STRINGS() {
 BOOL COMP_GEN(PCNODE root, PCOMP_CTX c) {
     if (!root || !c) return FALSE;
     ctx = c; sym = &c->symtab;
+    cur_func_name = NULLPTR;
 
     PU8 outfile = c->out_asm;
-    if (!outfile) outfile = (PU8)"/TMP/out.AS";
+    if (!outfile) outfile = (PU8)"/tmp/out.AS";
     if (AC_FILE_EXISTS(outfile)) AC_FILE_DELETE(outfile);
     AC_FILE_CREATE(outfile);
     outf = AC_FOPEN(outfile, MODE_FA);
@@ -822,9 +1030,15 @@ BOOL COMP_GEN(PCNODE root, PCOMP_CTX c) {
         AC_FPRINTF(outf, "jmp _%s\n", buf);
     }
 
-    /* Emit functions */
+    /* Emit functions and top-level assembly */
     for (U32 i = 0; i < root->child_count; i++) {
         PCNODE n = root->children[i];
+        
+        // Emit top-level assembly blocks
+        if(n->ntype == CNODE_ASM_BLOCK) {
+            GEN_ASM_BLOCK(n); continue;
+        }
+
         if (n->ntype != CNODE_FUNC_DECL) continue;
         if (!n->txt) continue;
         SYMBOL *fs = FIND_SYM(n->txt);
@@ -834,6 +1048,9 @@ BOOL COMP_GEN(PCNODE root, PCOMP_CTX c) {
         for (U32 j = 0; j < n->child_count; j++)
             if (n->children[j]->ntype != CNODE_PARAM) { has_body = TRUE; break; }
         if (!has_body) continue;
+
+        cur_func_name = fs->name;
+        cur_param_count = fs->param_count;
 
         if (!bootloader) {
             GEN_DEBUG_LINE(n);
@@ -857,6 +1074,11 @@ BOOL COMP_GEN(PCNODE root, PCOMP_CTX c) {
         /* Assign stack offsets to local variables */
         local_offset = 0;
         ASSIGN_LOCAL_OFFSETS(n);
+        if (local_offset < 0) {
+            U32 pos_off = (U32)(-local_offset);
+            pos_off = (pos_off + 3) & ~3;
+            local_offset = -(I32)pos_off;
+        }
         /* Make space for locals */
         if (!bootloader && local_offset < 0)
             AC_FPRINTF(outf, "    SUB ESP, %u\n", (U32)(-local_offset));
@@ -875,6 +1097,7 @@ BOOL COMP_GEN(PCNODE root, PCOMP_CTX c) {
             emit("    POP EBP");
             emit("    RET");
         }
+        cur_func_name = NULLPTR;
     }
 
     /* Emit string literals in .rodata (skip in bootloader mode) */
@@ -891,16 +1114,46 @@ BOOL COMP_GEN(PCNODE root, PCOMP_CTX c) {
             if (s->kind == SYM_VARIABLE && s->is_global && !s->is_defined) {
                 if (!has_globals) { emit("\n.data"); has_globals = TRUE; }
                 U32 count = (s->array_size > 0) ? s->array_size : 1;
-                U32 elem_size = COMP_TYPE_SIZE(s->type);
+                U32 elem_size = GEN_TYPE_SIZE(s->type);
+                if (elem_size == 0) elem_size = 4;
                 PU8 der = (elem_size == 1) ? "DB" : (elem_size == 2) ? "DW" : "DD";
-                if (count == 1)
-                    AC_FPRINTF(outf, "%s %s 0\n", s->name, der);
-                else
-                    AC_FPRINTF(outf, "%s:\n.times %u %s 0\n", s->name, count, der);
+
+                /* Brace-enclosed initializer list → emit the values directly. */
+                if (s->init_list && s->init_count > 0) {
+                    AC_FPRINTF(outf, "%s:\n", s->name);
+                    U32 per_line = 16;
+                    U32 j = 0;
+                    while (j < s->init_count) {
+                        AC_FPRINTF(outf, "%s", der);
+                        U32 k = 0;
+                        for (; k < per_line && j < s->init_count; k++, j++) {
+                            AC_FPRINTF(outf, " 0x%X%s", s->init_list[j],
+                                       (k + 1 < per_line && j + 1 < s->init_count) ? "," : "");
+                        }
+                        AC_FPRINTF(outf, "\n");
+                    }
+                    /* Zero-fill any remaining elements not covered by the list. */
+                    if (s->array_size > s->init_count)
+                        AC_FPRINTF(outf, ".times %u %s 0\n",
+                                   s->array_size - s->init_count, der);
+                    continue;
+                }
+
+                U32 init_val = s->has_init ? s->init_value : 0;
+                BOOL is_struct_or_union = (s->type.ptr_depth == 0 && (s->type.base == CTYPE_STRUCT || s->type.base == CTYPE_UNION));
+                if (is_struct_or_union || (elem_size != 1 && elem_size != 2 && elem_size != 4)) {
+                    U32 total_bytes = count * elem_size;
+                    AC_FPRINTF(outf, "%s:\n.times %u DB 0x%X\n", s->name, total_bytes, init_val);
+                } else if (count == 1) {
+                    AC_FPRINTF(outf, "%s %s 0x%X\n", s->name, der, init_val);
+                } else {
+                    AC_FPRINTF(outf, "%s:\n.times %u %s 0x%X\n", s->name, count, der, init_val);
+                }
             }
         }
     }
 
+    cur_func_name = NULLPTR;
     AC_FCLOSE(outf);
     return TRUE;
 }

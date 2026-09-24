@@ -15,3 +15,9 @@ BOOLEAN WARNING(U8 warning_level) {
     if (args->warnings_as_errors) return TRUE;
     return (warning_level <= args->warning_level);
 }
+
+BOOLEAN WARNINGS_AS_ERRORS() {
+    ASTRAC_ARGS *args = GET_ARGS();
+    if (!args) return FALSE;
+    return args->warnings_as_errors;
+}

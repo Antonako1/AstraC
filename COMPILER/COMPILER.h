@@ -161,8 +161,11 @@ typedef struct _TYPE_FIELD {
     U32 array_size;   /* >0 = array field element count; 0 = scalar */
 } TYPE_FIELD;
 
+#define PARAM_MAX_COUNT 16
+
 typedef struct _SYMBOL {
-    PU8 name;
+    PU8  name;
+    PU8  func_name;          /* NULLPTR for globals, or owning function name for locals/params */
     SYM_KIND kind;
     COMP_TYPE type;           /* for variables/functions/typedefs */
     COMP_TYPE ret_type;       /* for functions */
@@ -175,11 +178,15 @@ typedef struct _SYMBOL {
     BOOL is_file_local;       /* 'local' keyword — only visible in defining file */
     U32  file_scope;          /* scope depth for file-local visibility */
     U32  array_size;          /* >0 = array element count; 0 = scalar */
+    U32  init_value;          /* compile-time initializer value (globals) */
+    BOOL has_init;            /* TRUE if init_value is meaningful */
+    U32 *init_list;           /* heap initializer list (arrays) */
+    U32  init_count;          /* entries in init_list */
 
     /* Function params */
     U32   param_count;
-    COMP_TYPE param_types[16];
-    PU8       param_names[16];
+    COMP_TYPE param_types[PARAM_MAX_COUNT];
+    PU8       param_names[PARAM_MAX_COUNT];
 
     /* Struct/union fields */
     TYPE_FIELD fields[64];
@@ -189,8 +196,10 @@ typedef struct _SYMBOL {
     /* Enum values: enum constant name -> U32 value stored via type */
 } SYMBOL;
 
+#define SYM_MAX_ENTRIES 8192
+
 typedef struct _SYM_TABLE {
-    SYMBOL entries[512];
+    SYMBOL entries[SYM_MAX_ENTRIES];
     U32    count;
 } SYM_TABLE;
 
@@ -217,6 +226,7 @@ typedef enum _CNODE_TYPE {
     CNODE_CALL,   CNODE_INDEX, CNODE_MEMBER,  CNODE_ARROW_EXPR,
     CNODE_ASSIGN, CNODE_CAST,
     CNODE_SIZEOF_TYPE, CNODE_SIZEOF_EXPR,
+    CNODE_VA_START, CNODE_VA_ARG, CNODE_VA_END,
     CNODE_ADDR, CNODE_DEREF,
     CNODE_INT_LIT, CNODE_FLOAT_LIT, CNODE_STR_LIT, CNODE_CHAR_LIT,
     CNODE_IDENT,   CNODE_NULLPTR,   CNODE_TRUE_LIT, CNODE_FALSE_LIT,
@@ -256,6 +266,7 @@ typedef struct {
 /* ════════════════════════════════════════════════════════════════════════════
  *  COMPILER CONTEXT
  * ════════════════════════════════════════════════════════════════════════════ */
+#define MAX_RODATA_STRINGS 512
 typedef struct _COMP_CTX {
     PU8 tmp_src;
     PU8 out_asm;
@@ -264,7 +275,7 @@ typedef struct _COMP_CTX {
     U32 loop_label_stack[32];
     U32 loop_label_stack_top;
 
-    RODATA_STR rodata_strings[256];
+    RODATA_STR rodata_strings[MAX_RODATA_STRINGS];
     U32        rodata_string_count;
 
     SYM_TABLE  symtab;       /* symbol table for parser/verifier/codegen */

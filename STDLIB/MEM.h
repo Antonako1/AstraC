@@ -22,5 +22,6 @@
 #define AC_MEMCPY_OPT(dst, src, sz)     memcpy((dst), (src), (size_t)(sz))
 #define AC_MEMZERO(dst, sz)             memset((dst), 0, (size_t)(sz))
 #define AC_MEMMOVE(dst, src, sz)        memmove((dst), (src), (size_t)(sz))
+#define AC_MEMCMP(s1, s2, sz)           memcmp((s1), (s2), (size_t)(sz))
 
 #endif /* STDLIB_MEM_H */

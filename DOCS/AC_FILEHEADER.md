@@ -16,10 +16,12 @@ typedef struct {
     U32 data_offset;
     U32 rodata_offset;
     U32 bss_offset;
+    U32 reloc_offset;
     U32 code_size;
     U32 data_size;
     U32 rodata_size;
     U32 bss_size;
+    U32 reloc_size;
     U8  reserved[AC_FILE_RESERVED_SIZE];
 } ATTRIB_PACKED AC_FILE_HEADER;
 ```
@@ -27,15 +29,24 @@ typedef struct {
 Fields:
 - `magic`: A 4-byte magic number that identifies the file as an AC binary. The expected value is "ACFH".
 - `version`: A 32-bit unsigned integer representing the version of the AC fileheader format.
-- `flags`: A 32-bit unsigned integer representing various flags that describe the binary's properties (e.g., executable, dynamic).
+- `flags`: A 32-bit unsigned integer representing various flags that describe the binary's properties (`AC_FLAG_EXECUTABLE = 1 << 0`, `AC_FLAG_DYNAMIC = 1 << 1`, `AC_FLAG_HAS_RELOCS = 1 << 2`).
 - `entry_point_offset`: A 32-bit unsigned integer indicating the offset of the entry point from the start of the binary.
 - `code_offset`: A 32-bit unsigned integer indicating the offset of the code section from the start of the binary.
 - `data_offset`: A 32-bit unsigned integer indicating the offset of the data section from the start of the binary.
 - `rodata_offset`: A 32-bit unsigned integer indicating the offset of the read-only data section from the start of the binary.
 - `bss_offset`: A 32-bit unsigned integer indicating the offset of the BSS section from the start of the binary.
+- `reloc_offset`: A 32-bit unsigned integer indicating the offset of the relocation table from the start of the binary.
 - `code_size`: A 32-bit unsigned integer indicating the size of the code section in bytes.
 - `data_size`: A 32-bit unsigned integer indicating the size of the data section in bytes.
 - `rodata_size`: A 32-bit unsigned integer indicating the size of the read-only data section in bytes.
 - `bss_size`: A 32-bit unsigned integer indicating the size of the BSS section in bytes.
-- `reserved`: A 8-bit reserved field for future use or alignment purposes.
+- `reloc_size`: A 32-bit unsigned integer indicating the size of the relocation table in bytes.
+- `reserved`: A reserved field (56 bytes) for future use or alignment purposes.
+
+## Inspection
+
+To inspect the header and tables of an ACFH binary, use:
+```
+AstraC objdump <file.BIN>
+```
 

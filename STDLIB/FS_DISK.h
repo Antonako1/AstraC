@@ -111,6 +111,7 @@ FILE* AC_FOPEN(const char* path, int mode_flags);
 #define AC_FWRITE(file, buf, len)          ((I32)(fwrite((buf), 1, (len), (file)) == (size_t)(len)))
 #define AC_FREAD(file, buf, len)           ((U32)fread((buf), 1, (len), (file)))
 #define AC_FILE_GET_LINE(file, buf, sz)    (fgets((char*)(buf), (int)(sz), (file)) != NULL)
+#define AC_FSEEK(file, offset, origin)     fseek((file), (offset), (origin))
 
 /** ── File size / existence ─────────────────────────────────────────────────────
  *

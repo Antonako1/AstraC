@@ -20,7 +20,7 @@ typedef struct {
     ASM_DIRECTIVE section; // which section this label belongs to (code/data/rodata) - affects how origin is applied when resolving addresses
 } ASM_PTR;
 
-#define MAX_PTRS 1024
+#define MAX_PTRS 4096
 
 typedef struct {
     U32 code; // current code section offset
@@ -56,6 +56,23 @@ STATIC U32  debug_tail ATTRIB_DATA;
 STATIC PU8 code_buf   ATTRIB_DATA;
 STATIC PU8 data_buf   ATTRIB_DATA;
 STATIC PU8 rodata_buf ATTRIB_DATA;
+
+/* ── Relocation Table ───────────────────────────────────────────────────── */
+STATIC PU32 reloc_buf   ATTRIB_DATA;
+STATIC U32  reloc_count ATTRIB_DATA;
+STATIC U32  reloc_cap   ATTRIB_DATA;
+
+STATIC VOID RECORD_RELOC(U32 instr_offset) {
+    if (CURRENT_PASS != SECOND_PASS) return;
+    if (reloc_count > 0 && reloc_buf && reloc_buf[reloc_count - 1] == instr_offset) return;
+    if (reloc_count >= reloc_cap) {
+        reloc_cap = (reloc_cap == 0) ? 256 : reloc_cap * 2;
+        reloc_buf = (PU32)AC_ReAlloc(reloc_buf, reloc_cap * sizeof(U32));
+    }
+    if (reloc_buf) {
+        reloc_buf[reloc_count++] = instr_offset;
+    }
+}
 
 
 /*
@@ -157,7 +174,7 @@ STATIC BOOL ADD_ASM_PTR(PU8 name, U32 offset, ASM_DIRECTIVE section) {
         }
     }
     if (ptrs.arr_tail >= MAX_PTRS) {
-        AC_PRINTF("[ASM GEN] Error: Exceeded maximum number of labels (%u)\n", MAX_PTRS);
+        AC_PRINTF_ERR("[ASM GEN] Error: Exceeded maximum number of ptrs (%u)\n", MAX_PTRS);
         return FALSE;
     }
     ptrs.ptrs[ptrs.arr_tail].name      = name;
@@ -189,7 +206,7 @@ STATIC U32 RESOLVE_SYMBOL(PU8 name) {
     ASM_PTR *p = FIND_ASM_PTR(name);
     if (!p) {
         if(CURRENT_PASS == SECOND_PASS)
-            AC_PRINTF("[ASM GEN] ERROR: undefined symbol '%s'\n", name);
+            AC_PRINTF_ERR("[ASM GEN] ERROR: undefined symbol '%s'\n", name);
         return 0;
     }
     return p->offset;
@@ -677,6 +694,10 @@ STATIC BOOL ENCODE_INSTRUCTION(FILE *f, PASM_NODE node) {
         //        node->line);
         return TRUE;    /* non-fatal: already diagnosed by AST builder */
     }
+
+    /* Record the instruction's start offset (section-relative) so jump
+     * relaxation can compute branch displacements after Pass 1. */
+    node->instr.offset = CURRENT_OFFSET();
     // AC_PRINTF("[ASM GEN] Line %u: encoding '%s' enc=%d sect=%d code=%u\n",
     //        node->line, tbl->name, tbl->encoding, ptrs.current_section, ptrs.code);
 
@@ -746,6 +767,7 @@ STATIC BOOL ENCODE_INSTRUCTION(FILE *f, PASM_NODE node) {
                  node->instr.operands[1].type == OP_PTR &&
                  node->instr.operands[1].mem_ref &&
                  node->instr.operands[1].mem_ref->symbol_name) {
+            RECORD_RELOC(node->instr.offset);
             U32 addr = RESOLVE_SYMBOL_ADDR(node->instr.operands[1].mem_ref->symbol_name);
             EMIT_IMM(f, addr, tbl->size);
         }
@@ -778,7 +800,15 @@ STATIC BOOL ENCODE_INSTRUCTION(FILE *f, PASM_NODE node) {
                     /* For now, emit the raw value; a link pass would fix these. */
                     EMIT_IMM(f, op->immediate, rsz);
                 } else {
-                    EMIT_IMM(f, op->immediate, tbl->size);
+                    /* IN/OUT (E4-E7) take a fixed 8-bit port immediate even
+                     * though tbl->size describes the data register width. */
+                    U8 iopc = (tbl->opcode_prefix == PFX_0F)
+                            ? tbl->opcode[1] : tbl->opcode[0];
+                    ASM_OPERAND_SIZE isz = tbl->size;
+                    if (iopc == 0xE4 || iopc == 0xE5
+                        || iopc == 0xE6 || iopc == 0xE7)
+                        isz = SZ_8BIT;
+                    EMIT_IMM(f, op->immediate, isz);
                 }
             } else if (op->type == OP_PTR && op->mem_ref && op->mem_ref->symbol_name) {
                 /* Label reference in an immediate slot (e.g. CALL label) */
@@ -804,12 +834,28 @@ STATIC BOOL ENCODE_INSTRUCTION(FILE *f, PASM_NODE node) {
                     EMIT_IMM(f, (U32)rel, rsz);
                 } else {
                     /* Absolute: include origin */
+                    RECORD_RELOC(node->instr.offset);
                     EMIT_IMM(f, target + ptrs.origin, tbl->size);
                 }
             } else if (op->type == OP_FAR) {
-                /* Far pointer: lower 16 = offset, upper 16 = segment */
-                U16 off = (U16)(op->immediate & 0xFFFF);
-                U16 seg = (U16)(op->immediate >> 16);
+                /* Far pointer: lower 16 = offset, upper 16 = segment.
+                 * Each half may be an immediate or a symbol (resolved to an
+                 * absolute address). */
+                if (op->far_ref && (op->far_ref->seg_name || op->far_ref->off_name)) {
+                    RECORD_RELOC(node->instr.offset);
+                }
+                U32 off, seg;
+                if (op->far_ref) {
+                    seg = op->far_ref->seg_name
+                        ? RESOLVE_SYMBOL_ADDR(op->far_ref->seg_name)
+                        : op->far_ref->seg_val;
+                    off = op->far_ref->off_name
+                        ? RESOLVE_SYMBOL_ADDR(op->far_ref->off_name)
+                        : op->far_ref->off_val;
+                } else {
+                    off = (op->immediate & 0xFFFF);
+                    seg = (op->immediate >> 16) & 0xFFFF;
+                }
                 EMIT_U8(f, (U8)(off & 0xFF));
                 EMIT_U8(f, (U8)(off >> 8));
                 EMIT_U8(f, (U8)(seg & 0xFF));
@@ -848,7 +894,8 @@ STATIC BOOL ENCODE_INSTRUCTION(FILE *f, PASM_NODE node) {
                 node->instr.operands[1].type == OP_IMM)
                 imm_op = &node->instr.operands[1];
         } else {
-            /* /r form: one operand supplies the reg field, the other r/m */
+            /* /r form: one operand supplies the reg field, the other r/m.
+             * A third operand may be a trailing immediate (e.g. IMUL r, r/m, imm). */
             if (node->instr.operand_count >= 2) {
                 /* Determine direction from the operand type layout:
                  *   tbl->operand[0]==OP_MEM  → op0=r/m, op1=reg
@@ -866,10 +913,17 @@ STATIC BOOL ENCODE_INSTRUCTION(FILE *f, PASM_NODE node) {
                 rm_op = &node->instr.operands[0];
                 reg_field = 0;
             }
+            /* Third operand = trailing immediate (IMUL r, r/m, imm) */
+            if (node->instr.operand_count >= 3 &&
+                node->instr.operands[2].type == OP_IMM)
+                imm_op = &node->instr.operands[2];
         }
 
         /* Emit ModR/M (+ SIB + displacement) */
         if (rm_op) {
+            if (rm_op->type == OP_MEM && rm_op->mem_ref && rm_op->mem_ref->symbol_name) {
+                RECORD_RELOC(node->instr.offset);
+            }
             /* Choose 16-bit or 32-bit addressing.
              *
              * Default comes from the current code mode (.use16 / .use32).
@@ -1436,6 +1490,75 @@ STATIC BOOL GEN_EMIT_PASS(FILE *f, ASM_AST_ARRAY *ast, ASTRAC_ARGS *cfg) {
 
 /*
  * ════════════════════════════════════════════════════════════════════════════
+ *  JUMP RELAXATION
+ * ════════════════════════════════════════════════════════════════════════════
+ *  Direct conditional branches (Jcc) default to the short (rel8) form and are
+ *  promoted to the near (0F rel32) form when the target is out of ±127 range.
+ *  Promotion is monotonic (short → near), so the fixpoint terminates.
+ */
+STATIC U32 REL_IMM_BYTES(const ASM_MNEMONIC_TABLE *tbl) {
+    switch (tbl->rel_type) {
+        case RL_REL8:  return 1;
+        case RL_REL16: return 2;
+        case RL_REL32:
+            return (ptrs.code_type == DIR_CODE_TYPE_16) ? 2 : 4;
+        default:       return 4;
+    }
+}
+
+/* Displacement of a direct relative branch whose target is a label. */
+STATIC S32 REL_BRANCH_DISP(PASM_NODE node) {
+    const ASM_MNEMONIC_TABLE *tbl = node->instr.table_entry;
+    ASM_OPERAND *op = &node->instr.operands[0];
+    if (op->type != OP_PTR || !op->mem_ref || !op->mem_ref->symbol_name)
+        return 0;
+    U32 target = RESOLVE_SYMBOL(op->mem_ref->symbol_name);
+    U32 pre    = (tbl->opcode_prefix == PFX_0F) ? 2 : 1;
+    U32 imm    = REL_IMM_BYTES(tbl);
+    return (S32)target - (S32)(node->instr.offset + pre + imm);
+}
+
+STATIC BOOL RELAX_JUMPS(ASM_AST_ARRAY *ast, ASTRAC_ARGS *cfg) {
+    for (U32 iter = 0; iter < 64; iter++) {
+        /* Fresh Pass 1 (offset calculation only) with current encodings. */
+        AC_MEMSET(&ptrs, 0, sizeof(ptrs));
+        ptrs.current_section = DIR_NONE;
+        ptrs.code_type       = DIR_CODE_TYPE_32;
+        CURRENT_PASS = FIRST_PASS;
+        if (!GEN_EMIT_PASS(NULLPTR, ast, cfg)) return FALSE;
+
+        BOOL changed = FALSE;
+        for (U32 i = 0; i < ast->len; i++) {
+            PASM_NODE node = ast->nodes[i];
+            if (!node || node->type != NODE_INSTRUCTION) continue;
+            const ASM_MNEMONIC_TABLE *tbl = node->instr.table_entry;
+            if (!tbl || tbl->rel_type != RL_REL8) continue;
+
+            S32 disp = REL_BRANCH_DISP(node);
+            if (disp >= -128 && disp <= 127) continue;   /* still in range */
+
+            if (node->instr.table_entry_alt) {
+                /* Auto branch (Jcc): promote short → near rel32. */
+                node->instr.table_entry     = node->instr.table_entry_alt;
+                node->instr.table_entry_alt = NULLPTR;
+                changed = TRUE;
+            } else {
+                /* Forced short (SHORT keyword / LOOP / JCXZ): hard error. */
+                AC_PRINTF("[ASM GEN] Line %u: short jump target out of range "
+                       "(rel8 displacement %d)\n", node->line, disp);
+                return FALSE;
+            }
+        }
+
+        if (!changed) return TRUE;
+    }
+    AC_PRINTF("[ASM GEN] Jump relaxation did not converge\n");
+    return FALSE;
+}
+
+
+/*
+ * ════════════════════════════════════════════════════════════════════════════
  *  GEN_BINARY  —  main code generation entry point
  * ════════════════════════════════════════════════════════════════════════════
  *
@@ -1467,10 +1590,14 @@ BOOLEAN GEN_BINARY(ASM_AST_ARRAY *ast, PASM_INFO info) {
     /* ── Scope local labels (@@name, .name) to enclosing global label ──── */
     SCOPE_LOCAL_LABELS(ast);
 
+    /* ── Resolve @f / @b references ───────────────────────────────────── */
+    RESOLVE_LOCAL_REFS(ast);
+
     /* ──────────────────────────────────────────────────────────────────
-     *  Pass 1:  Calculate offsets — no file writes (f = NULL)
+     *  Pass 1 + relaxation:  calculate offsets (no file writes, f = NULL)
+     *  and promote out-of-range short conditional branches to near.
      * ────────────────────────────────────────────────────────────────── */
-    if (!GEN_EMIT_PASS(NULLPTR, ast, cfg)) {
+    if (!RELAX_JUMPS(ast, cfg)) {
         AC_PRINTF("[ASM GEN] Pass 1 (offset calculation) failed\n");
         return FALSE;
     }
@@ -1482,9 +1609,6 @@ BOOLEAN GEN_BINARY(ASM_AST_ARRAY *ast, PASM_INFO info) {
     pass1_code_size   = ptrs.code;
     pass1_data_size   = ptrs.data;
     pass1_rodata_size = ptrs.rodata;
-
-    /* ── Resolve @f / @b references ───────────────────────────────────── */
-    RESOLVE_LOCAL_REFS(ast);
 
     /* ── Reset offsets for Pass 2 (keep labels + origin) ──────────────── */
     ptrs.code    = 0;
@@ -1549,6 +1673,7 @@ BOOLEAN GEN_BINARY(ASM_AST_ARRAY *ast, PASM_INFO info) {
      *  Pass 2:  Emit binary
      * ────────────────────────────────────────────────────────────────── */
     CURRENT_PASS = SECOND_PASS;
+    reloc_count = 0;
     AC_DEBUG_PRINTF("[ASM GEN] Starting Pass 2: emitting binary to %s\n", outputfile);
 
     AC_MEMZERO(&h, sizeof(AC_FILE_HEADER));
@@ -1562,14 +1687,20 @@ BOOLEAN GEN_BINARY(ASM_AST_ARRAY *ast, PASM_INFO info) {
         AC_MFree(code_buf);   code_buf   = NULLPTR;
         AC_MFree(data_buf);   data_buf   = NULLPTR;
         AC_MFree(rodata_buf); rodata_buf = NULLPTR;
+        if (reloc_buf) {
+            AC_MFree(reloc_buf);
+            reloc_buf = NULLPTR;
+        }
+        reloc_count = 0;
+        reloc_cap = 0;
         return FALSE;
     }
 
-    AC_DEBUG_PRINTF("[ASM GEN] Pass 2 complete: code=%u bytes, data=%u bytes, rodata=%u bytes\n",
-                 ptrs.code, ptrs.data, ptrs.rodata);
+    AC_DEBUG_PRINTF("[ASM GEN] Pass 2 complete: code=%u bytes, data=%u bytes, rodata=%u bytes, relocs=%u\n",
+                 ptrs.code, ptrs.data, ptrs.rodata, reloc_count);
 
     /* ──────────────────────────────────────────────────────────────────
-     *  Write the output file in fixed layout:  [header] code data rodata
+     *  Write the output file in fixed layout:  [header] code data rodata [relocs]
      *
      *  RESOLVE_SYMBOL_ADDR() computes absolute addresses as
      *      data:   symbol.offset + pass1_code_size                   + origin
@@ -1585,6 +1716,9 @@ BOOLEAN GEN_BINARY(ASM_AST_ARRAY *ast, PASM_INFO info) {
         AC_MEMCPY(h.magic, AC_FILE_MAGIC, AC_FILE_MAGIC_LEN);
         AC_MEMZERO(h.reserved, sizeof(h.reserved));
         h.version = AC_FILE_VERSION;
+        if (cfg->output_type == OUTPUT_EXE) h.flags |= AC_FLAG_EXECUTABLE;
+        if (cfg->output_type == OUTPUT_LIB) h.flags |= AC_FLAG_DYNAMIC;
+        if (reloc_count > 0)                h.flags |= AC_FLAG_HAS_RELOCS;
         h.entry_point_offset = main_ptr ? main_ptr->offset : OFFSET_NON_EXISTENT;
 
         h.code_offset   = sizeof(AC_FILE_HEADER);
@@ -1595,22 +1729,34 @@ BOOLEAN GEN_BINARY(ASM_AST_ARRAY *ast, PASM_INFO info) {
         h.rodata_size   = ptrs.rodata;
         h.bss_offset    = sizeof(AC_FILE_HEADER) + ptrs.code + ptrs.data + ptrs.rodata;
         h.bss_size      = 0;
+        h.reloc_offset  = (reloc_count > 0) ? (sizeof(AC_FILE_HEADER) + ptrs.code + ptrs.data + ptrs.rodata) : OFFSET_NON_EXISTENT;
+        h.reloc_size    = reloc_count * sizeof(U32);
 
-        AC_DEBUG_PRINTF("[ASM GEN] Writing file header (entry=0x%X, code=0x%X+0x%X, data=0x%X+0x%X, rodata=0x%X+0x%X)\n",
+        AC_DEBUG_PRINTF("[ASM GEN] Writing file header (entry=0x%X, code=0x%X+0x%X, data=0x%X+0x%X, rodata=0x%X+0x%X, reloc=0x%X+0x%X)\n",
                     h.entry_point_offset,
                     h.code_offset, h.code_size,
                     h.data_offset, h.data_size,
-                    h.rodata_offset, h.rodata_size);
+                    h.rodata_offset, h.rodata_size,
+                    h.reloc_offset, h.reloc_size);
         AC_FWRITE(out, (VOIDPTR)&h, sizeof(h));
     }
 
     if (ptrs.code)   AC_FWRITE(out, (VOIDPTR)code_buf,   ptrs.code);
     if (ptrs.data)   AC_FWRITE(out, (VOIDPTR)data_buf,   ptrs.data);
     if (ptrs.rodata) AC_FWRITE(out, (VOIDPTR)rodata_buf, ptrs.rodata);
+    if (cfg->output_type != OUTPUT_NONE && reloc_count > 0 && reloc_buf) {
+        AC_FWRITE(out, (VOIDPTR)reloc_buf, h.reloc_size);
+    }
 
     AC_MFree(code_buf);   code_buf   = NULLPTR;
     AC_MFree(data_buf);   data_buf   = NULLPTR;
     AC_MFree(rodata_buf); rodata_buf = NULLPTR;
+    if (reloc_buf) {
+        AC_MFree(reloc_buf);
+        reloc_buf = NULLPTR;
+    }
+    reloc_count = 0;
+    reloc_cap = 0;
 
     if (cfg->verbose) AC_PRINTF("[ASM GEN] Finished writing output file: %s, sz %u bytes\n", outputfile, AC_FSIZE(out));
     if (asd_out) AC_FCLOSE(asd_out);

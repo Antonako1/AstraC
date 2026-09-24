@@ -1,4 +1,4 @@
-﻿/**
+/**
  * AstraC.h — Master header for the AstraC hosted port.
  *
  * Pulls in the STDLIB shell layer and defines all pipeline types.
@@ -30,6 +30,9 @@ typedef enum {
     BUILD_TYPE_DISASSEMBLE     = 0x0004,   /* binary     -> readable AS        */
     BUILD_TYPE_PREPROCESS_ONLY = 0x0008,   /* preprocess only                   */
     BUILD_TYPE_MNEMONIC_INFO     = 0x0010,   /* show information about a mnemonic */
+    BUILD_TYPE_SHOWLINE          = 0x0020,   /* show source lines around a given line */
+    BUILD_TYPE_OBJDUMP           = 0x0040,   /* dump binary header and tables      */
+    BUILD_TYPE_STRDUMP           = 0x0080,   /* dump strings from .rodata section  */
 } BUILD_TYPE;
 
 /* ── RETURN / ERROR CODES ─────────────────────────────────────────────── */
@@ -62,12 +65,16 @@ typedef enum {
 } OUTPUT_TYPE;
 
 /* ── LIMITS ───────────────────────────────────────────────────────────── */
-#define MAX_MACROS          255
+#define MAX_MACROS          1024
 #define MAX_INCLUDES        255
 #define MAX_INPUT_FILES     255
 #define MAX_MACRO_VALUE     255
+#define MAX_MACRO_PARAMS    16
+#define MAX_MACRO_PARAM_LEN 64
 #define BUF_SZ              4096
 #define MAX_FILES           MAX_INPUT_FILES
+#define PUSH_MAX            32
+#define POP_MAX             PUSH_MAX
 
 /* ── PREPROCESSOR MODES ───────────────────────────────────────────────── */
 #define ASM_PREPROCESSOR    1
@@ -77,6 +84,9 @@ typedef enum {
 typedef struct {
     U8 name[MAX_MACRO_VALUE];
     U8 value[MAX_MACRO_VALUE];
+    BOOL is_function;
+    U32 num_params;
+    U8 params[MAX_MACRO_PARAMS][MAX_MACRO_PARAM_LEN];
 } MACRO, *PMACRO;
 
 typedef struct {
@@ -98,6 +108,9 @@ BOOL IS_EMPTY(PU8 line);
  * emitted (SHARED/WARNINGS.c). */
 BOOLEAN WARNING(U8 warning_level);
 
+// Returns TRUE if the --warnings-as-errors flag is set (SHARED/WARNINGS.c).
+BOOLEAN WARNINGS_AS_ERRORS();
+
 /* ── ARGUMENT STRUCTURE ───────────────────────────────────────────────── */
 typedef struct _ASTRAC_ARGS {
     MACRO_ARR macros;
@@ -118,11 +131,29 @@ typedef struct _ASTRAC_ARGS {
     U32 warning_level;
     BOOL warnings_as_errors;
     BOOL debug;
+
+    /* showline arguments */
+    BOOL showline_is_ac;     /* TRUE = show 00.AC, FALSE = show 00.AS */
+    U32  showline_ctx;       /* plus/minus context window size */
+    U32  showline_start;     /* start line number */
+    U32  showline_end;       /* optional end line number (0 = none) */
+    BOOL showline_has_end;   /* TRUE if end line was provided */
+
+
+
+    // switches defined by preprocessor
+    U32 PARSER_TOPLEVEL_LOG_PUSH[PUSH_MAX];
+    U32 PARSER_TOPLEVEL_LOG_PUSH_TAIL;
+    U32 PARSER_TOPLEVEL_LOG_POP[POP_MAX];
+    U32 PARSER_TOPLEVEL_LOG_POP_TAIL;
 } ASTRAC_ARGS;
+
 
 ASTRAC_ARGS *GET_ARGS();
 VOID         FREE_ARGS();
 ASTRAC_RESULT START_WORKLOAD();
 ASTRAC_RESULT START_MNEMONIC_INFO(PU8 mnemonic);
+ASTRAC_RESULT START_OBJDUMP(VOID);
+ASTRAC_RESULT START_STRDUMP(VOID);
 
 #endif /* ASTRAC_MAIN_H */

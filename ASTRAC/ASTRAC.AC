@@ -1,0 +1,69 @@
+/*
+ * ASTRAC.AC — Unity build entry point.
+ *
+ * This file includes all source files used by the AstraC compiler
+ * 
+ * To compile: ASTRAC comp ASTRAC.AC #org 0x10000 arch i386 warn err verbose
+ */
+
+
+/* ══════════════════════════════════════════════════════════════════════
+ *  STDLIB implementations
+ * ══════════════════════════════════════════════════════════════════════ */
+#include "STDLIB/TYPEDEF.AH"
+#include "STDLIB/MEM.AC"
+#include "STDLIB/IO.AC"
+#include "STDLIB/STRING.AC"
+#include "STDLIB/DEBUG.AC"
+#include "STDLIB/FS_DISK.AC"
+#include "STDLIB/BINARY.AC"
+
+/* ══════════════════════════════════════════════════════════════════════
+ *  ASTRAC.AH MIN DEFINES
+ * ══════════════════════════════════════════════════════════════════════ */
+#include "ASTRAC.AH"
+
+/* ══════════════════════════════════════════════════════════════════════
+ *  Shared pipeline stage: preprocessor
+ * ══════════════════════════════════════════════════════════════════════ */
+#include "SHARED/PREPROCESS.c"
+
+/* ══════════════════════════════════════════════════════════════════════
+ *  Assembler pipeline
+ * ══════════════════════════════════════════════════════════════════════ */
+#include "ASSEMBLER/AMAIN.c"
+#include "ASSEMBLER/LEXER.c"
+#include "ASSEMBLER/AST.c"
+#include "ASSEMBLER/VERIFY_AST.c"
+#include "ASSEMBLER/OPTIMIZE.c"
+#include "ASSEMBLER/GEN.c"
+/* ══════════════════════════════════════════════════════════════════════
+ *  Disassembler
+ * ══════════════════════════════════════════════════════════════════════ */
+#include "DISSASEMBLER/DISMAIN.c"
+
+/* ══════════════════════════════════════════════════════════════════════
+ *  Compiler pipeline
+ * ══════════════════════════════════════════════════════════════════════ */
+#include "COMPILER/AST.c"
+#include "COMPILER/LEX.c"
+#include "COMPILER/PARSER.c"
+#include "COMPILER/VERIFY_AST.c"
+#include "COMPILER/GEN.c"
+#include "COMPILER/COMPMAIN.c"
+
+
+/* ══════════════════════════════════════════════════════════════════════
+ *  Warning handler
+ * ══════════════════════════════════════════════════════════════════════ */
+#include "SHARED/WARNINGS.c"
+
+/* ══════════════════════════════════════════════════════════════════════
+ *  Mnemonic info handler
+ * ══════════════════════════════════════════════════════════════════════ */
+#include "SHARED/MNEM_INFO.c"
+
+/* ══════════════════════════════════════════════════════════════════════
+ *  Top-level: full-build orchestrator + argument parsing / main()
+ * ══════════════════════════════════════════════════════════════════════ */
+#include "MAIN.AC"

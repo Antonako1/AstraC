@@ -938,47 +938,94 @@ MNEM_NOOPS(MNEM_LOCK,   "lock",   0xF0, "Assert LOCK# signal for next instructio
 /* ════════════════════════════════════════════════════════════════════════════
  *  IN / OUT  (Port I/O — no flags)
  *
- *  IN:  E4/E5 = AL/EAX,imm8   EC/ED = AL/EAX,DX
- *  OUT: E6/E7 = imm8,AL/EAX   EE/EF = DX,AL/EAX
- *  16-bit forms use 66h prefix on E5/ED/E7/EF.
+ *  IN:  E4/E5 ib = AL/EAX, imm8   EC/ED = AL/EAX, DX
+ *  OUT: E6/E7 ib = imm8, AL/EAX   EE/EF = DX, AL/EAX
+ *  16-bit (AX) forms use a 66h prefix on E5/E7/ED/EF.
+ *
+ *  The DX port is a fixed/implicit register, marked reg_fixed = REG_DX so the
+ *  operand-size check applies only to the data register (AL/AX/EAX).
  * ════════════════════════════════════════════════════════════════════════════ */
 
-/* ── IN from immediate port ───────────────────────────────────────────────── */
-MNEM_IMM(MNEM_IN_AL_IMM8,   "in",  0xE4, OPS_IMM8, OPN_ONE, SZ_8BIT,  "Input byte from port imm8 into AL")
-MNEM_IMM(MNEM_IN_EAX_IMM8,  "in",  0xE5, OPS_IMM8, OPN_ONE, SZ_32BIT, "Input dword from port imm8 into EAX")
+/* ── IN/OUT with implicit AL (legacy single-operand syntax) ────────────────── */
+MNEM_IMM(MNEM_IN_IMM8_IMPLICIT,   "in",  0xE4, OPS_IMM8, OPN_ONE, SZ_8BIT, "Input byte from port imm8 into AL (implicit)")
+MNEM_IMM(MNEM_OUT_IMM8_IMPLICIT,  "out", 0xE6, OPS_IMM8, OPN_ONE, SZ_8BIT, "Output AL to port imm8 (implicit)")
+
+/* ── IN reg, imm8 ─────────────────────────────────────────────────────────── */
+MNEMONIC(MNEM_IN_AL_IMM8, "in",
+         PF_NONE, OPCODE(0xE4,0x00), ENC_IMM, OPS_REG_IMM8, OPN_TWO, SZ_8BIT,
+         REG_NONE, MODRM_NONE, FALSE, PROC_ANY, ST_DOCUMENTED, MODE_ANY,
+         MEM_NONE, RL_NONE, X_NONE, EX_NONE,
+         FLG_NONE, FLG_NONE, FLG_NONE, FLG_NONE, FLG_NONE,
+         "Input byte from port imm8 into AL")
+MNEMONIC(MNEM_IN_EAX_IMM8, "in",
+         PF_NONE, OPCODE(0xE5,0x00), ENC_IMM, OPS_REG_IMM8, OPN_TWO, SZ_32BIT,
+         REG_NONE, MODRM_NONE, FALSE, PROC_ANY, ST_DOCUMENTED, MODE_ANY,
+         MEM_NONE, RL_NONE, X_NONE, EX_NONE,
+         FLG_NONE, FLG_NONE, FLG_NONE, FLG_NONE, FLG_NONE,
+         "Input dword from port imm8 into EAX")
 MNEMONIC(MNEM_IN_AX_IMM8, "in",
-         PF_66, OPCODE(0xE5,0x00), ENC_IMM, OPS_IMM8, OPN_ONE, SZ_16BIT,
+         PF_66, OPCODE(0xE5,0x00), ENC_IMM, OPS_REG_IMM8, OPN_TWO, SZ_16BIT,
          REG_NONE, MODRM_NONE, FALSE, PROC_ANY, ST_DOCUMENTED, MODE_ANY,
          MEM_NONE, RL_NONE, X_NONE, EX_NONE,
          FLG_NONE, FLG_NONE, FLG_NONE, FLG_NONE, FLG_NONE,
          "Input word from port imm8 into AX")
 
-/* ── IN from DX port ──────────────────────────────────────────────────────── */
-MNEM_NOOPS(MNEM_IN_AL_DX,   "in",  0xEC, "Input byte from port DX into AL")
-MNEM_NOOPS(MNEM_IN_EAX_DX,  "in",  0xED, "Input dword from port DX into EAX")
+/* ── IN reg, DX ───────────────────────────────────────────────────────────── */
+MNEMONIC(MNEM_IN_AL_DX, "in",
+         PF_NONE, OPCODE(0xEC,0x00), ENC_DIRECT, OPS_REG_REG, OPN_TWO, SZ_8BIT,
+         REG_DX, MODRM_NONE, FALSE, PROC_ANY, ST_DOCUMENTED, MODE_ANY,
+         MEM_NONE, RL_NONE, X_NONE, EX_NONE,
+         FLG_NONE, FLG_NONE, FLG_NONE, FLG_NONE, FLG_NONE,
+         "Input byte from port DX into AL")
+MNEMONIC(MNEM_IN_EAX_DX, "in",
+         PF_NONE, OPCODE(0xED,0x00), ENC_DIRECT, OPS_REG_REG, OPN_TWO, SZ_32BIT,
+         REG_DX, MODRM_NONE, FALSE, PROC_ANY, ST_DOCUMENTED, MODE_ANY,
+         MEM_NONE, RL_NONE, X_NONE, EX_NONE,
+         FLG_NONE, FLG_NONE, FLG_NONE, FLG_NONE, FLG_NONE,
+         "Input dword from port DX into EAX")
 MNEMONIC(MNEM_IN_AX_DX, "in",
-         PF_66, OPCODE(0xED,0x00), ENC_DIRECT, OPS_NONE, OPN_NONE, SZ_16BIT,
-         REG_NONE, MODRM_NONE, FALSE, PROC_ANY, ST_DOCUMENTED, MODE_ANY,
+         PF_66, OPCODE(0xED,0x00), ENC_DIRECT, OPS_REG_REG, OPN_TWO, SZ_16BIT,
+         REG_DX, MODRM_NONE, FALSE, PROC_ANY, ST_DOCUMENTED, MODE_ANY,
          MEM_NONE, RL_NONE, X_NONE, EX_NONE,
          FLG_NONE, FLG_NONE, FLG_NONE, FLG_NONE, FLG_NONE,
          "Input word from port DX into AX")
 
-/* ── OUT to immediate port ────────────────────────────────────────────────── */
-MNEM_IMM(MNEM_OUT_IMM8_AL,   "out", 0xE6, OPS_IMM8, OPN_ONE, SZ_8BIT,  "Output AL to port imm8")
-MNEM_IMM(MNEM_OUT_IMM8_EAX,  "out", 0xE7, OPS_IMM8, OPN_ONE, SZ_32BIT, "Output EAX to port imm8")
+/* ── OUT imm8, reg ────────────────────────────────────────────────────────── */
+MNEMONIC(MNEM_OUT_IMM8_AL, "out",
+         PF_NONE, OPCODE(0xE6,0x00), ENC_IMM, OPS_IMM_REG, OPN_TWO, SZ_8BIT,
+         REG_NONE, MODRM_NONE, FALSE, PROC_ANY, ST_DOCUMENTED, MODE_ANY,
+         MEM_NONE, RL_NONE, X_NONE, EX_NONE,
+         FLG_NONE, FLG_NONE, FLG_NONE, FLG_NONE, FLG_NONE,
+         "Output AL to port imm8")
+MNEMONIC(MNEM_OUT_IMM8_EAX, "out",
+         PF_NONE, OPCODE(0xE7,0x00), ENC_IMM, OPS_IMM_REG, OPN_TWO, SZ_32BIT,
+         REG_NONE, MODRM_NONE, FALSE, PROC_ANY, ST_DOCUMENTED, MODE_ANY,
+         MEM_NONE, RL_NONE, X_NONE, EX_NONE,
+         FLG_NONE, FLG_NONE, FLG_NONE, FLG_NONE, FLG_NONE,
+         "Output EAX to port imm8")
 MNEMONIC(MNEM_OUT_IMM8_AX, "out",
-         PF_66, OPCODE(0xE7,0x00), ENC_IMM, OPS_IMM8, OPN_ONE, SZ_16BIT,
+         PF_66, OPCODE(0xE7,0x00), ENC_IMM, OPS_IMM_REG, OPN_TWO, SZ_16BIT,
          REG_NONE, MODRM_NONE, FALSE, PROC_ANY, ST_DOCUMENTED, MODE_ANY,
          MEM_NONE, RL_NONE, X_NONE, EX_NONE,
          FLG_NONE, FLG_NONE, FLG_NONE, FLG_NONE, FLG_NONE,
          "Output AX to port imm8")
 
-/* ── OUT to DX port ───────────────────────────────────────────────────────── */
-MNEM_NOOPS(MNEM_OUT_DX_AL,   "out", 0xEE, "Output AL to port DX")
-MNEM_NOOPS(MNEM_OUT_DX_EAX,  "out", 0xEF, "Output EAX to port DX")
+/* ── OUT DX, reg ──────────────────────────────────────────────────────────── */
+MNEMONIC(MNEM_OUT_DX_AL, "out",
+         PF_NONE, OPCODE(0xEE,0x00), ENC_DIRECT, OPS_REG_REG, OPN_TWO, SZ_8BIT,
+         REG_DX, MODRM_NONE, FALSE, PROC_ANY, ST_DOCUMENTED, MODE_ANY,
+         MEM_NONE, RL_NONE, X_NONE, EX_NONE,
+         FLG_NONE, FLG_NONE, FLG_NONE, FLG_NONE, FLG_NONE,
+         "Output AL to port DX")
+MNEMONIC(MNEM_OUT_DX_EAX, "out",
+         PF_NONE, OPCODE(0xEF,0x00), ENC_DIRECT, OPS_REG_REG, OPN_TWO, SZ_32BIT,
+         REG_DX, MODRM_NONE, FALSE, PROC_ANY, ST_DOCUMENTED, MODE_ANY,
+         MEM_NONE, RL_NONE, X_NONE, EX_NONE,
+         FLG_NONE, FLG_NONE, FLG_NONE, FLG_NONE, FLG_NONE,
+         "Output EAX to port DX")
 MNEMONIC(MNEM_OUT_DX_AX, "out",
-         PF_66, OPCODE(0xEF,0x00), ENC_DIRECT, OPS_NONE, OPN_NONE, SZ_16BIT,
-         REG_NONE, MODRM_NONE, FALSE, PROC_ANY, ST_DOCUMENTED, MODE_ANY,
+         PF_66, OPCODE(0xEF,0x00), ENC_DIRECT, OPS_REG_REG, OPN_TWO, SZ_16BIT,
+         REG_DX, MODRM_NONE, FALSE, PROC_ANY, ST_DOCUMENTED, MODE_ANY,
          MEM_NONE, RL_NONE, X_NONE, EX_NONE,
          FLG_NONE, FLG_NONE, FLG_NONE, FLG_NONE, FLG_NONE,
          "Output AX to port DX")

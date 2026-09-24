@@ -107,7 +107,6 @@ done
 # Docs
 for f in \
     AC.md AS.md AC_LANG.md DSM.md PREPROCESSOR.md AC_FILEHEADER.md \
-    index.html AC.html AS.html DSM.html MNEMS.html \
     AC.png AH.png AS.png
 do
     install -m 644 "$PKG_ROOT/share/astrac/docs/$f" \

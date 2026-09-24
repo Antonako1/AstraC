@@ -11,21 +11,50 @@ STATIC PCOMP_CTX ctx;
 STATIC SYM_TABLE *sym;
 
 STATIC SYMBOL *V_FIND_SYM(PU8 name) {
-    for (U32 i = 0; i < sym->count; i++)
-        if (sym->entries[i].name && AC_STRCMP(sym->entries[i].name, name) == 0) {
-            if (sym->entries[i].is_file_local && sym->entries[i].file_scope != ctx->file_scope)
-                return NULLPTR; /* file-local symbol from another file — invisible */
-            return &sym->entries[i];
+    if (!name || !*name) return NULLPTR;
+    /* First: check local symbols in the current function */
+    if (ctx->cur_func && ctx->cur_func->txt) {
+        for (U32 i = 0; i < sym->count; i++) {
+            if (sym->entries[i].name && AC_STRCMP(sym->entries[i].name, name) == 0) {
+                if (sym->entries[i].func_name && AC_STRCMP(sym->entries[i].func_name, ctx->cur_func->txt) == 0)
+                    return &sym->entries[i];
+            }
         }
+    }
+    /* Second: check global symbols */
+    for (U32 i = 0; i < sym->count; i++) {
+        if (sym->entries[i].name && AC_STRCMP(sym->entries[i].name, name) == 0) {
+            if (!sym->entries[i].func_name) {
+                if (sym->entries[i].is_file_local && sym->entries[i].file_scope != ctx->file_scope)
+                    return NULLPTR; /* file-local symbol from another file — invisible */
+                return &sym->entries[i];
+            }
+        }
+    }
+    /* Fallback: a bare identifier may name a global variable, which is stored
+     * under its g_-prefixed symbol name. */
+    U8 gname[256];
+    AC_SPRINTF(gname, "g_%s", name);
+    for (U32 i = 0; i < sym->count; i++) {
+        if (sym->entries[i].name && AC_STRCMP(sym->entries[i].name, gname) == 0) {
+            if (!sym->entries[i].func_name) {
+                if (sym->entries[i].is_file_local && sym->entries[i].file_scope != ctx->file_scope)
+                    return NULLPTR;
+                return &sym->entries[i];
+            }
+        }
+    }
     return NULLPTR;
 }
 
 STATIC BOOL IS_INTEGER(COMP_TYPE t) {
-    return (t.base >= CTYPE_U8 && t.base <= CTYPE_I32) || t.base == CTYPE_BOOL;
+    if (t.ptr_depth > 0) return FALSE;
+    return (t.base >= CTYPE_U8 && t.base <= CTYPE_I32) || t.base == CTYPE_BOOL || t.base == CTYPE_ENUM;
 }
 
 STATIC BOOL IS_INTEGER_TYPE(COMP_TYPE t) {
-    return (t.base >= CTYPE_U8 && t.base <= CTYPE_I32) || t.base == CTYPE_BOOL;
+    if (t.ptr_depth > 0) return FALSE;
+    return (t.base >= CTYPE_U8 && t.base <= CTYPE_I32) || t.base == CTYPE_BOOL || t.base == CTYPE_ENUM;
 }
 
 /* TRUE if the non-negative integer literal `val` fits in type `dst`. */
@@ -41,7 +70,16 @@ STATIC BOOL CONST_FITS(COMP_TYPE dst, U32 val) {
 }
 
 STATIC BOOL IS_POINTER(COMP_TYPE t) {
-    return t.base >= CTYPE_PU8 || t.base == CTYPE_VOIDPTR;
+    return t.ptr_depth > 0 || (t.base >= CTYPE_PU8 && t.base <= CTYPE_PPI32) || t.base == CTYPE_VOIDPTR;
+}
+
+STATIC BOOL ARE_TYPES_ASSIGNABLE(COMP_TYPE lt, COMP_TYPE rt, PCNODE rhs) {
+    if (lt.base == CTYPE_NONE || rt.base == CTYPE_NONE) return TRUE;
+    if (TYPES_EQUAL(lt, rt)) return TRUE;
+    if (IS_INTEGER_TYPE(lt) && IS_INTEGER_TYPE(rt)) return TRUE;
+    if (IS_POINTER(lt) && IS_POINTER(rt)) return TRUE;
+    if (IS_POINTER(lt) && rhs && (rhs->ntype == CNODE_NULLPTR || (rhs->ntype == CNODE_INT_LIT && rhs->ival == 0))) return TRUE;
+    return FALSE;
 }
 
 STATIC COMP_TYPE STRIP_PTR_TYPE(COMP_TYPE t) {
@@ -65,18 +103,19 @@ STATIC COMP_TYPE STRIP_PTR_TYPE(COMP_TYPE t) {
     }
 }
 
-STATIC VOID WARN(PU8 msg, U32 line, U32 col) {
-    if (!WARNING(1)) return;   /* respect the --warn level (default: silent) */
-    AC_PRINTF("[VERIFY] L%u:%u warning: %s\n", line, col, msg);
-    ctx->warnings++;
-}
-
 STATIC VOID ERR(PU8 msg, U32 line, U32 col) {
-    AC_PRINTF("[VERIFY] L%u:%u error: %s\n", line, col, msg);
+    AC_PRINTF_ERR("[VERIFY] L%u:%u error: %s\n", line, col, msg);
     ctx->errors++;
 }
 
-STATIC BOOL TYPES_EQUAL(COMP_TYPE a, COMP_TYPE b) {
+STATIC VOID WARN(PU8 msg, U32 line, U32 col) {
+    if (!WARNING(1)) return;   /* respect the --warn level (default: silent) */
+    if(WARNINGS_AS_ERRORS()) { ERR(msg, line, col); return; }
+    AC_PRINTF_WARN("[VERIFY] L%u:%u warning: %s\n", line, col, msg);
+    ctx->warnings++;
+}
+
+BOOL TYPES_EQUAL(COMP_TYPE a, COMP_TYPE b) {
     return a.base == b.base && a.ptr_depth == b.ptr_depth
            && ((a.name && b.name && AC_STRCMP(a.name, b.name) == 0)
                || (!a.name && !b.name));
@@ -96,12 +135,15 @@ STATIC COMP_TYPE RESOLVE_TYPE(COMP_TYPE t) {
 }
 
 STATIC U32 TYPE_SIZE(COMP_TYPE t) {
-    t = RESOLVE_TYPE(t);
-    if (t.base == CTYPE_STRUCT || t.base == CTYPE_UNION) {
+    COMP_TYPE rt = RESOLVE_TYPE(t);
+    /* Pointer-to-struct/union has pointer size (4), not the struct size. */
+    if (rt.ptr_depth == 0 && (rt.base == CTYPE_STRUCT || rt.base == CTYPE_UNION)) {
+        /* RESOLVE_TYPE drops the name, so look the struct/union up by the
+         * original type name (a struct tag or a typedef's target name). */
         SYMBOL *s = V_FIND_SYM(t.name ? t.name : (PU8)"");
         return s ? s->total_size : 0;
     }
-    return COMP_TYPE_SIZE(t);
+    return COMP_TYPE_SIZE(rt);
 }
 
 /* Verify a single node. Returns the resolved type of the expression/subtree. */
@@ -117,20 +159,31 @@ STATIC COMP_TYPE VERIFY_NODE(PCNODE n) {
         case CNODE_FUNC_DECL: {
             SYMBOL *fs = V_FIND_SYM(n->txt);
             if (!fs) { ERR("function not in symbol table", n->line, n->col); break; }
+            PCNODE old_func = ctx->cur_func;
+            ctx->cur_func = n;
             for (U32 i = 0; i < n->child_count; i++)
                 if (n->children[i]->ntype != CNODE_PARAM) VERIFY_NODE(n->children[i]);
+            ctx->cur_func = old_func;
             break;
         }
 
         case CNODE_VAR_DECL: {
             SYMBOL *vs = V_FIND_SYM(n->txt);
             if (!vs) { ERR("variable not in symbol table", n->line, n->col); break; }
-            /* Array size child is an INT_LIT; optional initializer follows */
-            if (n->child_count > 0 && n->children[0]->ntype == CNODE_INT_LIT) {
-                vs->array_size = n->children[0]->ival;
-                if (n->child_count > 1) VERIFY_NODE(n->children[1]);
+            /* Arrays: the parser already set vs->array_size; child[0] is the
+             * size expression, not an initializer.  Scalars: child[0] is the
+             * (optional) initializer expression. */
+            if (vs->array_size > 0) {
+                for (U32 i = 1; i < n->child_count; i++) VERIFY_NODE(n->children[i]);
             } else if (n->child_count > 0) {
-                VERIFY_NODE(n->children[0]);
+                COMP_TYPE it = VERIFY_NODE(n->children[0]);
+                if (!ARE_TYPES_ASSIGNABLE(vs->type, it, n->children[0]))
+                    WARN("assignment type mismatch", n->line, n->col);
+                /* Capture a constant integer initializer for .data emission. */
+                if (vs->is_global && n->children[0]->ntype == CNODE_INT_LIT) {
+                    vs->init_value = n->children[0]->ival;
+                    vs->has_init = TRUE;
+                }
             }
             break;
         }
@@ -139,7 +192,7 @@ STATIC COMP_TYPE VERIFY_NODE(PCNODE n) {
             SYMBOL *cf = (ctx->cur_func) ? V_FIND_SYM(ctx->cur_func->txt) : NULLPTR;
             if (n->child_count > 0) {
                 COMP_TYPE rt = VERIFY_NODE(n->children[0]);
-                if (cf && cf->ret_type.base != CTYPE_U0 && !TYPES_EQUAL(cf->ret_type, rt))
+                if (cf && cf->ret_type.base != CTYPE_U0 && !ARE_TYPES_ASSIGNABLE(cf->ret_type, rt, n->children[0]))
                     WARN("return type mismatch", n->line, n->col);
             }
             break;
@@ -213,12 +266,17 @@ STATIC COMP_TYPE VERIFY_NODE(PCNODE n) {
         case CNODE_IDENT: {
             SYMBOL *s = V_FIND_SYM(n->txt);
             if (!s) {
-                if (n->txt) AC_PRINTF("[VERIFY] L%u undefined symbol '%s'\n", n->line, n->txt);
+                if (n->txt) AC_PRINTF_ERR("[VERIFY] L%u undefined symbol '%s'\n", n->line, n->txt);
                 ERR("undefined symbol", n->line, n->col);
                 return COMP_MAKE_TYPE(CTYPE_NONE, 0, NULLPTR);
             }
-            if (s->kind == SYM_VARIABLE || s->kind == SYM_FUNCTION) {
+            if (s->kind == SYM_VARIABLE) {
                 n->dtype = s->type;
+                n->array_size = s->array_size;
+                return n->dtype;
+            }
+            if (s->kind == SYM_FUNCTION) {
+                n->dtype = COMP_MAKE_TYPE(CTYPE_VOIDPTR, 0, NULLPTR);
                 return n->dtype;
             }
             if (s->kind == SYM_ENUM) { n->dtype = COMP_MAKE_TYPE(CTYPE_ENUM, 0, NULLPTR); return n->dtype; }
@@ -291,6 +349,10 @@ STATIC COMP_TYPE VERIFY_NODE(PCNODE n) {
 
             PU8 fname = (n->child_count > 1 && n->children[1]) ? n->children[1]->txt : NULLPTR;
             SYMBOL *ss = st.name ? V_FIND_SYM(st.name) : NULLPTR;
+            while (ss && ss->kind == SYM_TYPEDEF) {
+                if (!ss->type.name) break;
+                ss = V_FIND_SYM(ss->type.name);
+            }
             COMP_TYPE ft = COMP_MAKE_TYPE(CTYPE_U32, 0, NULLPTR);
             U32 foff = 0;
             U32 farr = 0;
@@ -317,14 +379,7 @@ STATIC COMP_TYPE VERIFY_NODE(PCNODE n) {
             if (n->children[0] && (n->children[0]->ntype == CNODE_MEMBER
                 || n->children[0]->ntype == CNODE_ARROW_EXPR))
                 ; /* skip type check for member access */
-            else if (lt.base != rt.base && lt.base != CTYPE_NONE && rt.base != CTYPE_NONE) {
-                /* Don't warn for an integer constant that fits in the
-                 * destination type (e.g. `U8 c = 32;`). */
-                PCNODE rhs = n->children[1];
-                BOOL const_fits = IS_INTEGER_TYPE(lt) && IS_INTEGER_TYPE(rt)
-                               && (rhs && (rhs->ntype == CNODE_INT_LIT || rhs->ntype == CNODE_CHAR_LIT))
-                               && CONST_FITS(lt, rhs->ival);
-            if (!const_fits)
+            else if (!ARE_TYPES_ASSIGNABLE(lt, rt, n->children[1])) {
                 WARN("assignment type mismatch", n->line, n->col);
             }
             n->dtype = lt;
@@ -346,14 +401,33 @@ STATIC COMP_TYPE VERIFY_NODE(PCNODE n) {
             return n->dtype;
         }
 
-        case CNODE_SIZEOF_TYPE:
+        case CNODE_SIZEOF_TYPE: {
             n->ival = TYPE_SIZE(n->dtype);
+            if (n->dtype.name) {
+                SYMBOL *s = V_FIND_SYM(n->dtype.name);
+                if (s && s->kind == SYM_TYPEDEF && s->array_size > 0) {
+                    n->ival *= s->array_size;
+                }
+            }
             n->dtype = COMP_MAKE_TYPE(CTYPE_U32, 0, NULLPTR);
             return n->dtype;
+        }
 
         case CNODE_SIZEOF_EXPR: {
             COMP_TYPE st = VERIFY_NODE(n->children[0]);
-            n->ival = TYPE_SIZE(st);
+            U32 elem_size = TYPE_SIZE(st);
+            U32 count = 1;
+            if (n->children[0]) {
+                if (n->children[0]->array_size > 0) {
+                    count = n->children[0]->array_size;
+                } else if (n->children[0]->ntype == CNODE_IDENT && n->children[0]->txt) {
+                    SYMBOL *s = V_FIND_SYM(n->children[0]->txt);
+                    if (s && s->array_size > 0) {
+                        count = s->array_size;
+                    }
+                }
+            }
+            n->ival = elem_size * count;
             n->dtype = COMP_MAKE_TYPE(CTYPE_U32, 0, NULLPTR);
             return n->dtype;
         }
@@ -361,6 +435,16 @@ STATIC COMP_TYPE VERIFY_NODE(PCNODE n) {
         case CNODE_CAST:
             VERIFY_NODE(n->children[0]);
             return n->dtype;
+
+        case CNODE_VA_START:
+        case CNODE_VA_END:
+            if (n->child_count > 0) VERIFY_NODE(n->children[0]);
+            return COMP_MAKE_TYPE(CTYPE_NONE, 0, NULLPTR);
+
+        case CNODE_VA_ARG: {
+            if (n->child_count > 0) VERIFY_NODE(n->children[0]);
+            return n->dtype;
+        }
 
         case CNODE_PARAM:
             return n->dtype;
@@ -376,14 +460,17 @@ BOOL COMP_VERIFY(PCNODE root, PCOMP_CTX c) {
     ctx = c; sym = &c->symtab;
     ctx->errors   = 0;
     ctx->warnings = 0;
+    ctx->cur_func = NULLPTR;
 
     VERIFY_NODE(root);
 
+    ctx->cur_func = NULLPTR;
+
     if (ctx->errors > 0) {
-        AC_PRINTF("[VERIFY] %u error(s), %u warning(s)\n", ctx->errors, ctx->warnings);
+        AC_PRINTF_ERR("[VERIFY] %u error(s), %u warning(s)\n", ctx->errors, ctx->warnings);
         return FALSE;
     }
     if (ctx->verbose)
-        AC_PRINTF("[VERIFY] %u warning(s)\n", ctx->warnings);
+        AC_PRINTF_WARN("[VERIFY] %u warning(s)\n", ctx->warnings);
     return TRUE;
 }

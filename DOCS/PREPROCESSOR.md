@@ -4,41 +4,84 @@ AstraC preprocessor is a simple C-like preprocessor that supports macros, condit
 
 ## Good to know
 
-After preprocessing, the output is a single file that can be processed by the assembler or compiler. This file can be found on Windows inside the `C:\TMP\` folder, and on Linux inside the `/TMP/` folder. The output file is named `00.AC` or `00.AS`. For example, if the input file is `main.ac`, the output file will be `00.AC`. If the input file is `main.as`, the output file will be `00.AS`.
+After preprocessing, the output is a single file that can be processed by the assembler or compiler. This file can be found on Windows inside the `C:\TMP\` folder, and on Linux inside the `/tmp/` folder. The output file is named `00.AC` or `00.AS`. For example, if the input file is `main.ac`, the output file will be `00.AC`. If the input file is `main.as`, the output file will be `00.AS`.
 
 The lexers and parsers of the assembler and compiler do not support multiple input files, so the preprocessor is necessary to combine all included files into a single output file. The row and column numbers in the original source files are not preserved in this `00.AC` or `00.AS` file, so if there are errors in the output file, the line numbers will not match the original source files!
 
 ## Macros
 
-AstraC preprocessor supports object-like macros. Object-like macros are simple text substitutions. They can be defined using the `#define` directive.
+AstraC preprocessor supports both **object-like** and **function-like** macros. Up to 1024 macros can be defined in total (`MAX_MACROS 1024`), including up to 64 defined via CLI `macro <name> <value>`.
+
+### Object-like Macros
+
+Object-like macros perform simple text substitution:
 
 ```c
 #define MAX_VALUE 100
+#define BUFFER_SIZE (MAX_VALUE * 4)
 ```
 
-## Conditional Compilation
-
-AstraC preprocessor supports conditional compilation using `#ifdef`, `#elif`, `#else`, and `#endif` directives. This allows you to include or exclude parts of the code based on certain conditions.
+Use `#undef` to remove a macro definition:
 
 ```c
-#ifdef DEBUG
-    // Debug code here
-#elif RELEASE
-    // Release code here
-#else
-    // Code for other configurations
+#undef MAX_VALUE
+```
+
+### Function-like Macros
+
+Function-like macros accept parameter lists and substitute arguments into the macro body. Nested parentheses in arguments are respected, and top-level arguments are whitespace-trimmed:
+
+```c
+#define ADD(a, b) ((a) + (b))
+#define MIN(a, b) (((a) < (b)) ? (a) : (b))
+
+int x = ADD(5, 10);
+```
+
+## Directives Reference
+
+| Directive | Description |
+|-----------|-------------|
+| `#include "file"` | Includes external header or source file |
+| `#define NAME value` | Defines an object-like macro |
+| `#define NAME(a,b) expr` | Defines a function-like macro |
+| `#undef NAME` | Undefines an existing macro |
+| `#ifdef NAME` | Evaluates true if macro `NAME` is defined |
+| `#ifndef NAME` | Evaluates true if macro `NAME` is NOT defined |
+| `#if expr` | Evaluates integer constant expression `expr` |
+| `#elif expr` | Else-if branch evaluating `expr` |
+| `#else` | Else branch |
+| `#endif` | Terminates conditional block |
+| `#error "msg"` | Halts preprocessing and outputs error message |
+| `#warning "msg"` | Outputs preprocessor warning message |
+| `#push <instruction>` | Pushes preprocessor/parser directive setting |
+| `#pop <instruction>` | Pops preprocessor/parser directive setting |
+
+## Constant Expression Evaluation
+
+The `#if` and `#elif` directives support full recursive-descent integer constant expression evaluation. Supported operators include:
+- Arithmetic: `+`, `-`, `*`, `/`, `%`
+- Bitwise: `~`, `&`, `|`, `^`, `<<`, `>>`
+- Logical & Comparison: `!`, `==`, `!=`, `<`, `<=`, `>`, `>=`, `&&`, `||`
+
+```c
+#if (VERSION_MAJOR >= 2) && (FEATURE_MASK & 0x01)
+    // Code for version 2+ with feature bit 0 enabled
 #endif
 ```
 
-## File Inclusion
+## Push/Pop instructions for lexer, parser, codegen
 
-AstraC preprocessor supports file inclusion using the `#include` directive. You can include other files in your source code, which allows for modular code organization.
-
-File inclusion is necessary for using the AstraC assembler and compiler if user wants the code to be inside multiple files, since the assembler and compiler do NOT support multiple input files. The preprocessor will combine all included files into a single output file that can be processed by the assembler or compiler.
-
+Usage:
 ```c
-// Works with ac
-#include "header.ah"
-// And as
-#include "header.as"
+#push <instruction>
+...
+#pop <instruction>
 ```
+
+Below is a table containing all instructions, what they do and are they supported by the compiler, assembler or both:
+
+| Instruction           | Action  | Compiler | Assembler |
+| --------              | ------- | -------  | -------   |
+| PARSER_TOPLEVEL_LOG   | Enables/Disables Parser's top level logging    | X        |           |
+

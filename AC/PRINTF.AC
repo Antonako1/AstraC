@@ -1,0 +1,169 @@
+// ═══════════════════════════════════════════════════════════════════════════════
+//  PRINTF.AC — printf / snprintf implemented with variadic functions.
+//
+//  Demonstrates the `...` syntax together with va_list / va_start / va_arg /
+//  va_end, including passing a va_list on to a helper (vsnprintf).
+//
+//  Supported conversions:  %c  %s  %d  %u  %x  %X  %%
+//
+//  Compile:  AstraC.exe comp AC/PRINTF.AC
+// ═══════════════════════════════════════════════════════════════════════════════
+
+#include "./PRINTF.AH"
+
+static U32 g_cursor;                     /* console cursor (VGA text mode) */
+
+/* ── Low-level console output (replace `putc` for your own target) ────────── */
+
+U0 putc(U8 c) {
+    PU8 vga = (PU8)0xB8000;
+    if (c == '\n') {                     /* newline: next 80-column row       */
+        g_cursor = (g_cursor / 80 + 1) * 80;
+        return;
+    }
+    if (c == '\r') {                     /* carriage return: start of row     */
+        g_cursor = (g_cursor / 80) * 80;
+        return;
+    }
+    vga[g_cursor * 2]     = c;           /* character + attribute byte        */
+    vga[g_cursor * 2 + 1] = 0x07;
+    g_cursor = g_cursor + 1;
+}
+
+/* ── Formatting helpers ────────────────────────────────────────────────────── */
+
+/* Write one character into `buf`, respecting `size`; returns the new position. */
+U32 putch(PU8 buf, U32 size, U32 pos, U8 c) {
+    if (size > 0 && pos < size - 1) {
+        buf[pos] = c;
+    }
+    return pos + 1;
+}
+
+/* Emit an unsigned integer in `base` (digits built in reverse into tmp). */
+U32 emit_uint(PU8 buf, U32 size, U32 pos, U32 val, U32 base, BOOL upper) {
+    U8  tmp[32];
+    U32 n = 0;
+    if (val == 0) {
+        tmp[n] = '0';
+        n = 1;
+    } else {
+        while (val != 0) {
+            U32 d = val % base;
+            if (d < 10) {
+                tmp[n] = (U8)(d + '0');
+            } else if (upper) {
+                tmp[n] = (U8)(d - 10 + 'A');
+            } else {
+                tmp[n] = (U8)(d - 10 + 'a');
+            }
+            n = n + 1;
+            val = val / base;
+        }
+    }
+    while (n > 0) {                      /* digits were built backwards       */
+        n = n - 1;
+        pos = putch(buf, size, pos, tmp[n]);
+    }
+    return pos;
+}
+
+/* ── Core formatter — takes a va_list so it can be forwarded ──────────────── */
+
+U32 vsnprintf(PU8 buf, U32 size, PU8 fmt, va_list args) {
+    U32 pos = 0;
+    U32 i   = 0;
+    while (fmt[i] != 0) {
+        U8 c = fmt[i];
+        if (c != '%') {
+            pos = putch(buf, size, pos, c);
+            i = i + 1;
+            continue;
+        }
+
+        i = i + 1;
+        U8 spec = fmt[i];
+        i = i + 1;
+
+        if (spec == '%') {
+            pos = putch(buf, size, pos, '%');
+        } else if (spec == 'c') {
+            U8 ch = (U8)va_arg(args, U32);
+            pos = putch(buf, size, pos, ch);
+        } else if (spec == 's') {
+            PU8 s = va_arg(args, PU8);
+            U32 j = 0;
+            while (s[j] != 0) {
+                pos = putch(buf, size, pos, s[j]);
+                j = j + 1;
+            }
+        } else if (spec == 'x') {
+            pos = emit_uint(buf, size, pos, va_arg(args, U32), 16, FALSE);
+        } else if (spec == 'X') {
+            pos = emit_uint(buf, size, pos, va_arg(args, U32), 16, TRUE);
+        } else if (spec == 'u') {
+            pos = emit_uint(buf, size, pos, va_arg(args, U32), 10, FALSE);
+        } else if (spec == 'd') {
+            I32 val = (I32)va_arg(args, U32);
+            if (val < 0) {
+                pos = putch(buf, size, pos, '-');
+                val = -val;
+            }
+            pos = emit_uint(buf, size, pos, (U32)val, 10, FALSE);
+        }
+    }
+
+    if (size > 0) {
+        if (pos >= size) {
+            buf[size - 1] = 0;
+        } else {
+            buf[pos] = 0;
+        }
+    }
+    return pos;
+}
+
+/* ── Public entry points ───────────────────────────────────────────────────── */
+
+U32 snprintf(PU8 buf, U32 size, PU8 fmt, ...) {
+    va_list args;
+    va_start(args, fmt);
+    U32 n = vsnprintf(buf, size, fmt, args);
+    va_end(args);
+    return n;
+}
+
+U0 printf(PU8 fmt, ...) {
+    va_list args;
+    va_start(args, fmt);
+    U8 buf[256];
+    vsnprintf(buf, 256, fmt, args);
+    va_end(args);
+
+    U32 i = 0;
+    while (buf[i] != 0) {
+        putc(buf[i]);
+        i = i + 1;
+    }
+}
+
+/* ── Demo ──────────────────────────────────────────────────────────────────── */
+
+U32 main() {
+    U32  n   = 42;
+    I32  neg = -123;
+    PU8  name = "AstraC";
+
+    printf("Hello, %s!\n", name);
+    printf("n = %d (0x%X) hex (0x%x) (%u) unsigned\n", n, n, n, n);
+    printf("neg = %d\n", neg);
+    printf("char = %c, percent = %%\n", 'Z');
+
+    U8 out[64];
+    snprintf(out, 64, "snprintf result: %d + %d = %d", 40, 2, 40 + 2);
+    printf("[%s]\n", out);
+
+    while (1) {
+        asm { HLT }
+    }
+}

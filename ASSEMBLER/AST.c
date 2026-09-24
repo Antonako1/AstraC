@@ -103,12 +103,19 @@ STATIC BOOL ast_operand_type_ok(ASM_OPERAND_TYPE actual,
  * agree with the parsed operands.
  */
 STATIC const ASM_MNEMONIC_TABLE *RESOLVE_MNEMONIC(
-        PU8 name, ASM_OPERAND *operands, U32 op_count, BOOL shift_by_cl) {
+        PU8 name, ASM_OPERAND *operands, U32 op_count, BOOL shift_by_cl,
+        const ASM_MNEMONIC_TABLE **alt_out) {
     U32 tbl_len = sizeof(asm_mnemonics) / sizeof(asm_mnemonics[0]);
 
     /* Determine native operand size from the current code mode. */
     ASM_OPERAND_SIZE native_size =
         (ast_code_mode == DIR_CODE_TYPE_16) ? SZ_16BIT : SZ_32BIT;
+
+    /* Distance hint (SHORT / NEAR / FAR) carried by a branch operand. */
+    ASM_JUMP_DIST jump_dist = JD_AUTO;
+    for (U32 j = 0; j < op_count; j++) {
+        if (operands[j].jump_dist != JD_AUTO) { jump_dist = operands[j].jump_dist; break; }
+    }
 
     /* Check whether any operand constrains the size (register or
      * explicitly-sized memory reference).  When constrained the first
@@ -132,6 +139,11 @@ STATIC const ASM_MNEMONIC_TABLE *RESOLVE_MNEMONIC(
     const ASM_MNEMONIC_TABLE *fallback = NULLPTR;
     const ASM_MNEMONIC_TABLE *constraint_best = NULLPTR;
     U32 constraint_best_score = 10;
+
+    /* Candidates for direct relative branches (jmp / jcc / call / loop). */
+    const ASM_MNEMONIC_TABLE *rel8_cand  = NULLPTR;
+    const ASM_MNEMONIC_TABLE *rel32_cand = NULLPTR;
+    const ASM_MNEMONIC_TABLE *first_match = NULLPTR;
 
     for (U32 i = 0; i < tbl_len; i++) {
         const ASM_MNEMONIC_TABLE *tbl = &asm_mnemonics[i];
@@ -176,6 +188,11 @@ STATIC const ASM_MNEMONIC_TABLE *RESOLVE_MNEMONIC(
                 if (is_0f_two_op && j == 0) continue; /* skip dest size check */
 
                 if (operands[j].type == OP_REG || operands[j].type == OP_SEG) {
+                    /* Fixed/implicit register operand (e.g. DX in IN/OUT) is
+                     * not subject to the operand-size check. */
+                    if (tbl->reg_fixed != REG_NONE
+                        && operands[j].reg == tbl->reg_fixed)
+                        continue;
                     ASM_OPERAND_SIZE rs = ast_reg_size(operands[j].reg);
                     if (rs != SZ_NONE && rs != tbl->size) { ok = FALSE; break; }
                 }
@@ -243,20 +260,29 @@ STATIC const ASM_MNEMONIC_TABLE *RESOLVE_MNEMONIC(
             continue;
         }
 
-        /* No register constrains size — prefer entries whose size
-         * matches the native operand width of the current code mode.
-         * SZ_8BIT forms (e.g. PUSH imm8) are always optimal since
-         * they sign-extend to the native size automatically. */
-        if (tbl->size == native_size || tbl->size == SZ_8BIT
-            || tbl->size == SZ_NONE)
-            return tbl;
+        /* No register constrains size.  Separate direct relative branches
+         * (rel8 / rel32) from other unconstrained forms. */
+        if (tbl->rel_type == RL_REL8) {
+            if (!rel8_cand) rel8_cand = tbl;
+            continue;
+        }
+        if (tbl->rel_type == RL_REL32) {
+            if (!rel32_cand) rel32_cand = tbl;
+            continue;
+        }
 
-        /* Non-native size — save as fallback in case no native-sized
-         * entry exists (e.g. value too large for native size). */
+        /* Non-relative: prefer entries whose size matches the native
+         * operand width of the current code mode.  SZ_8BIT forms (e.g.
+         * PUSH imm8) are always optimal since they sign-extend to the
+         * native size automatically. */
         if (!fallback) fallback = tbl;
+        if ((tbl->size == native_size || tbl->size == SZ_8BIT
+             || tbl->size == SZ_NONE) && !first_match)
+            first_match = tbl;
     }
 
     if (constraint_best) {
+        if (alt_out) *alt_out = NULLPTR;
         // AC_PRINTF("[RESOLVER] constraint_best=%s id=%u score=%u enc=%u opc=0x%X ops=[%d,%d]\n",
         //        constraint_best->name, constraint_best->mnemonic,
         //        constraint_best_score, constraint_best->encoding,
@@ -264,7 +290,46 @@ STATIC const ASM_MNEMONIC_TABLE *RESOLVE_MNEMONIC(
         //        constraint_best->operand[0], constraint_best->operand[1]);
         return constraint_best;
     }
-    AC_PRINTF("[RESOLVER] No constraint match for '%s', fallback=%s\n", name, fallback ? fallback->name : "NULL");
+
+    /* ── Direct relative branch selection ────────────────────────────── */
+    if (rel8_cand || rel32_cand) {
+        BOOL is_jmp_call = (AC_STRICMP(name, "jmp") == 0
+                            || AC_STRICMP(name, "call") == 0);
+        const ASM_MNEMONIC_TABLE *pick = NULLPTR;
+        const ASM_MNEMONIC_TABLE *alt  = NULLPTR;
+
+        switch (jump_dist) {
+            case JD_SHORT:
+                pick = rel8_cand;     /* forced short — no relaxation */
+                break;
+            case JD_NEAR:
+                pick = rel32_cand;    /* forced near — no relaxation */
+                break;
+            case JD_FAR:
+                /* Far is handled by the OP_FAR operand type; a JD_FAR hint
+                 * without a SEG:OFF operand falls through to near. */
+                pick = rel32_cand;
+                break;
+            case JD_AUTO:
+            default:
+                if (is_jmp_call) {
+                    /* jmp/call default to near; no auto-shortening */
+                    pick = rel32_cand;
+                } else {
+                    /* conditional branches default to short, promote to near
+                     * (0F rel32) during relaxation if out of range. */
+                    pick = rel8_cand;
+                    alt  = rel32_cand;
+                }
+                break;
+        }
+
+        if (alt_out) *alt_out = alt;
+        return pick;
+    }
+
+    if (alt_out) *alt_out = NULLPTR;
+    if (first_match) return first_match;
     return fallback;
 }
 
@@ -545,6 +610,39 @@ STATIC PU8 COLLECT_VALUE_TEXT(TOK_CURSOR *cur) {
  * ════════════════════════════════════════════════════════════════════════════
  *  Fills one ASM_OPERAND.  Returns FALSE on fatal failure.
  */
+
+/* Does this text look like a numeric literal (possibly negative)? */
+STATIC BOOL IS_NUMERIC_TEXT(PU8 s) {
+    if (!s) return FALSE;
+    while (*s == ' ' || *s == '\t') s++;
+    if (*s == '-' || *s == '+') s++;
+    return (*s >= '0' && *s <= '9');
+}
+
+/* Parse the offset half of a far pointer (SEG:OFF) after ':' was consumed.
+ * seg_name (NULLPTR if numeric) / seg_val describe the already-parsed segment.
+ * Sets out->type = OP_FAR and out->far_ref. */
+STATIC VOID PARSE_FAR_OFFSET(TOK_CURSOR *cur, ASM_OPERAND *out,
+                             PU8 seg_name, U32 seg_val) {
+    ASM_NODE_FAR *far = AC_MAlloc(sizeof(ASM_NODE_FAR));
+    if (!far) return;
+    AC_MEMSET(far, 0, sizeof(ASM_NODE_FAR));
+    far->seg_name = seg_name;
+    far->seg_val  = seg_val;
+
+    PU8 off_txt = COLLECT_VALUE_TEXT(cur);
+    if (off_txt) {
+        if (IS_NUMERIC_TEXT(off_txt)) {
+            far->off_val = eval_imm_text(off_txt);
+        } else {
+            far->off_name = AC_STRDUP(off_txt);
+        }
+        AC_MFree(off_txt);
+    }
+    out->type    = OP_FAR;
+    out->far_ref = far;
+}
+
 STATIC BOOL PARSE_OPERAND(TOK_CURSOR *cur, ASM_OPERAND *out) {
     AC_MEMSET(out, 0, sizeof(ASM_OPERAND));
     out->size = SZ_NONE;
@@ -552,13 +650,15 @@ STATIC BOOL PARSE_OPERAND(TOK_CURSOR *cur, ASM_OPERAND *out) {
     PASM_TOK t = TOK_PEEK(cur);
     if (!t) return FALSE;
 
-    /* NEAR / FAR distance hint prefix (consumed before size prefixes) */
-    BOOL want_far = FALSE;
+    /* NEAR / FAR / SHORT distance hint prefix (consumed before size prefixes) */
     if (t->type == TOK_IDENT_VAR
-        && (t->var_type == TYPE_NEAR || t->var_type == TYPE_FAR)) {
-        want_far = (t->var_type == TYPE_FAR);
+        && (t->var_type == TYPE_NEAR || t->var_type == TYPE_FAR
+            || t->var_type == TYPE_SHORT)) {
+        out->jump_dist    = (t->var_type == TYPE_FAR)  ? JD_FAR
+                          : (t->var_type == TYPE_NEAR) ? JD_NEAR
+                                                       : JD_SHORT;
         TOK_ADVANCE(cur);
-        /* optional PTR keyword after near/far */
+        /* optional PTR keyword after near/far/short */
         PASM_TOK maybe_ptr = TOK_PEEK(cur);
         if (maybe_ptr && maybe_ptr->type == TOK_IDENT_VAR
             && maybe_ptr->var_type == TYPE_PTR)
@@ -784,22 +884,16 @@ STATIC BOOL PARSE_OPERAND(TOK_CURSOR *cur, ASM_OPERAND *out) {
         PU8 txt = COLLECT_VALUE_TEXT(cur);
         if (!txt) return FALSE;
         if (t && t->type == TOK_NUMBER) {
-            out->type      = OP_IMM;
-            out->immediate = eval_imm_text(txt);  /* evaluate full expression */
+            U32 seg = eval_imm_text(txt);  /* evaluate full expression */
             AC_MFree(txt);
+            out->type      = OP_IMM;
+            out->immediate = seg;
             /* Check for far pointer syntax: SEG:OFF  (e.g. jmp 0x0000:0x2000) */
             PASM_TOK maybe_colon = TOK_PEEK(cur);
             if (maybe_colon && maybe_colon->type == TOK_SYMBOL
                 && maybe_colon->symbol == SYM_COLON) {
                 TOK_ADVANCE(cur);   /* consume ':' */
-                PU8 off_txt = COLLECT_VALUE_TEXT(cur);
-                if (off_txt) {
-                    U32 seg = out->immediate;
-                    U32 off = eval_imm_text(off_txt);
-                    AC_MFree(off_txt);
-                    out->type      = OP_FAR;
-                    out->immediate = (seg << 16) | (off & 0xFFFF);
-                }
+                PARSE_FAR_OFFSET(cur, out, NULLPTR, seg);
             }
         } 
         
@@ -814,17 +908,24 @@ STATIC BOOL PARSE_OPERAND(TOK_CURSOR *cur, ASM_OPERAND *out) {
                 }
                 AC_MFree(txt);
             } else {
-                /* symbol / label reference — store as mem with symbol name */
-                ASM_NODE_MEM *mem = AC_MAlloc(sizeof(ASM_NODE_MEM));
-                if (!mem) { AC_MFree(txt); return FALSE; }
-                AC_MEMSET(mem, 0, sizeof(ASM_NODE_MEM));
-                mem->base_reg  = REG_NONE;
-                mem->index_reg = REG_NONE;
-                mem->segment   = REG_NONE;
-                mem->scale     = 1;
-                mem->symbol_name = txt;
-                out->type    = OP_PTR;
-                out->mem_ref = mem;
+                /* symbol / label reference; may become a far pointer SEG:OFF */
+                PASM_TOK maybe_colon = TOK_PEEK(cur);
+                if (maybe_colon && maybe_colon->type == TOK_SYMBOL
+                    && maybe_colon->symbol == SYM_COLON) {
+                    TOK_ADVANCE(cur);   /* consume ':' */
+                    PARSE_FAR_OFFSET(cur, out, txt, 0);  /* txt -> far->seg_name */
+                } else {
+                    ASM_NODE_MEM *mem = AC_MAlloc(sizeof(ASM_NODE_MEM));
+                    if (!mem) { AC_MFree(txt); return FALSE; }
+                    AC_MEMSET(mem, 0, sizeof(ASM_NODE_MEM));
+                    mem->base_reg  = REG_NONE;
+                    mem->index_reg = REG_NONE;
+                    mem->segment   = REG_NONE;
+                    mem->scale     = 1;
+                    mem->symbol_name = txt;
+                    out->type    = OP_PTR;
+                    out->mem_ref = mem;
+                }
             }
         }
         else {
@@ -839,26 +940,6 @@ STATIC BOOL PARSE_OPERAND(TOK_CURSOR *cur, ASM_OPERAND *out) {
             mem->symbol_name = txt;
             out->type    = OP_PTR;
             out->mem_ref = mem;
-            /* jmp far label:imm  — label is the segment, imm is the offset */
-            if (want_far) {
-                PASM_TOK maybe_colon = TOK_PEEK(cur);
-                if (maybe_colon && maybe_colon->type == TOK_SYMBOL
-                    && maybe_colon->symbol == SYM_COLON) {
-                    TOK_ADVANCE(cur);   /* consume ':' */
-                    PU8 off_txt = COLLECT_VALUE_TEXT(cur);
-                    if (off_txt) {
-                        /* Segment is a symbolic label — store offset only;
-                         * the symbol will be resolved as 0 at link time for
-                         * far absolute pointers.  Encode what we can. */
-                        U32 off = eval_imm_text(off_txt);
-                        AC_MFree(off_txt);
-                        out->type      = OP_FAR;
-                        out->immediate = (0u << 16) | (off & 0xFFFF);
-                        /* mem_ref still holds the segment symbol for future
-                         * linker support; immediate holds the offset. */
-                    }
-                }
-            }
         }
         return TRUE;
     }
@@ -878,29 +959,38 @@ STATIC PASM_NODE PARSE_INSTRUCTION(TOK_CURSOR *cur) {
     PASM_NODE n = ALLOC_NODE(NODE_INSTRUCTION, mnem_tok);
     if (!n) return NULLPTR;
 
-    /* ── 1. Parse operands first ─────────────────────────────────────── */
+    /* ── 1. Parse operands first (prefixes take 0 operands) ─────────── */
     n->instr.operand_count = 0;
-    BOOL first = TRUE;
+    BOOL is_prefix = (AC_STRICMP(mnem_tok->txt, "rep")   == 0 ||
+                      AC_STRICMP(mnem_tok->txt, "repe")  == 0 ||
+                      AC_STRICMP(mnem_tok->txt, "repz")  == 0 ||
+                      AC_STRICMP(mnem_tok->txt, "repne") == 0 ||
+                      AC_STRICMP(mnem_tok->txt, "repnz") == 0 ||
+                      AC_STRICMP(mnem_tok->txt, "lock")  == 0);
 
-    while (!TOK_AT_END(cur) && !TOK_MATCH(cur, TOK_EOL)) {
-        if (!first) {
-            /* expect comma separator */
-            if (!PEEK_SYMBOL(cur, SYM_COMMA)) break;
-            TOK_ADVANCE(cur);   /* consume ',' */
-        }
-        first = FALSE;
+    if (!is_prefix) {
+        BOOL first = TRUE;
 
-        if (n->instr.operand_count >= MAX_OPERANDS) {
-            AC_PRINTF("[AST] Too many operands at L%u\n", mnem_tok->line);
-            break;
-        }
+        while (!TOK_AT_END(cur) && !TOK_MATCH(cur, TOK_EOL)) {
+            if (!first) {
+                /* expect comma separator */
+                if (!PEEK_SYMBOL(cur, SYM_COMMA)) break;
+                TOK_ADVANCE(cur);   /* consume ',' */
+            }
+            first = FALSE;
 
-        ASM_OPERAND op;
-        if (!PARSE_OPERAND(cur, &op)) {
-            AC_PRINTF("[AST] Bad operand in '%s' at L%u\n", mnem_tok->txt, mnem_tok->line);
-            break;
+            if (n->instr.operand_count >= MAX_OPERANDS) {
+                AC_PRINTF("[AST] Too many operands at L%u\n", mnem_tok->line);
+                break;
+            }
+
+            ASM_OPERAND op;
+            if (!PARSE_OPERAND(cur, &op)) {
+                AC_PRINTF("[AST] Bad operand in '%s' at L%u\n", mnem_tok->txt, mnem_tok->line);
+                break;
+            }
+            n->instr.operands[n->instr.operand_count++] = op;
         }
-        n->instr.operands[n->instr.operand_count++] = op;
     }
 
     /* ── 1b. Shift/rotate by-CL or by-1 canonicalization ─────────────
@@ -929,11 +1019,13 @@ STATIC PASM_NODE PARSE_INSTRUCTION(TOK_CURSOR *cur) {
     }
 
     /* ── 2. Resolve mnemonic table entry by name + operand match ─────── */
+    n->instr.table_entry_alt = NULLPTR;
     n->instr.table_entry = RESOLVE_MNEMONIC(
             mnem_tok->txt,
             n->instr.operands,
             n->instr.operand_count,
-            n->instr.shift_by_cl);
+            n->instr.shift_by_cl,
+            &n->instr.table_entry_alt);
 
     if (!n->instr.table_entry) {
         AC_PRINTF("[AST] No matching mnemonic form for '%s' with %u operand(s) at L%u\n",
@@ -1242,12 +1334,12 @@ ASM_AST_ARRAY *ASM_BUILD_AST(ASM_TOK_ARRAY *toks) {
                     if (current_section == DIR_NONE) {
                         if (WARNING(1)) {
                             if (GET_ARGS()->warnings_as_errors) {
-                                AC_PRINTF("[AST] Error: variable declared outside a data section at L%u\n",
+                                AC_PRINTF_ERR("[AST] Error: variable declared outside a data section at L%u\n",
                                     node->line);
                                 DESTROY_AST_ARR(arr);
                                 return NULLPTR;
                             }
-                            AC_PRINTF("[AST] Warning: variable declared outside a data section at L%u\n",
+                            AC_PRINTF_WARN("[AST] Warning: variable declared outside a data section at L%u\n",
                                 node->line);
                         }
                     }
@@ -1258,7 +1350,7 @@ ASM_AST_ARRAY *ASM_BUILD_AST(ASM_TOK_ARRAY *toks) {
 
             /* Otherwise, emit as raw identifier token — skip for now */
             if (WARNING(2)) {
-                AC_PRINTF("[AST] Warning: unexpected identifier '%s' at L%u C%u\n",
+                AC_PRINTF_WARN("[AST] Warning: unexpected identifier '%s' at L%u C%u\n",
                     t->txt, t->line, t->col);
                 if (GET_ARGS()->warnings_as_errors) {
                     DESTROY_AST_ARR(arr);
@@ -1291,7 +1383,7 @@ ASM_AST_ARRAY *ASM_BUILD_AST(ASM_TOK_ARRAY *toks) {
 
         /* ── Anything else — skip ─────────────────────────────────── */
         if (WARNING(2)) {
-            AC_PRINTF("[AST] Warning: skipping unexpected token '%s' (%s) at L%u C%u\n",
+            AC_PRINTF_WARN("[AST] Warning: skipping unexpected token '%s' (%s) at L%u C%u\n",
                 t->txt, TOKEN_TYPE_STR(t->type), t->line, t->col);
             if (GET_ARGS()->warnings_as_errors) {
                 DESTROY_AST_ARR(arr);

@@ -3,3 +3,9 @@
 *.html linguist-detectable=false
 *.css linguist-detectable=false
 *.js linguist-detectable=false
+*.as linguist-language=Assembly
+*.AS linguist-language=Assembly
+*.AC linguist-language=C++
+*.ac linguist-language=C++
+*.AH linguist-language=C++
+*.ah linguist-language=C++

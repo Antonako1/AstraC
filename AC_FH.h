@@ -11,7 +11,7 @@
 
 #define AC_FILE_MAGIC         "ACFH"
 #define AC_FILE_MAGIC_LEN     4
-#define AC_FILE_RESERVED_SIZE 64
+#define AC_FILE_RESERVED_SIZE 56
 #define AC_FILE_VERSION_MAJOR ((U16)1)
 #define AC_FILE_VERSION_MINOR ((U16)0)
 #define AC_FILE_VERSION       ((U32)AC_FILE_VERSION_MAJOR << 16 | AC_FILE_VERSION_MINOR)
@@ -20,6 +20,7 @@ enum {
     AC_FLAG_NONE       = 0,
     AC_FLAG_EXECUTABLE = 1 << 0,
     AC_FLAG_DYNAMIC    = 1 << 1,
+    AC_FLAG_HAS_RELOCS = 1 << 2,
 };
 
 typedef struct {
@@ -31,10 +32,12 @@ typedef struct {
     U32 data_offset;
     U32 rodata_offset;
     U32 bss_offset;
+    U32 reloc_offset;
     U32 code_size;
     U32 data_size;
     U32 rodata_size;
     U32 bss_size;
+    U32 reloc_size;
     U8  reserved[AC_FILE_RESERVED_SIZE];
 } ATTRIB_PACKED AC_FILE_HEADER;
 

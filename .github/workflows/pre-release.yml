@@ -1,0 +1,198 @@
+name: Create Pre-Release on Main Push
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - 'DOCS/**'
+      - '**.md'
+      - '.gitignore'
+
+concurrency:
+  group: pre-release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  prepare-release:
+    name: Bump Version & Prepare Release Notes
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version_info.outputs.version }}
+      tag_name: ${{ steps.version_info.outputs.tag_name }}
+      release_title: ${{ steps.version_info.outputs.release_title }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure Git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Generate Release Notes from Commit Log
+        run: |
+          python3 - << 'EOF'
+          import subprocess
+          import os
+
+          # Find previous tag
+          try:
+              prev_tag = subprocess.check_output(
+                  ["git", "describe", "--tags", "--abbrev=0", "HEAD^"],
+                  text=True, errors="replace"
+              ).strip()
+          except Exception:
+              prev_tag = ""
+
+          range_arg = f"{prev_tag}..HEAD" if prev_tag else "HEAD"
+          cmd = ["git", "log", range_arg, "--no-merges", "--format=%H%x00%s%x00%b%x00"]
+          
+          try:
+              out = subprocess.check_output(cmd, text=True, errors="replace")
+          except Exception as e:
+              out = ""
+
+          notes = []
+          if prev_tag:
+              notes.append(f"## Changes since `{prev_tag}`\n")
+          else:
+              notes.append("## Release Changes\n")
+
+          entries = out.split("\x00")
+          commit_count = 0
+          for i in range(0, len(entries) - 2, 3):
+              commit_hash = entries[i].strip()
+              subject = entries[i+1].strip()
+              body = entries[i+2].strip()
+              if not subject:
+                  continue
+              commit_count += 1
+              notes.append(f"### {subject}\n")
+              if body:
+                  body_lines = [f"> {line}" if line.strip() else ">" for line in body.splitlines()]
+                  notes.append("\n".join(body_lines) + "\n")
+              notes.append(f"*(Commit `{commit_hash[:7]}`)*\n\n---\n")
+
+          if commit_count == 0:
+              notes.append("*No new commit messages detected.*")
+
+          with open("release_notes.md", "w", encoding="utf-8") as f:
+              f.write("\n".join(notes))
+          EOF
+
+      - name: Upload Release Notes
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-notes
+          path: release_notes.md
+
+      - name: Increment Patch Version
+        run: |
+          python3 SCRIPTS/UPGRADE_VERSION.py 0 0 1
+
+      - name: Commit, Tag and Push Version Bump
+        id: version_info
+        run: |
+          VERSION=$(tr -d ' \t\r\n' < VERSION/VERSION.txt)
+          TAG_NAME="v${VERSION}"
+          RELEASE_TITLE="patch-build-${VERSION}"
+          
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag_name=${TAG_NAME}" >> "$GITHUB_OUTPUT"
+          echo "release_title=${RELEASE_TITLE}" >> "$GITHUB_OUTPUT"
+
+          git add VERSION/VERSION.h VERSION/VERSION.txt VERSION/VERSION.nsh
+          git commit -m "chore: bump version to ${VERSION} [skip ci]"
+          git tag -a "${TAG_NAME}" -m "Release ${TAG_NAME}"
+          
+          git push origin main
+          git push origin "${TAG_NAME}"
+
+  build-windows:
+    name: Build Windows NSIS Installer
+    needs: prepare-release
+    runs-on: windows-latest
+    steps:
+      - name: Checkout bumped tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare-release.outputs.tag_name }}
+
+      - name: Build AstraC & NSIS Installer
+        shell: cmd
+        run: |
+          call SCRIPTS\WIN\CREATE_NSIS.BAT -batch
+
+      - name: Upload Windows Installer Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: build/AstraC-Setup-*.exe
+          if-no-files-found: error
+
+  build-linux:
+    name: Build Linux Package
+    needs: prepare-release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout bumped tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare-release.outputs.tag_name }}
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build build-essential
+
+      - name: Build AstraC & Package Tarball
+        run: |
+          chmod +x SCRIPTS/SH/*.sh
+          ./SCRIPTS/SH/CREATE_PACKAGE.sh
+
+      - name: Upload Linux Package Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-package
+          path: build/AstraC-*-linux-*.tar.gz
+          if-no-files-found: error
+
+  publish-release:
+    name: Publish Pre-Release
+    needs: [prepare-release, build-windows, build-linux]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Release Notes
+        uses: actions/download-artifact@v4
+        with:
+          name: release-notes
+
+      - name: Download Windows Installer
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-installer
+          path: dist
+
+      - name: Download Linux Package
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-package
+          path: dist
+
+      - name: Publish GitHub Pre-Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.prepare-release.outputs.tag_name }}
+          name: ${{ needs.prepare-release.outputs.release_title }}
+          body_path: release_notes.md
+          prerelease: true
+          files: dist/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

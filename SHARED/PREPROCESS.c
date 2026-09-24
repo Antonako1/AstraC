@@ -7,7 +7,7 @@
  *   2. Strips comments  (; for ASM, // and /* for C)
  *   3. Handles directives: #include, #define, #undef, #ifdef/#ifndef/#elif/#else/#endif, #error, #warning
  *   4. Performs macro substitution on surviving lines
- *   5. Writes the result to a temp file in /TMP/
+ *   5. Writes the result to a temp file in /tmp/
  *
  * The temp file path is collected in ASM_INFO for the lexer.
  */
@@ -30,6 +30,9 @@ typedef enum {
     IDENT_WARNING,
     IDENT_DEFINE,
     IDENT_UNDEF,
+    IDENT_PUSH,
+    IDENT_POP,
+
     IDENT_MAX,
 } MACRO_IDENT;
 
@@ -49,6 +52,8 @@ static const MACRO_KW macros_kw[] ATTRIB_RODATA = {
     { "#warning",  IDENT_WARNING  },
     { "#define",   IDENT_DEFINE   },
     { "#undef",    IDENT_UNDEF    },
+    { "#push",    IDENT_PUSH    },
+    { "#pop",    IDENT_POP    },
 };
 
 
@@ -118,6 +123,26 @@ STATIC BOOL IF_STACK_IS_ACTIVE() {
     return TRUE;
 }
 
+STATIC VOID PUSH_POP_MACRO_SOLVE(PU8 push_type, BOOL push, U32 line) {
+    ASTRAC_ARGS *args = GET_ARGS();
+    if(AC_STRICMP(push_type, "PARSER_TOPLEVEL_LOG") == 0) {
+        if(push) {
+            if(args->verbose) AC_PRINTF("[PP] #PUSH PARSER_TOPLEVEL_LOG @ L%u\n", line);
+            args->PARSER_TOPLEVEL_LOG_PUSH[args->PARSER_TOPLEVEL_LOG_PUSH_TAIL++] = line;
+        } else {
+            if(args->verbose) AC_PRINTF("[PP] #POP PARSER_TOPLEVEL_LOG @ L%u\n", line);
+            args->PARSER_TOPLEVEL_LOG_POP[args->PARSER_TOPLEVEL_LOG_POP_TAIL++] = line;
+        }
+    }
+} 
+
+STATIC VOID PUSH_MACRO_SOLVE(PU8 push_type, U32 line) {
+    PUSH_POP_MACRO_SOLVE(push_type, TRUE, line);
+}
+
+STATIC VOID POP_MACRO_SOLVE(PU8 push_type, U32 line) {
+    PUSH_POP_MACRO_SOLVE(push_type, FALSE, line);
+}
 
 /*
  * ── Forward declarations ────────────────────────────────────────────────────
@@ -136,7 +161,7 @@ VOID FREE_PREPROCESSING_UNITS();
  */
 
 /* Forward declarations for recursive descent */
-STATIC BOOL PP_EVAL_EXPR(PU8 *pp, S32 *out);
+STATIC BOOL PP_EVAL_EXPR(PU8 *pp, S64 *out);
 
 STATIC VOID PP_SKIP_SPACES(PU8 *pp) {
     while (**pp == ' ' || **pp == '\t') (*pp)++;
@@ -147,7 +172,7 @@ STATIC BOOL PP_IS_HEX(U8 c) {
     return PP_IS_DIGIT(c) || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
 }
 
-STATIC BOOL PP_EVAL_ATOM(PU8 *pp, S32 *out) {
+STATIC BOOL PP_EVAL_ATOM(PU8 *pp, S64 *out) {
     PP_SKIP_SPACES(pp);
 
     /* Parenthesized sub-expression */
@@ -186,15 +211,15 @@ STATIC BOOL PP_EVAL_ATOM(PU8 *pp, S32 *out) {
     if (**pp == '0' && ((*pp)[1] == 'x' || (*pp)[1] == 'X')) {
         *pp += 2;
         if (!PP_IS_HEX(**pp)) return FALSE;
-        U32 v = 0;
+        U64 v = 0;
         while (PP_IS_HEX(**pp)) {
             U8 c = **pp;
-            U32 d = PP_IS_DIGIT(c) ? c - '0'
+            U64 d = PP_IS_DIGIT(c) ? c - '0'
                   : (c >= 'a') ? c - 'a' + 10 : c - 'A' + 10;
             v = v * 16 + d;
             (*pp)++;
         }
-        *out = (S32)v;
+        *out = (S64)v;
         return TRUE;
     }
 
@@ -202,23 +227,23 @@ STATIC BOOL PP_EVAL_ATOM(PU8 *pp, S32 *out) {
     if (**pp == '0' && ((*pp)[1] == 'b' || (*pp)[1] == 'B')) {
         *pp += 2;
         if (**pp != '0' && **pp != '1') return FALSE;
-        U32 v = 0;
+        U64 v = 0;
         while (**pp == '0' || **pp == '1') {
             v = v * 2 + (**pp - '0');
             (*pp)++;
         }
-        *out = (S32)v;
+        *out = (S64)v;
         return TRUE;
     }
 
     /* Decimal literal */
     if (PP_IS_DIGIT(**pp)) {
-        U32 v = 0;
+        U64 v = 0;
         while (PP_IS_DIGIT(**pp)) {
             v = v * 10 + (**pp - '0');
             (*pp)++;
         }
-        *out = (S32)v;
+        *out = (S64)v;
         return TRUE;
     }
 
@@ -226,14 +251,14 @@ STATIC BOOL PP_EVAL_ATOM(PU8 *pp, S32 *out) {
 }
 
 /* Multiplicative: *, /, % */
-STATIC BOOL PP_EVAL_MUL(PU8 *pp, S32 *out) {
+STATIC BOOL PP_EVAL_MUL(PU8 *pp, S64 *out) {
     if (!PP_EVAL_ATOM(pp, out)) return FALSE;
     for (;;) {
         PP_SKIP_SPACES(pp);
         U8 op = **pp;
         if (op != '*' && op != '/' && op != '%') break;
         (*pp)++;
-        S32 rhs;
+        S64 rhs;
         if (!PP_EVAL_ATOM(pp, &rhs)) return FALSE;
         if (op == '*') *out *= rhs;
         else if (rhs == 0) return FALSE;   /* div by zero */
@@ -244,14 +269,14 @@ STATIC BOOL PP_EVAL_MUL(PU8 *pp, S32 *out) {
 }
 
 /* Additive: +, - */
-STATIC BOOL PP_EVAL_ADD(PU8 *pp, S32 *out) {
+STATIC BOOL PP_EVAL_ADD(PU8 *pp, S64 *out) {
     if (!PP_EVAL_MUL(pp, out)) return FALSE;
     for (;;) {
         PP_SKIP_SPACES(pp);
         U8 op = **pp;
         if (op != '+' && op != '-') break;
         (*pp)++;
-        S32 rhs;
+        S64 rhs;
         if (!PP_EVAL_MUL(pp, &rhs)) return FALSE;
         if (op == '+') *out += rhs;
         else           *out -= rhs;
@@ -260,57 +285,57 @@ STATIC BOOL PP_EVAL_ADD(PU8 *pp, S32 *out) {
 }
 
 /* Shift: <<, >> */
-STATIC BOOL PP_EVAL_SHIFT(PU8 *pp, S32 *out) {
+STATIC BOOL PP_EVAL_SHIFT(PU8 *pp, S64 *out) {
     if (!PP_EVAL_ADD(pp, out)) return FALSE;
     for (;;) {
         PP_SKIP_SPACES(pp);
         if (**pp == '<' && (*pp)[1] == '<') {
             *pp += 2;
-            S32 rhs; if (!PP_EVAL_ADD(pp, &rhs)) return FALSE;
-            *out = (S32)((U32)*out << rhs);
+            S64 rhs; if (!PP_EVAL_ADD(pp, &rhs)) return FALSE;
+            *out = (S64)((U64)*out << rhs);
         } else if (**pp == '>' && (*pp)[1] == '>') {
             *pp += 2;
-            S32 rhs; if (!PP_EVAL_ADD(pp, &rhs)) return FALSE;
-            *out = (S32)((U32)*out >> rhs);
+            S64 rhs; if (!PP_EVAL_ADD(pp, &rhs)) return FALSE;
+            *out = (S64)((U64)*out >> rhs);
         } else break;
     }
     return TRUE;
 }
 
 /* Bitwise AND */
-STATIC BOOL PP_EVAL_AND(PU8 *pp, S32 *out) {
+STATIC BOOL PP_EVAL_AND(PU8 *pp, S64 *out) {
     if (!PP_EVAL_SHIFT(pp, out)) return FALSE;
     for (;;) {
         PP_SKIP_SPACES(pp);
         if (**pp != '&') break;
         (*pp)++;
-        S32 rhs; if (!PP_EVAL_SHIFT(pp, &rhs)) return FALSE;
+        S64 rhs; if (!PP_EVAL_SHIFT(pp, &rhs)) return FALSE;
         *out &= rhs;
     }
     return TRUE;
 }
 
 /* Bitwise XOR */
-STATIC BOOL PP_EVAL_XOR(PU8 *pp, S32 *out) {
+STATIC BOOL PP_EVAL_XOR(PU8 *pp, S64 *out) {
     if (!PP_EVAL_AND(pp, out)) return FALSE;
     for (;;) {
         PP_SKIP_SPACES(pp);
         if (**pp != '^') break;
         (*pp)++;
-        S32 rhs; if (!PP_EVAL_AND(pp, &rhs)) return FALSE;
+        S64 rhs; if (!PP_EVAL_AND(pp, &rhs)) return FALSE;
         *out ^= rhs;
     }
     return TRUE;
 }
 
 /* Bitwise OR — top-level expression */
-STATIC BOOL PP_EVAL_EXPR(PU8 *pp, S32 *out) {
+STATIC BOOL PP_EVAL_EXPR(PU8 *pp, S64 *out) {
     if (!PP_EVAL_XOR(pp, out)) return FALSE;
     for (;;) {
         PP_SKIP_SPACES(pp);
         if (**pp != '|') break;
         (*pp)++;
-        S32 rhs; if (!PP_EVAL_XOR(pp, &rhs)) return FALSE;
+        S64 rhs; if (!PP_EVAL_XOR(pp, &rhs)) return FALSE;
         *out |= rhs;
     }
     return TRUE;
@@ -325,14 +350,14 @@ STATIC BOOL PP_TRY_EVAL(PU8 value) {
     if (!value || !*value) return FALSE;
 
     PU8 p = value;
-    S32 result;
+    S64 result;
     if (!PP_EVAL_EXPR(&p, &result)) return FALSE;
 
     /* Ensure ALL input was consumed (otherwise it's not a pure expression) */
     PP_SKIP_SPACES(&p);
     if (*p != '\0') return FALSE;
 
-    AC_SPRINTF(value, "%d", result);
+    AC_SPRINTF(value, "%lld", result);
     return TRUE;
 }
 
@@ -341,25 +366,90 @@ STATIC BOOL PP_TRY_EVAL(PU8 value) {
  *  MACRO TABLE
  * ════════════════════════════════════════════════════════════════════════════ */
 
+/*
+ * Parse a function-like macro definition name of the form "FOO(a, b, c)".
+ * On success, fills `base_name` with "FOO", `params` with the parameter
+ * names, sets `*num_params`, and returns TRUE.  A plain name (no '(' or
+ * not ending with ')') returns FALSE and leaves the name unchanged.
+ */
+STATIC BOOL PARSE_FUNCTION_NAME(PU8 name, U8 *base_name,
+                                U8 params[MAX_MACRO_PARAMS][MAX_MACRO_PARAM_LEN],
+                                U32 *num_params) {
+    U32 nlen = (U32)AC_STRLEN(name);
+    if (nlen == 0 || name[nlen - 1] != ')') return FALSE;
+
+    PU8 paren = AC_STRCHR(name, '(');
+    if (!paren) return FALSE;
+
+    U32 bn = (U32)(paren - name);
+    if (bn == 0 || bn >= MAX_MACRO_VALUE) return FALSE;
+
+    AC_MEMZERO(base_name, MAX_MACRO_VALUE);
+    AC_STRNCPY(base_name, name, bn);
+    base_name[bn] = '\0';
+
+    U32 n = 0;
+    PU8 pp = paren + 1;
+    while (*pp && *pp != ')') {
+        while (*pp == ' ' || *pp == '\t') pp++;
+        PU8 ps = pp;
+        while (*pp && *pp != ',' && *pp != ')') pp++;
+        U32 plen = (U32)(pp - ps);
+        while (plen > 0 && (ps[plen - 1] == ' ' || ps[plen - 1] == '\t')) plen--;
+        if (plen > 0 && n < MAX_MACRO_PARAMS) {
+            if (plen >= MAX_MACRO_PARAM_LEN) plen = MAX_MACRO_PARAM_LEN - 1;
+            AC_MEMZERO(params[n], MAX_MACRO_PARAM_LEN);
+            AC_STRNCPY(params[n], ps, plen);
+            params[n][plen] = '\0';
+            n++;
+        }
+        while (*pp == ' ' || *pp == '\t') pp++;
+        if (*pp == ',') { pp++; continue; }
+        if (*pp == ')') break;
+    }
+
+    *num_params = n;
+    return TRUE;
+}
+
 BOOL DEFINE_MACRO(PU8 name, PU8 value, MACRO_ARR *arr) {
     if (!name || arr->len >= MAX_MACROS) return FALSE;
+
+    /* Detect function-like macros: "FOO(a, b)" → name "FOO", params {a, b}. */
+    U8  base_name[MAX_MACRO_VALUE] = { 0 };
+    U8  params[MAX_MACRO_PARAMS][MAX_MACRO_PARAM_LEN] = { 0 };
+    U32 num_params  = 0;
+    BOOL is_function = PARSE_FUNCTION_NAME(name, base_name, params, &num_params);
+
+    PU8 final_name = is_function ? base_name : name;
+
     /* Update existing entry */
     for (U32 i = 0; i < arr->len; i++) {
-        if (arr->macros[i] && AC_STRCMP(arr->macros[i]->name, name) == 0) {
+        if (arr->macros[i] && AC_STRCMP(arr->macros[i]->name, final_name) == 0) {
             AC_STRNCPY(arr->macros[i]->value, value ? value : "", MAX_MACRO_VALUE - 1);
             arr->macros[i]->value[MAX_MACRO_VALUE - 1] = '\0';
+            arr->macros[i]->is_function = is_function;
+            arr->macros[i]->num_params  = num_params;
+            AC_MEMZERO(arr->macros[i]->params, sizeof(arr->macros[i]->params));
+            for (U32 k = 0; k < num_params; k++)
+                AC_STRNCPY(arr->macros[i]->params[k], params[k], MAX_MACRO_PARAM_LEN - 1);
             return TRUE;
         }
     }
+
     PMACRO m = (PMACRO)AC_MAlloc(sizeof(MACRO));
     if (!m) return FALSE;
     AC_MEMZERO(m, sizeof(MACRO));
-    AC_STRNCPY(m->name, name, MAX_MACRO_VALUE - 1);
+    AC_STRNCPY(m->name, final_name, MAX_MACRO_VALUE - 1);
     m->name[MAX_MACRO_VALUE - 1] = '\0';
     if (value) {
         AC_STRNCPY(m->value, value, MAX_MACRO_VALUE - 1);
         m->value[MAX_MACRO_VALUE - 1] = '\0';
     }
+    m->is_function = is_function;
+    m->num_params  = num_params;
+    for (U32 k = 0; k < num_params; k++)
+        AC_STRNCPY(m->params[k], params[k], MAX_MACRO_PARAM_LEN - 1);
     arr->macros[arr->len++] = m;
     return TRUE;
 }
@@ -588,18 +678,136 @@ STATIC VOID REPLACE_WORD(PU8 line, PU8 name, PU8 value) {
     line[BUF_SZ - 1] = '\0';
 }
 
+/*
+ * Function-like macro expansion: replace every invocation of `m` of the
+ * form  NAME(arg1, arg2, ...)  with its body after substituting each
+ * parameter with the corresponding argument.  Arguments are split on
+ * top-level commas (nested parentheses are respected) and whitespace is
+ * trimmed.  Unbalanced parentheses cause the invocation to be left
+ * untouched.  Modifies `line` in-place (up to BUF_SZ).
+ */
+STATIC VOID REPLACE_FUNCTION_MACRO(PU8 line, PMACRO m) {
+    U32 name_len = (U32)AC_STRLEN(m->name);
+    if (!name_len) return;
+
+    U8  out[BUF_SZ];
+    U32 out_len = 0;
+    PU8 p = line;
+
+    while (*p) {
+        PU8 found = AC_STRSTR(p, m->name);
+        if (!found) {
+            U32 rest = (U32)AC_STRLEN(p);
+            if (out_len + rest < BUF_SZ) {
+                AC_STRNCPY(out + out_len, p, BUF_SZ - out_len - 1);
+                out_len += rest;
+            }
+            break;
+        }
+
+        BOOL left_ok  = (found > line) ? !IS_IDENT_CHAR(*(found - 1)) : TRUE;
+        BOOL right_ok = (*(found + name_len) == '(');
+
+        if (!(left_ok && right_ok)) {
+            /* Not an invocation — copy up to and including the name verbatim. */
+            U32 skip = (U32)(found - p) + name_len;
+            if (out_len + skip < BUF_SZ) {
+                AC_STRNCPY(out + out_len, p, skip);
+                out_len += skip;
+            }
+            p = found + name_len;
+            continue;
+        }
+
+        /* Copy text before the invocation */
+        U32 before = (U32)(found - p);
+        if (out_len + before < BUF_SZ) {
+            AC_STRNCPY(out + out_len, p, before);
+            out_len += before;
+        }
+
+        /* Locate the matching close parenthesis (respecting nesting). */
+        PU8 open = found + name_len;   /* points at '(' */
+        PU8 q    = open + 1;
+        U32 depth = 1;
+        while (*q && depth > 0) {
+            if (*q == '(') depth++;
+            else if (*q == ')') depth--;
+            q++;
+        }
+
+        if (depth != 0) {
+            /* Unterminated — emit the name literally and move past it. */
+            if (out_len + name_len < BUF_SZ) {
+                AC_STRNCPY(out + out_len, m->name, name_len);
+                out_len += name_len;
+            }
+            p = found + name_len;
+            continue;
+        }
+
+        /* Split [open+1, q-1) into arguments on top-level commas. */
+        U8 args[MAX_MACRO_PARAMS][MAX_MACRO_VALUE];
+        U32 num_args = 0;
+        AC_MEMZERO(args, sizeof(args));
+        {
+            PU8 a = open + 1;
+            PU8 end = q - 1;
+            while (a < end && num_args < MAX_MACRO_PARAMS) {
+                while (a < end && (*a == ' ' || *a == '\t')) a++;
+                PU8 s = a;
+                U32 d = 0;
+                while (a < end) {
+                    if (*a == '(') d++;
+                    else if (*a == ')') d--;
+                    else if (*a == ',' && d == 0) break;
+                    a++;
+                }
+                U32 alen = (U32)(a - s);
+                while (alen > 0 && (s[alen - 1] == ' ' || s[alen - 1] == '\t')) alen--;
+                if (alen >= MAX_MACRO_VALUE) alen = MAX_MACRO_VALUE - 1;
+                AC_STRNCPY(args[num_args], s, alen);
+                args[num_args][alen] = '\0';
+                num_args++;
+                if (a < end && *a == ',') a++;
+            }
+        }
+
+        /* Substitute parameters with arguments in a scratch copy of the body. */
+        U8 body[BUF_SZ];
+        AC_STRNCPY(body, m->value, BUF_SZ - 1);
+        body[BUF_SZ - 1] = '\0';
+        for (U32 i = 0; i < m->num_params; i++)
+            REPLACE_WORD(body, m->params[i], (i < num_args) ? args[i] : (PU8)"");
+
+        U32 blen = (U32)AC_STRLEN(body);
+        if (out_len + blen < BUF_SZ) {
+            AC_STRNCPY(out + out_len, body, BUF_SZ - out_len - 1);
+            out_len += blen;
+        }
+
+        p = q;   /* continue after the closing parenthesis */
+    }
+
+    out[out_len] = '\0';
+    AC_STRNCPY(line, out, BUF_SZ - 1);
+    line[BUF_SZ - 1] = '\0';
+}
+
 STATIC VOID REPLACE_MACROS_IN_LINE(PU8 line, MACRO_ARR *local) {
     /* Globals first */
     for (U32 i = 0; i < glb_macros.len; i++) {
         PMACRO m = glb_macros.macros[i];
         if (!m || !AC_STRSTR(line, m->name)) continue;
-        REPLACE_WORD(line, m->name, m->value);
+        if (m->is_function) REPLACE_FUNCTION_MACRO(line, m);
+        else                REPLACE_WORD(line, m->name, m->value);
     }
     /* Then local/per-unit */
     for (U32 i = 0; i < local->len; i++) {
         PMACRO m = local->macros[i];
         if (!m || !AC_STRSTR(line, m->name)) continue;
-        REPLACE_WORD(line, m->name, m->value);
+        if (m->is_function) REPLACE_FUNCTION_MACRO(line, m);
+        else                REPLACE_WORD(line, m->name, m->value);
     }
 }
 
@@ -767,9 +975,11 @@ static U32  pp_open_depth ATTRIB_DATA = 0;
  * ════════════════════════════════════════════════════════════════════════════
  *  PREPROCESS A SINGLE FILE  (recursive for #include)
  * ════════════════════════════════════════════════════════════════════════════
+ * 
+ * Returns 0 on failure, otherwise the line count
  */
-STATIC BOOL PREPROCESS_FILE(FILE *file, FILE *tmp_file, MACRO_ARR *mcr,
-                            PREPROCESSING_UNIT *unit, PU8 cur_dir) {
+STATIC U32 PREPROCESS_FILE(FILE *file, FILE *tmp_file, MACRO_ARR *mcr,
+                            PREPROCESSING_UNIT *unit, PU8 cur_dir, U32 *total_lines) {
     U8 buf[BUF_SZ] = { 0 };
     while (READ_LOGICAL_LINE(file, buf, sizeof(buf))) {
         REMOVE_COMMENTS(buf, unit->type);
@@ -793,6 +1003,18 @@ STATIC BOOL PREPROCESS_FILE(FILE *file, FILE *tmp_file, MACRO_ARR *mcr,
             PU8 value = EXTRACT_VALUE(buf, matched);
 
             switch (matched) {
+                case IDENT_PUSH: {
+                    PU8 push_type = EXTRACT_SINGLE_VALUE(buf, IDENT_PUSH);
+                    PUSH_MACRO_SOLVE(push_type, *total_lines);
+                    AC_MFree(push_type);
+                    break;
+                }
+                case IDENT_POP: {
+                    PU8 push_type = EXTRACT_SINGLE_VALUE(buf, IDENT_POP);
+                    POP_MACRO_SOLVE(push_type, *total_lines);
+                    AC_MFree(push_type);
+                    break;
+                }
                 case IDENT_IFDEF:  IF_STACK_PUSH(name, mcr, FALSE); break;
                 case IDENT_IFNDEF: IF_STACK_PUSH(name, mcr, TRUE);  break;
                 case IDENT_ELIF:   IF_STACK_ELIF(name, mcr);        break;
@@ -804,19 +1026,29 @@ STATIC BOOL PREPROCESS_FILE(FILE *file, FILE *tmp_file, MACRO_ARR *mcr,
 
                     switch (matched) {
                         /* ── #define ── */
-                        case IDENT_DEFINE:
+                        case IDENT_DEFINE: {
                             /* Expand macros in the value, then try to evaluate
-                               it as a constant integer expression. */
-                            if (value) {
-                                REPLACE_MACROS_IN_LINE(value, mcr);
-                                PP_TRY_EVAL(value);
+                               it as a constant integer expression.  Expansion
+                               runs in a full-size buffer: `value` is allocated
+                               to the exact source length and macro expansion
+                               (e.g. `#define X (1000/PIT_TICK_H)`) can grow it,
+                               so replacing directly in `value` overflows it. */
+                            U8 exp[BUF_SZ];
+                            PU8 v = value;
+                            if (v) {
+                                AC_STRNCPY(exp, v, BUF_SZ - 1);
+                                exp[BUF_SZ - 1] = '\0';
+                                REPLACE_MACROS_IN_LINE(exp, mcr);
+                                PP_TRY_EVAL(exp);
+                                v = exp;
                             }
-                            if (!DEFINE_MACRO(name, value, mcr)) {
+                            if (!DEFINE_MACRO(name, v, mcr)) {
                                 AC_PRINTF("[PP] Failed to define macro '%s'\n", name);
                                 AC_MFree(name); AC_MFree(value);
                                 return FALSE;
                             }
                             break;
+                        }
 
                         /* ── #undef ── */
                         case IDENT_UNDEF:
@@ -872,7 +1104,7 @@ STATIC BOOL PREPROCESS_FILE(FILE *file, FILE *tmp_file, MACRO_ARR *mcr,
                             PP_NORMALIZE(sub_dir);
                             pp_open_depth++;
 
-                            BOOL ok = PREPROCESS_FILE(inc, tmp_file, mcr, unit, sub_dir);
+                            BOOL ok = PREPROCESS_FILE(inc, tmp_file, mcr, unit, sub_dir, total_lines);
 
                             pp_open_depth--;
                             AC_FCLOSE(inc);
@@ -883,7 +1115,7 @@ STATIC BOOL PREPROCESS_FILE(FILE *file, FILE *tmp_file, MACRO_ARR *mcr,
                         case IDENT_ERROR: {
                             AC_MFree(value);
                             value = EXTRACT_SINGLE_VALUE(buf, matched);
-                            AC_PRINTF("[PP] ERROR: %s\n", value ? value : "(empty)");
+                            AC_PRINTF_ERR("[PP] ERROR: %s\n", value ? value : "(empty)");
                             AC_MFree(name); AC_MFree(value);
                             return FALSE;
                         }
@@ -892,7 +1124,7 @@ STATIC BOOL PREPROCESS_FILE(FILE *file, FILE *tmp_file, MACRO_ARR *mcr,
                         case IDENT_WARNING: {
                             AC_MFree(value);
                             value = EXTRACT_SINGLE_VALUE(buf, matched);
-                            AC_PRINTF("[PP] WARNING: %s\n", value ? value : "(empty)");
+                            AC_PRINTF_WARN("[PP] WARNING: %s\n", value ? value : "(empty)");
                         } break;
                     }
                     break;
@@ -915,6 +1147,7 @@ STATIC BOOL PREPROCESS_FILE(FILE *file, FILE *tmp_file, MACRO_ARR *mcr,
             if (!AC_FWRITE(tmp_file, buf, len + 1))
                 return FALSE;
         }
+        (*total_lines)++;
     }
 
     return TRUE;
@@ -940,7 +1173,7 @@ VOID FREE_PREPROCESSING_UNITS() {
  * ════════════════════════════════════════════════════════════════════════════
  *  PREPROCESS_ASM — top-level entry point
  * ════════════════════════════════════════════════════════════════════════════
- *  1. Create /TMP/00.AS
+ *  1. Create /tmp/00.AS
  *  2. Open the input file
  *  3. Run PREPROCESS_FILE (recursive for includes)
  *  4. Store the temp path in info->tmp_files[0]
@@ -968,7 +1201,7 @@ PASM_INFO PREPROCESS_ASM() {
 
     /* ── Build temp file path ── */
     U8 tmp_path[32];
-    AC_SPRINTF(tmp_path, "/TMP/00.AS");
+    AC_SPRINTF(tmp_path, "/tmp/00.AS");
     if (AC_FILE_EXISTS(tmp_path)) {
         if (!AC_FILE_DELETE(tmp_path)) {
             AC_PRINTF("[PP] Cannot delete existing temp file: %s\n", tmp_path);
@@ -1001,14 +1234,14 @@ PASM_INFO PREPROCESS_ASM() {
     }
 
     if (args->verbose) AC_PRINTF("[PP] Processing: %s -> %s\n", args->input_file, tmp_path);
-
+    U32 lines = 0;
     /* ── Run preprocessor ── */
     {
         U8 top_dir[BUF_SZ] = { 0 };
         PP_GET_DIR(args->input_file, top_dir, sizeof(top_dir));
         PP_NORMALIZE(top_dir);
         pp_open_depth = 0;
-        BOOL ok = PREPROCESS_FILE(unit->file, tmp, &unit->macros, unit, top_dir);
+        BOOL ok = PREPROCESS_FILE(unit->file, tmp, &unit->macros, unit, top_dir, &lines);
         pp_open_depth--;
         AC_FCLOSE(tmp);
 
@@ -1058,7 +1291,7 @@ PASM_INFO PREPROCESS_C() {
     #ifdef _WIN32
     AC_SPRINTF(tmp_path, "C:\\TMP\\00.AC");
     #else
-    AC_SPRINTF(tmp_path, "/TMP/00.AC");
+    AC_SPRINTF(tmp_path, "/tmp/00.AC");
     #endif
     if (AC_FILE_EXISTS(tmp_path)) {
         if (!AC_FILE_DELETE(tmp_path)) {
@@ -1099,7 +1332,8 @@ PASM_INFO PREPROCESS_C() {
         PP_GET_DIR(args->input_file, top_dir, sizeof(top_dir));
         PP_NORMALIZE(top_dir);
         pp_open_depth = 0;
-        BOOL ok = PREPROCESS_FILE(unit->file, tmp, &unit->macros, unit, top_dir);
+        U32 lines = 0;
+        BOOL ok = PREPROCESS_FILE(unit->file, tmp, &unit->macros, unit, top_dir, &lines);
         pp_open_depth--;
         AC_FCLOSE(tmp);
 

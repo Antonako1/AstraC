@@ -771,20 +771,25 @@ INT3                 ; breakpoint (single-byte, opcode CC)
 
 | Mnemonic | Opcode | Type | Description |
 |----------|--------|------|-------------|
-| `JMP rel8` | EB | Short | Jump ±127 bytes |
-| `JMP rel32` | E9 | Near | Jump ±2GB |
+| `JMP SHORT rel8` | EB | Short | Jump ±127 bytes |
+| `JMP NEAR rel32` | E9 | Near | Jump ±2GB |
+| `JMP FAR seg:off` | EA | Far | Far jump to segment:offset pointer |
 | `JMP r/m32` | FF /4 | Indirect | Jump to address in register/memory |
 | `CALL rel32` | E8 | Near | Call procedure |
 | `CALL r/m32` | FF /2 | Indirect | Call via register/memory |
 
-### Near Conditional Jumps (rel32, 0F-prefixed)
+### Jump Distance Qualifiers & Automatic Relaxation
 
-Same conditions as short jumps but with 32-bit displacement. Opcodes
-`0F 80` through `0F 8F`.
+Jumps support explicit distance specifiers: `SHORT`, `NEAR`, and `FAR`.
+
+- **Automatic Jump Relaxation**: Direct conditional branches (`Jcc`) default to short (`rel8`) displacement and are automatically promoted to near (`0F 8x rel32`) forms during assembly when the target label is outside the range \([-128, +127]\) bytes.
+- **Forced SHORT Jumps**: Specifying `SHORT` (e.g. `JZ SHORT label`) forces an 8-bit displacement. If the target is out of range, the assembler reports a hard error. Instructions like `LOOP`, `LOOPE`, `LOOPNE`, and `JCXZ` are strictly short and cannot be relaxed.
+- **Far Jumps**: Specifying `FAR` accepts either immediate `segment:offset` pairs or symbol references (`JMP FAR seg_name:off_name`).
 
 ```asm
-JZ short_label       ; short jump (rel8)
-JZ far_label         ; near jump (0F 84 rel32) — selected by distance
+JZ label              ; Auto-relaxed to near (0F 84 rel32) if label > 127 bytes away
+JMP SHORT loop_top    ; Forced short jump (EB rel8)
+JMP FAR 0x0000:0x7C00 ; Far jump to absolute segment and offset
 ```
 
 ### Loop Instructions
@@ -965,26 +970,32 @@ REPNE SCASB          ; scan for AL in [EDI] string
 
 ### IN / OUT — Port I/O
 
+Supports both explicit two-operand syntax and legacy implicit single-operand syntax (where `AL`/`AX`/`EAX` is implicit):
+
 | Mnemonic | Opcode | Description |
 |----------|--------|-------------|
-| `IN AL, imm8` | E4 | Input byte from port imm8 |
-| `IN AX, imm8` | 66 E5 | Input word from port imm8 |
-| `IN EAX, imm8` | E5 | Input dword from port imm8 |
-| `IN AL, DX` | EC | Input byte from port DX |
-| `IN AX, DX` | 66 ED | Input word from port DX |
-| `IN EAX, DX` | ED | Input dword from port DX |
-| `OUT imm8, AL` | E6 | Output byte to port imm8 |
-| `OUT imm8, AX` | 66 E7 | Output word to port imm8 |
-| `OUT imm8, EAX` | E7 | Output dword to port imm8 |
-| `OUT DX, AL` | EE | Output byte to port DX |
-| `OUT DX, AX` | 66 EF | Output word to port DX |
-| `OUT DX, EAX` | EF | Output dword to port DX |
+| `IN AL, imm8` | E4 | Input byte from port imm8 into AL |
+| `IN AX, imm8` | 66 E5 | Input word from port imm8 into AX |
+| `IN EAX, imm8` | E5 | Input dword from port imm8 into EAX |
+| `IN AL, DX` | EC | Input byte from port DX into AL |
+| `IN AX, DX` | 66 ED | Input word from port DX into AX |
+| `IN EAX, DX` | ED | Input dword from port DX into EAX |
+| `IN imm8` | E4 | Input byte from port imm8 into AL (implicit) |
+| `OUT imm8, AL` | E6 | Output byte AL to port imm8 |
+| `OUT imm8, AX` | 66 E7 | Output word AX to port imm8 |
+| `OUT imm8, EAX` | E7 | Output dword EAX to port imm8 |
+| `OUT DX, AL` | EE | Output byte AL to port DX |
+| `OUT DX, AX` | 66 EF | Output word AX to port DX |
+| `OUT DX, EAX` | EF | Output dword EAX to port DX |
+| `OUT imm8` | E6 | Output byte AL to port imm8 (implicit) |
 
 ```asm
-IN AL, 0x60          ; read keyboard port
-OUT 0x20, AL         ; send EOI to PIC
-IN EAX, DX           ; read dword from port in DX
-OUT DX, AL           ; write byte to port in DX
+IN AL, 0x60          ; read keyboard port into AL
+OUT 0x20, AL         ; send EOI byte in AL to PIC port 0x20
+IN 0x60              ; implicit AL: read keyboard port into AL
+OUT 0x20             ; implicit AL: send EOI byte in AL to PIC port 0x20
+IN EAX, DX           ; read dword from port in DX into EAX
+OUT DX, AL           ; write byte in AL to port in DX
 ```
 
 ---

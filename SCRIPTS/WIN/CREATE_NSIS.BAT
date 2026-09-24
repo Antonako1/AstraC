@@ -19,7 +19,18 @@ if "%NSIS%"=="" (
 )
 
 set "NOBUILD="
+set "BATCH="
+if defined CI set "BATCH=1"
+
+:parse_args
+if "%~1"=="" goto done_args
 if /i "%~1"=="-nobuild" set "NOBUILD=1"
+if /i "%~1"=="-batch"   set "BATCH=1"
+if /i "%~1"=="-ci"      set "BATCH=1"
+if /i "%~1"=="-noconfirm" set "BATCH=1"
+shift
+goto parse_args
+:done_args
 
 pushd "%PROJECT_ROOT%"
 
@@ -36,6 +47,10 @@ if defined NOBUILD (
     pushd "%BUILD_DIR%"
     cmake -G "Visual Studio 17 2022" -A x64 ..
     if %ERRORLEVEL% neq 0 ( 
+        if defined BATCH (
+            echo Build configuration failed. Exiting.
+            popd & popd & exit /b 1
+        )
         set /p "answ=Delete the build directory and try again? (Y/N): "
         if /i "!answ!"=="Y" (
             popd
@@ -79,12 +94,13 @@ for /f "usebackq delims=" %%v in ("%VERSION_FILE%") do set "VERSION=%%v"
 echo   %BUILD_DIR%\AstraC-Setup-%VERSION%.exe
 echo ============================================
 
-echo Run the installer to install AstraC, (Y/N).
-
-set /p "RUN_INSTALLER=>"
-if /i "%RUN_INSTALLER%"=="Y" (
-    start "" "%BUILD_DIR%\AstraC-Setup-%VERSION%.exe"
-    echo Installer started. Follow the prompts to complete the installation.
+if not defined BATCH (
+    echo Run the installer to install AstraC, (Y/N).
+    set /p "RUN_INSTALLER=>"
+    if /i "!RUN_INSTALLER!"=="Y" (
+        start "" "%BUILD_DIR%\AstraC-Setup-%VERSION%.exe"
+        echo Installer started. Follow the prompts to complete the installation.
+    )
 )
 
 popd
