@@ -959,29 +959,38 @@ STATIC PASM_NODE PARSE_INSTRUCTION(TOK_CURSOR *cur) {
     PASM_NODE n = ALLOC_NODE(NODE_INSTRUCTION, mnem_tok);
     if (!n) return NULLPTR;
 
-    /* ── 1. Parse operands first ─────────────────────────────────────── */
+    /* ── 1. Parse operands first (prefixes take 0 operands) ─────────── */
     n->instr.operand_count = 0;
-    BOOL first = TRUE;
+    BOOL is_prefix = (AC_STRICMP(mnem_tok->txt, "rep")   == 0 ||
+                      AC_STRICMP(mnem_tok->txt, "repe")  == 0 ||
+                      AC_STRICMP(mnem_tok->txt, "repz")  == 0 ||
+                      AC_STRICMP(mnem_tok->txt, "repne") == 0 ||
+                      AC_STRICMP(mnem_tok->txt, "repnz") == 0 ||
+                      AC_STRICMP(mnem_tok->txt, "lock")  == 0);
 
-    while (!TOK_AT_END(cur) && !TOK_MATCH(cur, TOK_EOL)) {
-        if (!first) {
-            /* expect comma separator */
-            if (!PEEK_SYMBOL(cur, SYM_COMMA)) break;
-            TOK_ADVANCE(cur);   /* consume ',' */
-        }
-        first = FALSE;
+    if (!is_prefix) {
+        BOOL first = TRUE;
 
-        if (n->instr.operand_count >= MAX_OPERANDS) {
-            AC_PRINTF("[AST] Too many operands at L%u\n", mnem_tok->line);
-            break;
-        }
+        while (!TOK_AT_END(cur) && !TOK_MATCH(cur, TOK_EOL)) {
+            if (!first) {
+                /* expect comma separator */
+                if (!PEEK_SYMBOL(cur, SYM_COMMA)) break;
+                TOK_ADVANCE(cur);   /* consume ',' */
+            }
+            first = FALSE;
 
-        ASM_OPERAND op;
-        if (!PARSE_OPERAND(cur, &op)) {
-            AC_PRINTF("[AST] Bad operand in '%s' at L%u\n", mnem_tok->txt, mnem_tok->line);
-            break;
+            if (n->instr.operand_count >= MAX_OPERANDS) {
+                AC_PRINTF("[AST] Too many operands at L%u\n", mnem_tok->line);
+                break;
+            }
+
+            ASM_OPERAND op;
+            if (!PARSE_OPERAND(cur, &op)) {
+                AC_PRINTF("[AST] Bad operand in '%s' at L%u\n", mnem_tok->txt, mnem_tok->line);
+                break;
+            }
+            n->instr.operands[n->instr.operand_count++] = op;
         }
-        n->instr.operands[n->instr.operand_count++] = op;
     }
 
     /* ── 1b. Shift/rotate by-CL or by-1 canonicalization ─────────────
