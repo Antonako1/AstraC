@@ -164,7 +164,8 @@ typedef struct _TYPE_FIELD {
 #define PARAM_MAX_COUNT 16
 
 typedef struct _SYMBOL {
-    PU8 name;
+    PU8  name;
+    PU8  func_name;          /* NULLPTR for globals, or owning function name for locals/params */
     SYM_KIND kind;
     COMP_TYPE type;           /* for variables/functions/typedefs */
     COMP_TYPE ret_type;       /* for functions */
@@ -195,7 +196,7 @@ typedef struct _SYMBOL {
     /* Enum values: enum constant name -> U32 value stored via type */
 } SYMBOL;
 
-#define SYM_MAX_ENTRIES 1024
+#define SYM_MAX_ENTRIES 8192
 
 typedef struct _SYM_TABLE {
     SYMBOL entries[SYM_MAX_ENTRIES];

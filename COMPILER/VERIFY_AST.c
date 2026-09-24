@@ -12,22 +12,38 @@ STATIC SYM_TABLE *sym;
 
 STATIC SYMBOL *V_FIND_SYM(PU8 name) {
     if (!name || !*name) return NULLPTR;
-    for (U32 i = 0; i < sym->count; i++)
-        if (sym->entries[i].name && AC_STRCMP(sym->entries[i].name, name) == 0) {
-            if (sym->entries[i].is_file_local && sym->entries[i].file_scope != ctx->file_scope)
-                return NULLPTR; /* file-local symbol from another file — invisible */
-            return &sym->entries[i];
+    /* First: check local symbols in the current function */
+    if (ctx->cur_func && ctx->cur_func->txt) {
+        for (U32 i = 0; i < sym->count; i++) {
+            if (sym->entries[i].name && AC_STRCMP(sym->entries[i].name, name) == 0) {
+                if (sym->entries[i].func_name && AC_STRCMP(sym->entries[i].func_name, ctx->cur_func->txt) == 0)
+                    return &sym->entries[i];
+            }
         }
+    }
+    /* Second: check global symbols */
+    for (U32 i = 0; i < sym->count; i++) {
+        if (sym->entries[i].name && AC_STRCMP(sym->entries[i].name, name) == 0) {
+            if (!sym->entries[i].func_name) {
+                if (sym->entries[i].is_file_local && sym->entries[i].file_scope != ctx->file_scope)
+                    return NULLPTR; /* file-local symbol from another file — invisible */
+                return &sym->entries[i];
+            }
+        }
+    }
     /* Fallback: a bare identifier may name a global variable, which is stored
      * under its g_-prefixed symbol name. */
     U8 gname[256];
     AC_SPRINTF(gname, "g_%s", name);
-    for (U32 i = 0; i < sym->count; i++)
+    for (U32 i = 0; i < sym->count; i++) {
         if (sym->entries[i].name && AC_STRCMP(sym->entries[i].name, gname) == 0) {
-            if (sym->entries[i].is_file_local && sym->entries[i].file_scope != ctx->file_scope)
-                return NULLPTR;
-            return &sym->entries[i];
+            if (!sym->entries[i].func_name) {
+                if (sym->entries[i].is_file_local && sym->entries[i].file_scope != ctx->file_scope)
+                    return NULLPTR;
+                return &sym->entries[i];
+            }
         }
+    }
     return NULLPTR;
 }
 
@@ -143,8 +159,11 @@ STATIC COMP_TYPE VERIFY_NODE(PCNODE n) {
         case CNODE_FUNC_DECL: {
             SYMBOL *fs = V_FIND_SYM(n->txt);
             if (!fs) { ERR("function not in symbol table", n->line, n->col); break; }
+            PCNODE old_func = ctx->cur_func;
+            ctx->cur_func = n;
             for (U32 i = 0; i < n->child_count; i++)
                 if (n->children[i]->ntype != CNODE_PARAM) VERIFY_NODE(n->children[i]);
+            ctx->cur_func = old_func;
             break;
         }
 
@@ -441,8 +460,11 @@ BOOL COMP_VERIFY(PCNODE root, PCOMP_CTX c) {
     ctx = c; sym = &c->symtab;
     ctx->errors   = 0;
     ctx->warnings = 0;
+    ctx->cur_func = NULLPTR;
 
     VERIFY_NODE(root);
+
+    ctx->cur_func = NULLPTR;
 
     if (ctx->errors > 0) {
         AC_PRINTF_ERR("[VERIFY] %u error(s), %u warning(s)\n", ctx->errors, ctx->warnings);

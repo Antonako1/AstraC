@@ -11,6 +11,7 @@ STATIC PCOMP_TOK_ARRAY toks;
 STATIC U32            pos;
 STATIC PCOMP_CTX      ctx;
 STATIC SYM_TABLE      *sym;
+STATIC PU8            parse_cur_func;
 
 /* ── Helpers ──────────────────────────────────────────────────────────────── */
 STATIC PCOMP_TOK PEEK_PREV()  { return (pos > toks->len) ? toks->toks[pos-1] : NULLPTR; }
@@ -35,16 +36,30 @@ STATIC VOID SKIP_TO_SEMI() {
 }
 
 STATIC SYMBOL *SYM_ADD(PU8 name, SYM_KIND kind) {
+    PU8 cur_func = parse_cur_func;
     for (U32 i = 0; i < sym->count; i++) {
-        if (sym->entries[i].name && AC_STRCMP(sym->entries[i].name, name) == 0) {
+        if (!sym->entries[i].name) continue;
+        if (AC_STRCMP(sym->entries[i].name, name) == 0) {
             /* File-local symbols from different scopes don't collide */
             if (sym->entries[i].is_file_local && sym->entries[i].file_scope != ctx->file_scope)
                 continue;
-            return &sym->entries[i];
+            if (kind == SYM_VARIABLE && cur_func) {
+                if (sym->entries[i].func_name && AC_STRCMP(sym->entries[i].func_name, cur_func) == 0)
+                    return &sym->entries[i];
+                continue;
+            } else if (kind == SYM_VARIABLE && !cur_func) {
+                if (!sym->entries[i].func_name)
+                    return &sym->entries[i];
+                continue;
+            } else {
+                if (!sym->entries[i].func_name)
+                    return &sym->entries[i];
+                continue;
+            }
         }
     }
     if (sym->count >= SYM_MAX_ENTRIES) {
-        AC_PRINTF_ERR("[PARSE] Symbol table full\n");
+        AC_PRINTF_ERR("[PARSE] Symbol table full (maximum %u symbols reached)\n", SYM_MAX_ENTRIES);
         ctx->errors++;
         return NULLPTR;
     }
@@ -52,16 +67,31 @@ STATIC SYMBOL *SYM_ADD(PU8 name, SYM_KIND kind) {
     AC_MEMZERO(s, sizeof(SYMBOL));
     s->name = AC_STRDUP(name);
     s->kind = kind;
+    if (kind == SYM_VARIABLE && cur_func) {
+        s->func_name = AC_STRDUP(cur_func);
+    }
     return s;
 }
 
 STATIC SYMBOL *SYM_LOOKUP(PU8 name) {
-    for (U32 i = 0; i < sym->count; i++)
-        if (sym->entries[i].name && AC_STRCMP(sym->entries[i].name, name) == 0) {
-            if (sym->entries[i].is_file_local && sym->entries[i].file_scope != ctx->file_scope)
-                return NULLPTR; /* file-local from another file — invisible */
-            return &sym->entries[i];
+    if (!name || !*name) return NULLPTR;
+    if (parse_cur_func) {
+        for (U32 i = 0; i < sym->count; i++) {
+            if (sym->entries[i].name && AC_STRCMP(sym->entries[i].name, name) == 0) {
+                if (sym->entries[i].func_name && AC_STRCMP(sym->entries[i].func_name, parse_cur_func) == 0)
+                    return &sym->entries[i];
+            }
         }
+    }
+    for (U32 i = 0; i < sym->count; i++) {
+        if (sym->entries[i].name && AC_STRCMP(sym->entries[i].name, name) == 0) {
+            if (!sym->entries[i].func_name) {
+                if (sym->entries[i].is_file_local && sym->entries[i].file_scope != ctx->file_scope)
+                    return NULLPTR; /* file-local from another file — invisible */
+                return &sym->entries[i];
+            }
+        }
+    }
     return NULLPTR;
 }
 
@@ -91,6 +121,7 @@ STATIC BOOL IS_TYPE_START(VOID) {
 STATIC VOID SYM_FREE_ALL() {
     for (U32 i = 0; i < sym->count; i++) {
         if (sym->entries[i].name) AC_MFree(sym->entries[i].name);
+        if (sym->entries[i].func_name) AC_MFree(sym->entries[i].func_name);
         if (sym->entries[i].init_list) AC_MFree(sym->entries[i].init_list);
         for (U32 j = 0; j < sym->entries[i].param_count; j++)
             if (sym->entries[i].param_names[j]) AC_MFree(sym->entries[i].param_names[j]);
@@ -746,6 +777,7 @@ STATIC PCNODE parse_stmt() {
         if (MATCH(CTOK_LPAREN)) {
             ADV();
             /* Parse parameter list */
+            parse_cur_func = it->txt;
             SYMBOL *fs = SYM_ADD(it->txt, SYM_FUNCTION);
             fs->ret_type  = vt;
             fs->is_global = TRUE;
@@ -822,6 +854,7 @@ STATIC PCNODE parse_stmt() {
                 /* Forward declaration only */
                 ADV();
                 fs->is_defined = FALSE;
+                parse_cur_func = NULLPTR;
                 return fn;
             }
 
@@ -831,6 +864,8 @@ STATIC PCNODE parse_stmt() {
             ctx->cur_func  = fn;
             PCNODE body = parse_block();
             ctx->in_func  = FALSE;
+            ctx->cur_func = NULLPTR;
+            parse_cur_func = NULLPTR;
             if (body) CNODE_ADD_CHILD(fn, body);
             return fn;
         }
@@ -1081,6 +1116,7 @@ STATIC PCNODE parse_toplevel() {
         if (MATCH(CTOK_LPAREN)) {
             /* Function */
             ADV();
+            parse_cur_func = it->txt;
             SYMBOL *fs = SYM_ADD(it->txt, SYM_FUNCTION);
             fs->ret_type  = vt;
             fs->is_global = !is_static;
@@ -1147,11 +1183,12 @@ STATIC PCNODE parse_toplevel() {
                 if (fs->param_names[p]) pn->txt = AC_STRDUP(fs->param_names[p]);
                 CNODE_ADD_CHILD(fn, pn);
             }
-            if (MATCH(CTOK_SEMICOLON)) { ADV(); fs->is_defined = FALSE; return fn; }
+            if (MATCH(CTOK_SEMICOLON)) { ADV(); fs->is_defined = FALSE; parse_cur_func = NULLPTR; return fn; }
             fs->is_defined = TRUE;
             ctx->in_func = TRUE; ctx->cur_func = fn;
             PCNODE body = parse_block();
-            ctx->in_func = FALSE;
+            ctx->in_func = FALSE; ctx->cur_func = NULLPTR;
+            parse_cur_func = NULLPTR;
             if (body) CNODE_ADD_CHILD(fn, body);
             return fn;
         }
@@ -1218,6 +1255,9 @@ PCNODE COMP_PARSE(PCOMP_TOK_ARRAY t, PCOMP_CTX c) {
     if (!t || !c) return NULLPTR;
     toks = t; pos = 0; ctx = c; sym = &c->symtab;
     AC_MEMZERO(sym, sizeof(SYM_TABLE));
+    parse_cur_func = NULLPTR;
+    ctx->in_func = FALSE;
+    ctx->cur_func = NULLPTR;
 
     /* Built-in `va_list` type: a pointer into the caller's variadic argument
      * area (fixed args are at EBP+8.., variadic args follow them). */
@@ -1231,5 +1271,8 @@ PCNODE COMP_PARSE(PCOMP_TOK_ARRAY t, PCOMP_CTX c) {
         if (n) CNODE_ADD_CHILD(root, n);
     }
 
+    parse_cur_func = NULLPTR;
+    ctx->in_func = FALSE;
+    ctx->cur_func = NULLPTR;
     return root;
 }

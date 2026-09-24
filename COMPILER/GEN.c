@@ -16,6 +16,7 @@ STATIC U32 new_label()     { return ++ctx->label_counter; }
 STATIC VOID emit(PU8 s)    { AC_FPRINTF(outf, "%s\n", s); }
 STATIC I32  local_offset;  /* growing negative for local vars */
 STATIC U32  cur_param_count; /* fixed params of the function being emitted */
+STATIC PU8  cur_func_name;
 
 /* Helpers for asm block variable substitution */
 STATIC BOOL II_START(U8 c) { return (c>='A'&&c<='Z')||(c>='a'&&c<='z')||c=='_'; }
@@ -24,16 +25,32 @@ STATIC VOID II_UPPER(PU8 s, U32 n) { for(U32 i=0;i<n;i++) if(s[i]>='a'&&s[i]<='z
 
 STATIC SYMBOL *FIND_SYM(PU8 name) {
     if (!name || !*name) return NULLPTR;
-    for (U32 i = 0; i < sym->count; i++)
-        if (sym->entries[i].name && AC_STRCMP(sym->entries[i].name, name) == 0)
-            return &sym->entries[i];
+    /* First: check local symbols in the current function */
+    if (cur_func_name) {
+        for (U32 i = 0; i < sym->count; i++) {
+            if (sym->entries[i].name && AC_STRCMP(sym->entries[i].name, name) == 0) {
+                if (sym->entries[i].func_name && AC_STRCMP(sym->entries[i].func_name, cur_func_name) == 0)
+                    return &sym->entries[i];
+            }
+        }
+    }
+    /* Second: check global symbols */
+    for (U32 i = 0; i < sym->count; i++) {
+        if (sym->entries[i].name && AC_STRCMP(sym->entries[i].name, name) == 0) {
+            if (!sym->entries[i].func_name)
+                return &sym->entries[i];
+        }
+    }
     /* Fallback: a bare identifier may name a global variable, which is stored
      * under its g_-prefixed symbol name. */
     U8 gname[256];
     AC_SPRINTF(gname, "g_%s", name);
-    for (U32 i = 0; i < sym->count; i++)
-        if (sym->entries[i].name && AC_STRCMP(sym->entries[i].name, gname) == 0)
-            return &sym->entries[i];
+    for (U32 i = 0; i < sym->count; i++) {
+        if (sym->entries[i].name && AC_STRCMP(sym->entries[i].name, gname) == 0) {
+            if (!sym->entries[i].func_name)
+                return &sym->entries[i];
+        }
+    }
     return NULLPTR;
 }
 
@@ -982,6 +999,7 @@ STATIC VOID EMIT_RODATA_STRINGS() {
 BOOL COMP_GEN(PCNODE root, PCOMP_CTX c) {
     if (!root || !c) return FALSE;
     ctx = c; sym = &c->symtab;
+    cur_func_name = NULLPTR;
 
     PU8 outfile = c->out_asm;
     if (!outfile) outfile = (PU8)"/tmp/out.AS";
@@ -1031,6 +1049,7 @@ BOOL COMP_GEN(PCNODE root, PCOMP_CTX c) {
             if (n->children[j]->ntype != CNODE_PARAM) { has_body = TRUE; break; }
         if (!has_body) continue;
 
+        cur_func_name = fs->name;
         cur_param_count = fs->param_count;
 
         if (!bootloader) {
@@ -1078,6 +1097,7 @@ BOOL COMP_GEN(PCNODE root, PCOMP_CTX c) {
             emit("    POP EBP");
             emit("    RET");
         }
+        cur_func_name = NULLPTR;
     }
 
     /* Emit string literals in .rodata (skip in bootloader mode) */
@@ -1133,6 +1153,7 @@ BOOL COMP_GEN(PCNODE root, PCOMP_CTX c) {
         }
     }
 
+    cur_func_name = NULLPTR;
     AC_FCLOSE(outf);
     return TRUE;
 }
