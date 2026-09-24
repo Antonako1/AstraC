@@ -11,6 +11,7 @@ STATIC PCOMP_CTX ctx;
 STATIC SYM_TABLE *sym;
 
 STATIC SYMBOL *V_FIND_SYM(PU8 name) {
+    if (!name || !*name) return NULLPTR;
     for (U32 i = 0; i < sym->count; i++)
         if (sym->entries[i].name && AC_STRCMP(sym->entries[i].name, name) == 0) {
             if (sym->entries[i].is_file_local && sym->entries[i].file_scope != ctx->file_scope)
@@ -20,7 +21,7 @@ STATIC SYMBOL *V_FIND_SYM(PU8 name) {
     /* Fallback: a bare identifier may name a global variable, which is stored
      * under its g_-prefixed symbol name. */
     U8 gname[256];
-    AC_SPRINTF(gname, "g_%s", name ? name : (PU8)"");
+    AC_SPRINTF(gname, "g_%s", name);
     for (U32 i = 0; i < sym->count; i++)
         if (sym->entries[i].name && AC_STRCMP(sym->entries[i].name, gname) == 0) {
             if (sym->entries[i].is_file_local && sym->entries[i].file_scope != ctx->file_scope)
@@ -98,7 +99,7 @@ STATIC VOID WARN(PU8 msg, U32 line, U32 col) {
     ctx->warnings++;
 }
 
-STATIC BOOL TYPES_EQUAL(COMP_TYPE a, COMP_TYPE b) {
+BOOL TYPES_EQUAL(COMP_TYPE a, COMP_TYPE b) {
     return a.base == b.base && a.ptr_depth == b.ptr_depth
            && ((a.name && b.name && AC_STRCMP(a.name, b.name) == 0)
                || (!a.name && !b.name));
@@ -329,6 +330,10 @@ STATIC COMP_TYPE VERIFY_NODE(PCNODE n) {
 
             PU8 fname = (n->child_count > 1 && n->children[1]) ? n->children[1]->txt : NULLPTR;
             SYMBOL *ss = st.name ? V_FIND_SYM(st.name) : NULLPTR;
+            while (ss && ss->kind == SYM_TYPEDEF) {
+                if (!ss->type.name) break;
+                ss = V_FIND_SYM(ss->type.name);
+            }
             COMP_TYPE ft = COMP_MAKE_TYPE(CTYPE_U32, 0, NULLPTR);
             U32 foff = 0;
             U32 farr = 0;
