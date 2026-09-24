@@ -348,7 +348,9 @@ ASM_TOK_ARRAY *LEX(PASM_INFO info) {
     }
 
     if (!ok) {
-        if(cfg->verbose) AC_PRINTF("[AS LEX] Not ok, lexer array count: %u/%u\n", res->len, MAX_TOKENS);
+        if(cfg->warning_level > 0) {
+            AC_PRINTF("[AS LEX] Not ok, lexer array count: %u/%u\n", res->len, MAX_TOKENS);
+        }
         DESTROY_TOK_ARR(res);
         return NULLPTR;
     }

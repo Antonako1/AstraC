@@ -20,7 +20,7 @@ typedef struct {
     ASM_DIRECTIVE section; // which section this label belongs to (code/data/rodata) - affects how origin is applied when resolving addresses
 } ASM_PTR;
 
-#define MAX_PTRS 2048
+#define MAX_PTRS 4096
 
 typedef struct {
     U32 code; // current code section offset
