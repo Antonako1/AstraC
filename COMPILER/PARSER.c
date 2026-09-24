@@ -841,6 +841,7 @@ STATIC PCNODE parse_stmt() {
         n->dtype = vt;
         SYMBOL *vs = SYM_ADD(it->txt, SYM_VARIABLE);
         vs->type  = vt;
+        vs->array_size = 0;
         vs->is_global = !ctx->in_func;
         /* Initializer: = expression */
         if (MATCH(CTOK_ASSIGN)) {
@@ -993,8 +994,11 @@ STATIC PCNODE parse_toplevel() {
             while (MATCH(CTOK_STAR)) { ADV(); pd++; }
             if (MATCH(CTOK_IDENT)) {
                 PCOMP_TOK tn = ADV();
+                if (!ss->name) {
+                    ss->name = AC_STRDUP(tn->txt);
+                }
                 SYMBOL *ts = SYM_ADD(tn->txt, SYM_TYPEDEF);
-                ts->type = COMP_MAKE_TYPE(ss->is_union ? CTYPE_UNION : CTYPE_STRUCT, pd, ss->name);
+                ts->type = COMP_MAKE_TYPE(ss->is_union ? CTYPE_UNION : CTYPE_STRUCT, pd, ss->name ? ss->name : tn->txt);
             }
             if (MATCH(CTOK_COMMA)) ADV(); else break;
         }
