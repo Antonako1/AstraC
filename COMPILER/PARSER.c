@@ -327,7 +327,7 @@ STATIC PCNODE parse_atom() {
         ADV();
         PCNODE n = CNODE_STR(t->txt, t->line, t->col);
         /* Assign rodata label */
-        if (ctx->rodata_string_count < 256) {
+        if (ctx->rodata_string_count < MAX_RODATA_STRINGS) {
             ctx->rodata_strings[ctx->rodata_string_count].label = ++ctx->label_counter;
             ctx->rodata_strings[ctx->rodata_string_count].node  = n;
             n->ival = ctx->rodata_strings[ctx->rodata_string_count].label;

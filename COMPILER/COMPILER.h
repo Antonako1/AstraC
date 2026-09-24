@@ -265,6 +265,7 @@ typedef struct {
 /* ════════════════════════════════════════════════════════════════════════════
  *  COMPILER CONTEXT
  * ════════════════════════════════════════════════════════════════════════════ */
+#define MAX_RODATA_STRINGS 512
 typedef struct _COMP_CTX {
     PU8 tmp_src;
     PU8 out_asm;
@@ -273,7 +274,7 @@ typedef struct _COMP_CTX {
     U32 loop_label_stack[32];
     U32 loop_label_stack_top;
 
-    RODATA_STR rodata_strings[256];
+    RODATA_STR rodata_strings[MAX_RODATA_STRINGS];
     U32        rodata_string_count;
 
     SYM_TABLE  symtab;       /* symbol table for parser/verifier/codegen */
