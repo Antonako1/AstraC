@@ -459,8 +459,9 @@ loop:
 
 ### `break` / `continue`
 
-`break` exits the innermost loop or switch. `continue` jumps to the next
-iteration of the innermost loop.
+`break` exits the innermost loop or switch. `continue` advances to the next
+iteration of the innermost loop (in a `for` loop, it jumps to the update/step
+expression before evaluating the condition).
 
 ### `return`
 
