@@ -33,8 +33,12 @@ All notable changes to AstraC will be documented in this file.
 - Standardized CLI flags across documentation and removed legacy hyphen prefixes (`--` / `-`).
 
 ### CI & Release Automation
+- Added standalone GitHub Actions test workflow (`.github/workflows/test.yml`) running matrix compiler tests on Windows (MSVC x64) and Linux (GCC Ninja) on push and pull request to `main` and `development`.
+- Integrated parallel test execution into pre-release workflow (`.github/workflows/pre-release.yml`): `build-windows`, `build-linux`, `test-windows`, and `test-linux` execute simultaneously after version bump, gating release publishing on all jobs passing.
 - Added GitHub Actions pre-release workflow (`.github/workflows/pre-release.yml`) triggering on pushes to `main` to automatically extract commit changelogs, increment the patch version (`SCRIPTS/UPGRADE_VERSION.py 0 0 1`), commit and tag `v<version>`, and publish a pre-release named `patch-build-<version>` with both Windows NSIS installer and Linux package artifacts attached.
-- Added non-interactive `-batch` and `-ci` flag support to `SCRIPTS/WIN/CREATE_NSIS.BAT`.
+- Fixed Linux package build: corrected source filename casing in `CMakeLists.txt` (`"AstraC.c"` / `"AstraC.h"`) to support case-sensitive Linux filesystems and made `ASTRAC.rc` Windows-only (`if (WIN32)`).
+- Fixed Windows NSIS installer job in CI: added automatic NSIS installation (`choco install nsis`) in `.github/workflows/pre-release.yml` and added PATH and Chocolatey discovery to `SCRIPTS/WIN/CREATE_NSIS.BAT`.
+- Added non-interactive `-batch` and `-ci` flag support to `SCRIPTS/WIN/CREATE_NSIS.BAT` and non-interactive handling to `SCRIPTS/SH/MAKE.sh`.
 
 ### Documentation & Website
 - Updated all AstraC documentation files (`README.md`, `AGENTS.md`, `DOCS/*.md`) and external website files (`C:\xampp\htdocs\astrac`).

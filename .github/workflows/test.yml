@@ -1,0 +1,65 @@
+name: Run Test Suite
+
+on:
+  push:
+    branches:
+      - main
+      - development
+    paths-ignore:
+      - 'DOCS/**'
+      - '**.md'
+      - '.gitignore'
+  pull_request:
+    branches:
+      - main
+      - development
+    paths-ignore:
+      - 'DOCS/**'
+      - '**.md'
+      - '.gitignore'
+  workflow_dispatch:
+
+concurrency:
+  group: test-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-windows:
+    name: Test Windows (MSVC x64)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure CMake
+        run: cmake -B build -G "Visual Studio 17 2022" -A x64
+
+      - name: Build AstraC (Release)
+        run: cmake --build build --config Release
+
+      - name: Run Compiler Test Suite
+        shell: powershell
+        run: powershell -ExecutionPolicy Bypass -File TESTS/RUN_COMPILER_TESTS.ps1
+
+  test-linux:
+    name: Test Linux (GCC Ninja)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build build-essential
+
+      - name: Configure CMake
+        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build AstraC
+        run: cmake --build build
+
+      - name: Run Compiler Test Suite
+        run: |
+          chmod +x TESTS/RUN_COMPILER_TESTS.sh
+          ./TESTS/RUN_COMPILER_TESTS.sh

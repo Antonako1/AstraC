@@ -1,7 +1,7 @@
-﻿# CMakeList.txt : CMake project for AstraC, include source and define
+# CMakeList.txt : CMake project for AstraC, include source and define
 # project specific logic here.
 #
-cmake_minimum_required (VERSION 3.8)
+cmake_minimum_required (VERSION 3.10)
 
 # Enable Hot Reload for MSVC compilers if supported.
 if (POLICY CMP0141)
@@ -11,15 +11,18 @@ endif()
 
 project ("AstraC" C CXX)
 
-# Generate resource file with icon path
-configure_file(
-  "${CMAKE_CURRENT_SOURCE_DIR}/ASTRAC.rc.in"
-  "${CMAKE_CURRENT_BINARY_DIR}/ASTRAC.rc"
-  @ONLY
-)
+if (WIN32)
+  # Generate resource file with icon path on Windows
+  configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/ASTRAC.rc.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/ASTRAC.rc"
+    @ONLY
+  )
+  set(RES_SRC "${CMAKE_CURRENT_BINARY_DIR}/ASTRAC.rc")
+endif()
 
 # Add source to this project's executable.
-add_executable (AstraC "ASTRAC.c" "ASTRAC.h" "${CMAKE_CURRENT_BINARY_DIR}/ASTRAC.rc")
+add_executable (AstraC "AstraC.c" "AstraC.h" ${RES_SRC})
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
   set_property(TARGET AstraC PROPERTY CXX_STANDARD 20)
