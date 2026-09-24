@@ -221,9 +221,9 @@ U32 main() {
 
 ### Scope rules
 
+- **Function scope**: Variables and parameters declared within a function are scoped to that function, preventing symbol collisions across functions and shadowing same-named globals. Labels (`goto label:`) are also scoped to the defining function.
 - **Block scope**: Variables declared inside `{ }` are scoped to that block (C99-style).
 - **Loop variables**: `for (U32 i = 0; ...)` -- `i` is scoped to the loop body only.
-- **Function scope**: Labels (`goto label:`) are scoped to the defining function.
 - **Forward declarations**: Functions must have a prototype before first use:
 
 ```c
