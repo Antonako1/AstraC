@@ -1,0 +1,41 @@
+/* Test 08: Inline Assembly Blocks with Variable Substitution */
+
+typedef struct _REGS {
+    U32 eax_val;
+    U32 ebx_val;
+} REGS;
+
+U32 test_basic_asm() {
+    U32 a = 15;
+    U32 b = 25;
+    U32 result = 0;
+
+    asm {
+        MOV EAX, a
+        ADD EAX, b
+        MOV result, EAX
+    }
+
+    return result;
+}
+
+U32 test_struct_asm() {
+    REGS r;
+    r.eax_val = 100;
+    r.ebx_val = 50;
+    U32 diff = 0;
+
+    asm {
+        MOV EAX, r.eax_val
+        SUB EAX, r.ebx_val
+        MOV diff, EAX
+    }
+
+    return diff;
+}
+
+U32 main() {
+    U32 r1 = test_basic_asm();
+    U32 r2 = test_struct_asm();
+    return r1 + r2;
+}

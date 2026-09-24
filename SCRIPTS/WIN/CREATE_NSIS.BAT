@@ -7,11 +7,19 @@ set "NSIS_DIR=%PROJECT_ROOT%\NSIS"
 set "BUILD_DIR=%PROJECT_ROOT%\build"
 
 set "NSIS="
-if exist "%ProgramFiles%\NSIS\makensis.exe"                 set "NSIS=%ProgramFiles%\NSIS\makensis.exe"
-if exist "%ProgramFiles%\..\NSIS\makensis.exe"               set "NSIS=%ProgramFiles%\..\NSIS\makensis.exe"
-if exist "%ProgramW6432%\NSIS\makensis.exe"                  set "NSIS=%ProgramW6432%\NSIS\makensis.exe"
-if exist "%SystemDrive%\Program Files\NSIS\makensis.exe"     set "NSIS=%SystemDrive%\Program Files\NSIS\makensis.exe"
+if exist "%ProgramFiles%\NSIS\makensis.exe"                   set "NSIS=%ProgramFiles%\NSIS\makensis.exe"
+if exist "%ProgramFiles%\..\NSIS\makensis.exe"                 set "NSIS=%ProgramFiles%\..\NSIS\makensis.exe"
+if exist "%ProgramW6432%\NSIS\makensis.exe"                    set "NSIS=%ProgramW6432%\NSIS\makensis.exe"
+if exist "%SystemDrive%\Program Files\NSIS\makensis.exe"       set "NSIS=%SystemDrive%\Program Files\NSIS\makensis.exe"
 if exist "%SystemDrive%\Program Files (x86)\NSIS\makensis.exe" set "NSIS=%SystemDrive%\Program Files (x86)\NSIS\makensis.exe"
+if exist "%ChocolateyInstall%\bin\makensis.exe"                set "NSIS=%ChocolateyInstall%\bin\makensis.exe"
+if exist "C:\ProgramData\chocolatey\bin\makensis.exe"          set "NSIS=C:\ProgramData\chocolatey\bin\makensis.exe"
+if exist "%LOCALAPPDATA%\Programs\NSIS\makensis.exe"           set "NSIS=%LOCALAPPDATA%\Programs\NSIS\makensis.exe"
+
+if "%NSIS%"=="" (
+    where makensis.exe >nul 2>nul
+    if %ERRORLEVEL% equ 0 set "NSIS=makensis.exe"
+)
 
 if "%NSIS%"=="" (
     echo ERROR: NSIS not found. Install NSIS from https://nsis.sourceforge.io/
@@ -46,6 +54,9 @@ if defined NOBUILD (
     if not exist "%BUILD_DIR%" mkdir "%BUILD_DIR%"
     pushd "%BUILD_DIR%"
     cmake -G "Visual Studio 17 2022" -A x64 ..
+    if %ERRORLEVEL% neq 0 (
+        cmake -A x64 ..
+    )
     if %ERRORLEVEL% neq 0 ( 
         if defined BATCH (
             echo Build configuration failed. Exiting.
@@ -58,6 +69,7 @@ if defined NOBUILD (
             mkdir "%BUILD_DIR%"
             pushd "%BUILD_DIR%"
             cmake -G "Visual Studio 17 2022" -A x64 ..
+            if %ERRORLEVEL% neq 0 ( cmake -A x64 .. )
             if %ERRORLEVEL% neq 0 ( popd & popd & exit /b 1 )
         ) else (
             echo Build failed. Exiting.

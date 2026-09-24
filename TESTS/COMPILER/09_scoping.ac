@@ -1,0 +1,51 @@
+/* Test 09: Function-Level Symbol Scoping
+ *
+ * Verifies that identical variable names across different functions
+ * (such as entry, buf, i, size) maintain their own independent types,
+ * offsets, and dimensions without cross-function symbol table collisions.
+ */
+
+typedef struct _FAT_DIR {
+    U8 Name[11];
+    U8 Attr;
+    U32 Cluster;
+    U32 Size;
+} FAT_DIR;
+
+typedef struct _VFS_DIR {
+    U8 FullPath[64];
+    U32 Flags;
+    U8 IsDirectory;
+} VFS_DIR;
+
+U32 func_fat(FAT_DIR *entry) {
+    U32 size = entry->Size;
+    U8 buf[11];
+    for (U32 i = 0; i < 11; i = i + 1) {
+        buf[i] = entry->Name[i];
+    }
+    return size + (U32)buf[0];
+}
+
+U32 func_vfs() {
+    VFS_DIR entry;
+    entry.FullPath[0] = '/';
+    entry.Flags = 0x1234;
+    entry.IsDirectory = 1;
+
+    U8 buf[64];
+    for (U32 i = 0; i < 64; i = i + 1) {
+        buf[i] = entry.FullPath[i];
+    }
+    return entry.Flags + (U32)buf[0] + (U32)entry.IsDirectory;
+}
+
+U32 main() {
+    FAT_DIR fd;
+    fd.Name[0] = 'K';
+    fd.Size = 4096;
+
+    U32 r1 = func_fat(&fd);
+    U32 r2 = func_vfs();
+    return r1 + r2;
+}

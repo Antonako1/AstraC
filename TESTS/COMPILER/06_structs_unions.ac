@@ -1,0 +1,94 @@
+/* Test 06: Structs, Unions, Typedefs, and 1-byte Packing */
+
+typedef struct _PACKED_TEST {
+    U8  b1;    /* offset 0 */
+    U32 dw;    /* offset 1 (no 4-byte padding) */
+    U8  b2;    /* offset 5 (no tail padding) */
+} PACKED_TEST;
+
+typedef struct _POINT {
+    U32 x;
+    U32 y;
+} POINT, *PPOINT;
+
+typedef struct _RECT {
+    POINT top_left;
+    POINT bottom_right;
+} RECT;
+
+typedef union _DATA {
+    U32 as_u32;
+    U16 as_u16;
+    U8  as_u8;
+} DATA;
+
+typedef struct _ENTRY {
+    U8 Name[11];
+    U8 Attr;
+    U32 Size;
+} ENTRY;
+
+U32 test_packing() {
+    /* PACKED_TEST must be 6 bytes (1 + 4 + 1) */
+    U32 sz = sizeof(PACKED_TEST);
+    return sz;
+}
+
+U32 test_struct_access() {
+    RECT r;
+    r.top_left.x = 10;
+    r.top_left.y = 20;
+    r.bottom_right.x = 100;
+    r.bottom_right.y = 200;
+
+    RECT *pr = &r;
+    U32 width = pr->bottom_right.x - pr->top_left.x;
+    U32 height = pr->bottom_right.y - pr->top_left.y;
+    return width * height;
+}
+
+U32 test_union() {
+    DATA d;
+    d.as_u32 = 0x12345678;
+    return d.as_u8;
+}
+
+U32 test_struct_assignment() {
+    POINT p1;
+    p1.x = 42;
+    p1.y = 84;
+
+    POINT p2;
+    p2 = p1;
+
+    POINT p3;
+    POINT *dest = &p3;
+    *dest = p2;
+
+    return p3.x + p3.y;
+}
+
+U32 test_struct_array() {
+    ENTRY entries[3];
+    entries[0].Name[0] = 'A';
+    entries[0].Size = 100;
+    entries[1].Name[0] = 'B';
+    entries[1].Size = 200;
+    entries[2].Name[0] = 'C';
+    entries[2].Size = 300;
+
+    U32 total = 0;
+    for (U32 i = 0; i < 3; i = i + 1) {
+        total = total + entries[i].Size;
+    }
+    return total;
+}
+
+U32 main() {
+    U32 r1 = test_packing();
+    U32 r2 = test_struct_access();
+    U32 r3 = test_union();
+    U32 r4 = test_struct_assignment();
+    U32 r5 = test_struct_array();
+    return r1 + r2 + r3 + r4 + r5;
+}

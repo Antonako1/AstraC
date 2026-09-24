@@ -118,12 +118,15 @@ jobs:
   build-windows:
     name: Build Windows NSIS Installer
     needs: prepare-release
-    runs-on: windows-latest
+    runs-on: windows-2022
     steps:
       - name: Checkout bumped tag
         uses: actions/checkout@v4
         with:
           ref: ${{ needs.prepare-release.outputs.tag_name }}
+
+      - name: Install NSIS
+        run: choco install nsis --no-progress -y
 
       - name: Build AstraC & NSIS Installer
         shell: cmd
@@ -164,9 +167,56 @@ jobs:
           path: build/AstraC-*-linux-*.tar.gz
           if-no-files-found: error
 
+  test-windows:
+    name: Test Windows (MSVC x64)
+    needs: prepare-release
+    runs-on: windows-2022
+    steps:
+      - name: Checkout bumped tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare-release.outputs.tag_name }}
+
+      - name: Configure CMake
+        shell: bash
+        run: cmake -B build -G "Visual Studio 17 2022" -A x64 || cmake -B build -A x64
+
+      - name: Build AstraC (Release)
+        run: cmake --build build --config Release
+
+      - name: Run Compiler Test Suite
+        shell: powershell
+        run: powershell -ExecutionPolicy Bypass -File TESTS/RUN_COMPILER_TESTS.ps1
+
+  test-linux:
+    name: Test Linux (GCC Ninja)
+    needs: prepare-release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout bumped tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare-release.outputs.tag_name }}
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build build-essential
+
+      - name: Configure CMake
+        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build AstraC
+        run: cmake --build build
+
+      - name: Run Compiler Test Suite
+        run: |
+          chmod +x TESTS/RUN_COMPILER_TESTS.sh
+          ./TESTS/RUN_COMPILER_TESTS.sh
+
   publish-release:
     name: Publish Pre-Release
-    needs: [prepare-release, build-windows, build-linux]
+    needs: [prepare-release, build-windows, build-linux, test-windows, test-linux]
     runs-on: ubuntu-latest
     steps:
       - name: Download Release Notes

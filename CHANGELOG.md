@@ -17,19 +17,32 @@ All notable changes to AstraC will be documented in this file.
 - Fixed local pointer array indexing in `GEN_ARR_BASE`: indexing through a pointer variable (e.g. `entry[j]`) now correctly loads the pointer value (`MOV EAX, [EBP-off]`) instead of loading the stack slot address (`LEA EAX, [EBP-off]`).
 - Fixed anonymous struct typedef symbol resolution and type size calculation: `typedef struct { ... } NAME;` now correctly assigns the tag name to the struct symbol so `GEN_TYPE_SIZE` computes exact struct dimensions instead of defaulting or misidentifying global variables.
 - Implemented function-level symbol scoping and increased symbol capacity: added `func_name` scope tagging to `SYMBOL` and expanded `SYM_MAX_ENTRIES` from 1024 to 8192. Scoped parser (`SYM_ADD`/`SYM_LOOKUP`), verifier (`V_FIND_SYM`), and code generator (`FIND_SYM`) to function boundaries, preventing variable name collisions across functions and resolving erroneous type overwrite bugs (such as `entry[j]` inheriting struct types and strides from other functions).
+- Fixed `continue;` statement branching in `for` loops (`COMPILER/GEN.c`): jumps to the loop update/increment expression label (`lbl_step`) rather than the condition test label (`lbl_start`), ensuring loop counters increment correctly and preventing infinite loops. Also updated `do ... while` to jump to condition evaluation (`lbl_cond`).
+- Fixed `CNODE_TERNARY` AST verification (`COMPILER/VERIFY_AST.c`): added verification of the ternary `else` branch (`children[2]`), ensuring struct member accesses inside `else` expressions have their byte offsets (`ival`) properly resolved instead of defaulting to offset 0.
 
 ### Assembler Fixes
 - Fixed instruction prefix parsing in `ASSEMBLER/AST.c`: prefixes (`REP`, `REPE`, `REPZ`, `REPNE`, `REPNZ`, `LOCK`) are now treated as 0-operand instructions, allowing same-line prefix instructions (e.g., `REP MOVSD`, `LOCK CMPXCHG`) to parse and encode correctly instead of failing with missing mnemonic form errors.
+
+### Testing & Test Suite
+- Added comprehensive compiler test suite under `TESTS/COMPILER/` containing 9 test files covering all compiler features: types & variables (`01_types_and_vars.ac`), operators & expressions (`02_operators.ac`), control flow (`03_control_flow.ac`), for-loop continue (`04_for_continue.ac`), ternary expressions with struct offsets (`05_ternary.ac`), structs/unions/packing (`06_structs_unions.ac`), functions/recursion/variadics (`07_functions.ac`), inline assembly (`08_inline_asm.ac`), and function symbol scoping (`09_scoping.ac`).
+- Added automated test runner scripts: PowerShell (`TESTS/RUN_COMPILER_TESTS.ps1`) and Bash (`TESTS/RUN_COMPILER_TESTS.sh`) with regression checks on assembly output.
+- Added Testing & Verification Rule to `AGENTS.md` mandating test execution for all changes.
 
 ### CLI & Tools
 - Added `strdump <file.BIN>` command (`STRDUMP.c`) to inspect and dump null-terminated string literals from the `.rodata` section of ACFH executable/library binaries.
 - Standardized CLI flags across documentation and removed legacy hyphen prefixes (`--` / `-`).
 
 ### CI & Release Automation
+- Added standalone GitHub Actions test workflow (`.github/workflows/test.yml`) running matrix compiler tests on Windows (MSVC x64) and Linux (GCC Ninja) on push and pull request to `main` and `development`.
+- Integrated parallel test execution into pre-release workflow (`.github/workflows/pre-release.yml`): `build-windows`, `build-linux`, `test-windows`, and `test-linux` execute simultaneously after version bump, gating release publishing on all jobs passing.
 - Added GitHub Actions pre-release workflow (`.github/workflows/pre-release.yml`) triggering on pushes to `main` to automatically extract commit changelogs, increment the patch version (`SCRIPTS/UPGRADE_VERSION.py 0 0 1`), commit and tag `v<version>`, and publish a pre-release named `patch-build-<version>` with both Windows NSIS installer and Linux package artifacts attached.
-- Added non-interactive `-batch` and `-ci` flag support to `SCRIPTS/WIN/CREATE_NSIS.BAT`.
+- Fixed Linux package build: corrected source filename casing in `CMakeLists.txt` (`"AstraC.c"` / `"AstraC.h"`) to support case-sensitive Linux filesystems and made `ASTRAC.rc` Windows-only (`if (WIN32)`).
+- Fixed Windows NSIS installer job in CI: added automatic NSIS installation (`choco install nsis`) in `.github/workflows/pre-release.yml` and added PATH and Chocolatey discovery to `SCRIPTS/WIN/CREATE_NSIS.BAT`.
+- Pinned Windows CI jobs (`test-windows` and `build-windows`) to `windows-2022` to guarantee availability of Visual Studio 17 2022 and added automatic fallback to `cmake -A x64` in workflow files, `SCRIPTS/WIN/CREATE_NSIS.BAT`, and `SCRIPTS/WIN/MAKE.BAT`.
+- Added non-interactive `-batch` and `-ci` flag support to `SCRIPTS/WIN/CREATE_NSIS.BAT` and non-interactive handling to `SCRIPTS/SH/MAKE.sh`.
 
 ### Documentation & Website
 - Updated all AstraC documentation files (`README.md`, `AGENTS.md`, `DOCS/*.md`) and external website files (`C:\xampp\htdocs\astrac`).
+- Documented default 1-byte struct packing behavior in `DOCS/AC_LANG.md` and website documentation.
 - Added documentation maintenance guidelines to `AGENTS.md`.
 

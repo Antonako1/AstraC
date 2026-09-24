@@ -1,0 +1,58 @@
+/* Test 05: Ternary expressions (cond ? expr1 : expr2)
+ *
+ * Verifies that the else-branch (children[2]) of a ternary expression is properly verified
+ * so that struct member accesses have their offsets resolved correctly.
+ */
+
+typedef struct _FAT32_VOL {
+    U8  reserved[4860];
+    U32 root_cluster;
+} FAT32_VOL;
+
+typedef struct _MOUNT {
+    U32 used;
+    FAT32_VOL fat32_vol;
+} MOUNT;
+
+typedef struct _NODE {
+    U32 cluster;
+} NODE;
+
+U32 test_ternary_scalar(U32 x) {
+    U32 val = (x > 10) ? 100 : 200;
+    return val;
+}
+
+U32 test_ternary_struct_member_in_else(NODE *dir_node, MOUNT *m) {
+    /* Bug report pattern:
+     * When dir_node->cluster == 0, evaluates m->fat32_vol.root_cluster.
+     * With the bug, children[2] wasn't verified, resulting in offset 0 (m->used) instead of 4864.
+     */
+    U32 target_cluster = (dir_node->cluster != 0) ? dir_node->cluster : m->fat32_vol.root_cluster;
+    return target_cluster;
+}
+
+U32 test_ternary_struct_member_in_then(NODE *dir_node, MOUNT *m) {
+    U32 cluster = (dir_node->cluster == 0) ? m->fat32_vol.root_cluster : dir_node->cluster;
+    return cluster;
+}
+
+U32 test_nested_ternary(U32 a, U32 b) {
+    U32 res = (a > 10) ? ((b > 5) ? 1 : 2) : ((b > 5) ? 3 : 4);
+    return res;
+}
+
+U32 main() {
+    MOUNT m;
+    m.used = 1;
+    m.fat32_vol.root_cluster = 2;
+
+    NODE node;
+    node.cluster = 0;
+
+    U32 r1 = test_ternary_scalar(5);
+    U32 r2 = test_ternary_struct_member_in_else(&node, &m);
+    U32 r3 = test_ternary_struct_member_in_then(&node, &m);
+    U32 r4 = test_nested_ternary(15, 3);
+    return r1 + r2 + r3 + r4;
+}

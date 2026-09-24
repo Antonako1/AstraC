@@ -1,0 +1,61 @@
+/* Test 01: Types, variables, and arrays */
+
+U8  g_u8  = 0x12;
+U16 g_u16 = 0x1234;
+U32 g_u32 = 0x12345678;
+I8  g_i8  = 0x7F;
+I16 g_i16 = 0x7FFF;
+I32 g_i32 = 0x7FFFFFFF;
+BOOL g_bool = TRUE;
+
+U8 g_arr[16];
+U32 g_matrix[4][4];
+
+U32 test_scalars() {
+    U8  l_u8  = 10;
+    U16 l_u16 = 200;
+    U32 l_u32 = 30000;
+    I8  l_i8  = 5;
+    I16 l_i16 = 50;
+    I32 l_i32 = 500;
+    BOOL l_b  = FALSE;
+
+    if (!l_b) {
+        l_u32 = l_u32 + (U32)l_u8 + (U32)l_u16;
+    }
+    return l_u32 + (U32)l_i32;
+}
+
+U32 test_pointers() {
+    U32 val = 0xCAFEBABE;
+    PU32 ptr = &val;
+    *ptr = 0x12345678;
+
+    PU8 byte_ptr = (PU8)&val;
+    U8 first_byte = *byte_ptr;
+
+    VOIDPTR vp = ptr;
+    PU32 ptr2 = (PU32)vp;
+
+    return *ptr2 + (U32)first_byte;
+}
+
+U32 test_arrays() {
+    U32 local_arr[8];
+    for (U32 i = 0; i < 8; i = i + 1) {
+        local_arr[i] = i * 2;
+    }
+
+    U32 sum = 0;
+    for (U32 j = 0; j < 8; j = j + 1) {
+        sum = sum + local_arr[j];
+    }
+    return sum;
+}
+
+U32 main() {
+    U32 r1 = test_scalars();
+    U32 r2 = test_pointers();
+    U32 r3 = test_arrays();
+    return r1 + r2 + r3;
+}
