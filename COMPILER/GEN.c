@@ -23,13 +23,14 @@ STATIC BOOL II_CONT(U8 c)  { return II_START(c)||(c>='0'&&c<='9'); }
 STATIC VOID II_UPPER(PU8 s, U32 n) { for(U32 i=0;i<n;i++) if(s[i]>='a'&&s[i]<='z') s[i]-=32; }
 
 STATIC SYMBOL *FIND_SYM(PU8 name) {
+    if (!name || !*name) return NULLPTR;
     for (U32 i = 0; i < sym->count; i++)
         if (sym->entries[i].name && AC_STRCMP(sym->entries[i].name, name) == 0)
             return &sym->entries[i];
     /* Fallback: a bare identifier may name a global variable, which is stored
      * under its g_-prefixed symbol name. */
     U8 gname[256];
-    AC_SPRINTF(gname, "g_%s", name ? name : (PU8)"");
+    AC_SPRINTF(gname, "g_%s", name);
     for (U32 i = 0; i < sym->count; i++)
         if (sym->entries[i].name && AC_STRCMP(sym->entries[i].name, gname) == 0)
             return &sym->entries[i];
@@ -68,6 +69,59 @@ STATIC VOID GEN_ELEM_ADDR(U32 es) {
 /* TRUE if a type is an aggregate (struct/union value, not a pointer). */
 STATIC BOOL IS_AGGREGATE_TYPE(COMP_TYPE t) {
     return t.ptr_depth == 0 && (t.base == CTYPE_STRUCT || t.base == CTYPE_UNION);
+}
+
+/* Copy `es` bytes from source address [EBX] to destination address [EAX]. */
+STATIC VOID GEN_STRUCT_COPY(U32 es) {
+    if (es == 0) return;
+    if (es <= 64) {
+        U32 off = 0;
+        while (off + 4 <= es) {
+            if (off == 0) {
+                emit("    MOV EDX, [EBX]");
+                emit("    MOV [EAX], EDX");
+            } else {
+                AC_FPRINTF(outf, "    MOV EDX, [EBX+%u]\n", off);
+                AC_FPRINTF(outf, "    MOV [EAX+%u], EDX\n", off);
+            }
+            off += 4;
+        }
+        if (off + 2 <= es) {
+            if (off == 0) {
+                emit("    MOV DX, [EBX]");
+                emit("    MOV [EAX], DX");
+            } else {
+                AC_FPRINTF(outf, "    MOV DX, [EBX+%u]\n", off);
+                AC_FPRINTF(outf, "    MOV [EAX+%u], DX\n", off);
+            }
+            off += 2;
+        }
+        if (off < es) {
+            if (off == 0) {
+                emit("    MOV DL, [EBX]");
+                emit("    MOV [EAX], DL");
+            } else {
+                AC_FPRINTF(outf, "    MOV DL, [EBX+%u]\n", off);
+                AC_FPRINTF(outf, "    MOV [EAX+%u], DL\n", off);
+            }
+            off += 1;
+        }
+    } else {
+        emit("    PUSH ESI");
+        emit("    PUSH EDI");
+        emit("    PUSH ECX");
+        emit("    MOV EDI, EAX");
+        emit("    MOV ESI, EBX");
+        if (es / 4 > 0) {
+            AC_FPRINTF(outf, "    MOV ECX, %u\n", es / 4);
+            emit("    REP MOVSD");
+        }
+        if (es % 4 >= 2) emit("    MOVSW");
+        if (es % 2 == 1) emit("    MOVSB");
+        emit("    POP ECX");
+        emit("    POP EDI");
+        emit("    POP ESI");
+    }
 }
 
 /* ── Expression codegen — result in EAX ──────────────────────────────────── */
@@ -182,8 +236,19 @@ STATIC VOID GEN_ASSIGN(PCNODE n) {
         s = FIND_SYM(lhs->txt);
         if (!s) { emit("    POP EAX"); return; }
         emit("    POP EAX");
-        es = COMP_TYPE_SIZE(s->type);
-        if (es == 1) {
+        es = GEN_TYPE_SIZE(s->type);
+        if (IS_AGGREGATE_TYPE(s->type) || es > 4) {
+            emit("    MOV EBX, EAX");
+            if (s->is_global)
+                AC_FPRINTF(outf, "    LEA EAX, [%s]\n", s->name);
+            else if ((I32)s->offset == 0)
+                AC_FPRINTF(outf, "    LEA EAX, [EBP]\n");
+            else if ((I32)s->offset > 0)
+                AC_FPRINTF(outf, "    LEA EAX, [EBP+%u]\n", s->offset);
+            else
+                AC_FPRINTF(outf, "    LEA EAX, [EBP-%u]\n", (U32)(-(I32)s->offset));
+            GEN_STRUCT_COPY(es);
+        } else if (es == 1) {
             if (s->is_global)
                 AC_FPRINTF(outf, "    MOV [%s], AL\n", s->name);
             else if ((I32)s->offset == 0)
@@ -213,11 +278,17 @@ STATIC VOID GEN_ASSIGN(PCNODE n) {
         }
     } else if (lhs->ntype == CNODE_DEREF) {
         GEN_EXPR(lhs->children[0]);
-        es = COMP_TYPE_SIZE(lhs->dtype);
+        es = GEN_TYPE_SIZE(lhs->dtype);
         emit("    POP EBX");
-        if (es == 1)      emit("    MOV [EAX], BL");
-        else if (es == 2)  emit("    MOV [EAX], BX");
-        else                emit("    MOV [EAX], EBX");
+        if (IS_AGGREGATE_TYPE(lhs->dtype) || es > 4) {
+            GEN_STRUCT_COPY(es);
+        } else if (es == 1) {
+            emit("    MOV [EAX], BL");
+        } else if (es == 2) {
+            emit("    MOV [EAX], BX");
+        } else {
+            emit("    MOV [EAX], EBX");
+        }
     } else if (lhs->ntype == CNODE_INDEX) {
         GEN_ARR_BASE(lhs->children[0]);
         emit("    PUSH EAX");
@@ -226,17 +297,29 @@ STATIC VOID GEN_ASSIGN(PCNODE n) {
         es = GEN_TYPE_SIZE(lhs->dtype);
         GEN_ELEM_ADDR(es);
         emit("    POP EBX");
-        if (es == 1)      emit("    MOV [EAX], BL");
-        else if (es == 2)  emit("    MOV [EAX], BX");
-        else                emit("    MOV [EAX], EBX");
+        if (IS_AGGREGATE_TYPE(lhs->dtype) || es > 4) {
+            GEN_STRUCT_COPY(es);
+        } else if (es == 1) {
+            emit("    MOV [EAX], BL");
+        } else if (es == 2) {
+            emit("    MOV [EAX], BX");
+        } else {
+            emit("    MOV [EAX], EBX");
+        }
     } else if (lhs->ntype == CNODE_MEMBER || lhs->ntype == CNODE_ARROW_EXPR) {
         /* Store to a struct/union member: address → EAX, value → EBX */
         es = GEN_TYPE_SIZE(lhs->dtype);
         GEN_LVALUE_ADDR(lhs);
         emit("    POP EBX");
-        if (es == 1)      emit("    MOV [EAX], BL");
-        else if (es == 2)  emit("    MOV [EAX], BX");
-        else                emit("    MOV [EAX], EBX");
+        if (IS_AGGREGATE_TYPE(lhs->dtype) || es > 4) {
+            GEN_STRUCT_COPY(es);
+        } else if (es == 1) {
+            emit("    MOV [EAX], BL");
+        } else if (es == 2) {
+            emit("    MOV [EAX], BX");
+        } else {
+            emit("    MOV [EAX], EBX");
+        }
     } else {
         emit("    POP EAX");
         emit("    XOR EAX, EAX");
@@ -371,7 +454,7 @@ STATIC VOID GEN_ARR_BASE(PCNODE base) {
     if (base->ntype == CNODE_IDENT) {
         SYMBOL *s = FIND_SYM(base->txt);
         if (!s) { emit("    XOR EAX, EAX"); return; }
-        BOOL use_value = IS_PTR_VAR_SYMBOL(s);
+        BOOL use_value = IS_PTR_VAR_SYMBOL(s) || (base->dtype.ptr_depth > 0) || IS_PTR_DTYPE(base->dtype);
         if (s->is_global)
             AC_FPRINTF(outf, "    %s EAX, [%s]\n", use_value ? "MOV" : "LEA", s->name);
         else if ((I32)s->offset == 0)
@@ -388,7 +471,9 @@ STATIC VOID GEN_ARR_BASE(PCNODE base) {
 
 STATIC VOID GEN_DEREF(PCNODE n) {
     GEN_EXPR(n->children[0]);
-    U32 elem_size = COMP_TYPE_SIZE(n->dtype);
+    if (IS_AGGREGATE_TYPE(n->dtype))
+        return;
+    U32 elem_size = GEN_TYPE_SIZE(n->dtype);
     if (elem_size == 1)
         emit("    MOVZX EAX, BYTE [EAX]");
     else if (elem_size == 2)
@@ -459,7 +544,7 @@ STATIC VOID GEN_MEMBER(PCNODE n) {
      * field is a scalar and must be dereferenced. */
     if (IS_AGGREGATE_TYPE(ft) || n->array_size > 0)
         return;
-    U32 es = COMP_TYPE_SIZE(ft);
+    U32 es = GEN_TYPE_SIZE(ft);
     if (es == 1)      emit("    MOVZX EAX, BYTE [EAX]");
     else if (es == 2) emit("    MOVZX EAX, WORD [EAX]");
     else              emit("    MOV EAX, [EAX]");
@@ -746,6 +831,9 @@ STATIC VOID GEN_ASM_BLOCK(PCNODE n) {
                 fname[fi] = '\0';
                 II_UPPER(fname, fi);
                 SYMBOL *ts = FIND_SYM(s->type.name);
+                while (ts && ts->kind == SYM_TYPEDEF) {
+                    ts = FIND_SYM(ts->type.name);
+                }
                 U32 foff = 0;
                 if (ts) {
                     for (U32 j = 0; j < ts->field_count; j++) {
