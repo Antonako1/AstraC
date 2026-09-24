@@ -313,6 +313,7 @@ STATIC COMP_TYPE VERIFY_NODE(PCNODE n) {
         case CNODE_TERNARY: {
             VERIFY_NODE(n->children[0]);
             COMP_TYPE tt = VERIFY_NODE(n->children[1]);
+            if (n->child_count > 2) VERIFY_NODE(n->children[2]);
             n->dtype = tt;
             return tt;
         }

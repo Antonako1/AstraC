@@ -747,12 +747,13 @@ STATIC VOID GEN_WHILE(PCNODE n) {
 }
 
 STATIC VOID GEN_DO_WHILE(PCNODE n) {
-    U32 lbl_start = new_label(), lbl_end = new_label();
+    U32 lbl_start = new_label(), lbl_end = new_label(), lbl_cond = new_label();
     U32 old_top = ctx->loop_label_stack_top;
     ctx->loop_label_stack[ctx->loop_label_stack_top++] = lbl_end;
-    ctx->loop_label_stack[ctx->loop_label_stack_top++] = lbl_start;
+    ctx->loop_label_stack[ctx->loop_label_stack_top++] = lbl_cond;
     AC_FPRINTF(outf, "__lbl%u:\n", lbl_start);
     if (n->child_count > 0) GEN_STMT(n->children[0]);
+    AC_FPRINTF(outf, "__lbl%u:\n", lbl_cond);
     GEN_EXPR(n->children[1]);
     AC_FPRINTF(outf, "    TEST EAX, EAX\n    JNZ __lbl%u\n", lbl_start);
     AC_FPRINTF(outf, "__lbl%u:\n", lbl_end);
@@ -761,10 +762,10 @@ STATIC VOID GEN_DO_WHILE(PCNODE n) {
 
 STATIC VOID GEN_FOR(PCNODE n) {
     /* init; cond (lbl_start); body; step; jmp lbl_start; lbl_end */
-    U32 lbl_start = new_label(), lbl_end = new_label(), lbl_body = new_label();
+    U32 lbl_start = new_label(), lbl_end = new_label(), lbl_step = new_label();
     U32 old_top = ctx->loop_label_stack_top;
     ctx->loop_label_stack[ctx->loop_label_stack_top++] = lbl_end;
-    ctx->loop_label_stack[ctx->loop_label_stack_top++] = lbl_start;
+    ctx->loop_label_stack[ctx->loop_label_stack_top++] = lbl_step;
 
     if (n->child_count > 0 && n->children[0]->ntype != CNODE_INT_LIT)
         GEN_STMT(n->children[0]); /* init */
@@ -776,7 +777,7 @@ STATIC VOID GEN_FOR(PCNODE n) {
     /* body */
     if (n->child_count > 3) GEN_STMT(n->children[3]);
     /* step */
-    AC_FPRINTF(outf, "__lbl%u:\n", lbl_body);
+    AC_FPRINTF(outf, "__lbl%u:\n", lbl_step);
     if (n->child_count > 2) GEN_EXPR(n->children[2]);
     AC_FPRINTF(outf, "    JMP __lbl%u\n__lbl%u:\n", lbl_start, lbl_end);
     ctx->loop_label_stack_top = old_top;
