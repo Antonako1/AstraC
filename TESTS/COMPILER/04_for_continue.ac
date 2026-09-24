@@ -1,0 +1,76 @@
+/* Test 04: for loop with continue statement
+ *
+ * Verifies that continue; inside a for loop jumps to the step expression (e.g. i = i + 1),
+ * not the condition test, preventing infinite loops.
+ */
+
+#define DIR_ENTRY_FREE 0xE5
+#define FAT32_ATTR_LFN 0x0F
+
+typedef struct _DIR_ENTRY {
+    U8 Name[11];
+    U8 Attributes;
+    U8 Reserved[20];
+} DIR_ENTRY;
+
+U32 test_for_continue_simple() {
+    U32 sum = 0;
+    for (U32 i = 0; i < 10; i = i + 1) {
+        if (i == 3 || i == 7) {
+            continue;
+        }
+        sum = sum + 1;
+    }
+    /* sum should be 8 (0,1,2,4,5,6,8,9) */
+    return sum;
+}
+
+U32 test_for_continue_fat_pattern() {
+    DIR_ENTRY entries[4];
+    entries[0].Name[0] = DIR_ENTRY_FREE;
+    entries[0].Attributes = 0;
+
+    entries[1].Name[0] = 'K';
+    entries[1].Attributes = 0x20;
+
+    entries[2].Name[0] = 'A';
+    entries[2].Attributes = FAT32_ATTR_LFN;
+
+    entries[3].Name[0] = 'S';
+    entries[3].Attributes = 0x20;
+
+    U32 valid_count = 0;
+    for (U32 i = 0; i < 4; i = i + 1) {
+        DIR_ENTRY *dir = &entries[i];
+        if (dir->Name[0] == DIR_ENTRY_FREE || (dir->Attributes & 0x0F) == FAT32_ATTR_LFN) {
+            continue;
+        }
+        valid_count = valid_count + 1;
+    }
+    /* valid_count should be 2 (entries[1] and entries[3]) */
+    return valid_count;
+}
+
+U32 test_nested_for_continue() {
+    U32 count = 0;
+    for (U32 i = 0; i < 5; i = i + 1) {
+        if (i == 2) {
+            continue;
+        }
+        for (U32 j = 0; j < 5; j = j + 1) {
+            if (j == 3) {
+                continue;
+            }
+            count = count + 1;
+        }
+    }
+    /* Outer runs 4 times (0,1,3,4). Inner runs 4 times (0,1,2,4). count should be 16 */
+    return count;
+}
+
+U32 main() {
+    U32 r1 = test_for_continue_simple();
+    U32 r2 = test_for_continue_fat_pattern();
+    U32 r3 = test_nested_for_continue();
+    return r1 + r2 + r3;
+}

@@ -1,0 +1,70 @@
+/* Test 02: Operators and expressions */
+
+U32 test_arithmetic() {
+    U32 a = 100;
+    U32 b = 25;
+    U32 add = a + b;
+    U32 sub = a - b;
+    U32 mul = a * b;
+    U32 div = a / b;
+    U32 mod = a % 7;
+    return add + sub + mul + div + mod;
+}
+
+U32 test_bitwise() {
+    U32 x = 0xAA;
+    U32 y = 0x55;
+    U32 bit_and = x & y;
+    U32 bit_or  = x | y;
+    U32 bit_xor = x ^ y;
+    U32 bit_not = ~x;
+    U32 shl = x << 2;
+    U32 shr = x >> 2;
+    return bit_and + bit_or + bit_xor + (bit_not & 0xFF) + shl + shr;
+}
+
+U32 test_logic(U32 x, U32 y) {
+    U32 res = 0;
+    if (x > 10 && y < 20) {
+        res = res + 1;
+    }
+    if (x == 0 || y == 0) {
+        res = res + 2;
+    }
+    if (!x) {
+        res = res + 4;
+    }
+    return res;
+}
+
+U32 test_compound() {
+    U32 a = 10;
+    a += 5;
+    a -= 2;
+    a *= 3;
+    a /= 2;
+    a %= 7;
+    a <<= 1;
+    a >>= 1;
+    a |= 4;
+    a &= 0xFF;
+    a ^= 1;
+    return a;
+}
+
+U32 test_sizeof() {
+    U32 s1 = sizeof(U8);
+    U32 s2 = sizeof(U16);
+    U32 s3 = sizeof(U32);
+    U32 s4 = sizeof(I32);
+    return s1 + s2 + s3 + s4;
+}
+
+U32 main() {
+    U32 r1 = test_arithmetic();
+    U32 r2 = test_bitwise();
+    U32 r3 = test_logic(15, 10);
+    U32 r4 = test_compound();
+    U32 r5 = test_sizeof();
+    return r1 + r2 + r3 + r4 + r5;
+}

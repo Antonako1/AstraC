@@ -1,0 +1,46 @@
+/* Test 07: Functions, prototypes, recursion, function pointers, and variadic functions */
+
+/* Forward declaration */
+U32 factorial(U32 n);
+U32 add_three(U32 a, U32 b, U32 c);
+
+U32 add_three(U32 a, U32 b, U32 c) {
+    return a + b + c;
+}
+
+U32 factorial(U32 n) {
+    if (n <= 1) {
+        return 1;
+    }
+    return n * factorial(n - 1);
+}
+
+typedef U32 (*MATH_OP)(U32, U32);
+
+U32 op_multiply(U32 a, U32 b) {
+    return a * b;
+}
+
+U32 apply_op(MATH_OP op, U32 x, U32 y) {
+    return op(x, y);
+}
+
+U32 sum_variadic(U32 count, ...) {
+    VA_LIST args;
+    va_start(args, count);
+    U32 sum = 0;
+    for (U32 i = 0; i < count; i = i + 1) {
+        U32 val = va_arg(args, U32);
+        sum = sum + val;
+    }
+    va_end(args);
+    return sum;
+}
+
+U32 main() {
+    U32 r1 = add_three(10, 20, 30);
+    U32 r2 = factorial(5);
+    U32 r3 = apply_op(op_multiply, 6, 7);
+    U32 r4 = sum_variadic(4, 10, 20, 30, 40);
+    return r1 + r2 + r3 + r4;
+}
