@@ -107,11 +107,11 @@ echo   %BUILD_DIR%\AstraC-Setup-%VERSION%.exe
 echo ============================================
 
 if not defined BATCH (
-    echo Run the installer to install AstraC, (Y/N).
+    echo "Run the installer to install AstraC, (Y/N)."
     set /p "RUN_INSTALLER=>"
     if /i "!RUN_INSTALLER!"=="Y" (
         start "" "%BUILD_DIR%\AstraC-Setup-%VERSION%.exe"
-        echo Installer started. Follow the prompts to complete the installation.
+        echo "Installer started. Follow the prompts to complete the installation."
     )
 )
 
