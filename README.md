@@ -129,6 +129,20 @@ Preprocess a file and stop (useful for debugging macros):
 ASTRAC.EXE comp main.AC stepoff 1
 ```
 
+## Testing
+
+AstraC includes an automated compiler test suite under `TESTS/COMPILER/` covering all compiler language features. Run the test suite:
+
+**Windows (PowerShell):**
+```powershell
+powershell -ExecutionPolicy Bypass -File TESTS/RUN_COMPILER_TESTS.ps1
+```
+
+**Linux/macOS:**
+```bash
+./TESTS/RUN_COMPILER_TESTS.sh
+```
+
 ## License
 
 Distributed under the MIT License. See `LICENSE` for more information.
