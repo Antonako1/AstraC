@@ -291,6 +291,7 @@ U32 main() {
 - **Typedef convention**: `typedef struct _NAME { ... } NAME, *PNAME`
 - **Anonymous structs/unions**: Supported inside other structs
 - **Member access**: `.` for values, `->` for pointers (auto-dereference)
+- **Struct packing**: All structs are **1-byte packed by default** (no alignment or padding bytes inserted between fields or at the end). Field offsets equal the exact cumulative byte size of preceding fields. Explicit packing directives (`#pragma pack` or `__attribute__((packed))`) are not needed and not supported.
 - **Bitfields**: Not supported
 - **Flexible array members**: Not supported
 - **Aggregate init** (`= { ... }`): Not supported -- assign fields individually
