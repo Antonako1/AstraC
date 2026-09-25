@@ -2,6 +2,12 @@
 
 All notable changes to AstraC will be documented in this file.
 
+## 2026-09-25
+
+### Compiler Fixes
+- Fixed AST type verification for arrays of pointers (`COMPILER/VERIFY_AST.c`): `CNODE_INDEX` now checks if the indexed base node is an array (`array_size > 0`), preserving the element type's pointer depth (e.g., `e100_rfd_t *`) instead of stripping pointer depth and calculating stride based on target struct size (e.g., 1544 bytes instead of 4 bytes).
+- Added compiler test suite `10_array_of_pointers.ac` verifying array of pointers indexing and pointer dereferencing codegen.
+
 ## 2026-09-24
 
 ### Compiler Fixes
