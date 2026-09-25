@@ -60,7 +60,7 @@ STATIC ASTRAC_RESULT START_SHOWLINE() {
 }
 
 VOID PRINT_HELP() {
-    AC_PRINTF("\n%s v%s\n\n", TRADEMARK, VERSION);
+    AC_PRINTF("\n%s v%s (%s)\n\n", TRADEMARK, VERSION, PLATFORM);
     AC_PRINTF(
         "ASTRAC.EXE [options] [flags]\n"
 
@@ -93,7 +93,7 @@ VOID PRINT_HELP() {
 }
 
 VOID PRINT_VERSION() {
-    AC_PRINTF("%s v%s\n", TRADEMARK, VERSION);
+    AC_PRINTF("%s v%s (%s)\n", TRADEMARK, VERSION, PLATFORM);
 }
 
 ASTRAC_RESULT START_WORKLOAD() {

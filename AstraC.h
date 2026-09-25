@@ -20,6 +20,15 @@
 /* ── VERSION ──────────────────────────────────────────────────────────── */
 #include "VERSION/VERSION.h"
 #define TRADEMARK   "AstraC Compiler, Assembler and Disassembler"
+#ifdef _WIN32
+#   define PLATFORM "Windows"
+#elif defined(__linux__)
+#   define PLATFORM "Linux"
+#elif defined(__APPLE__)
+#   define PLATFORM "macOS"
+#else
+#   define PLATFORM "Unknown"
+#endif
 
 /* ── BUILD MODES ──────────────────────────────────────────────────────── */
 typedef enum {
