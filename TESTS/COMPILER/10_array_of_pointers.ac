@@ -1,0 +1,93 @@
+typedef struct _pci_type0_header_t {
+    U16 vendor_id;
+    U16 device_id;
+    U16 command;
+    U16 status;
+    U8 revision_id;
+    U8 prog_if;
+    U8 subclass;
+    U8 class_code;
+    U8 cache_line_size;
+    U8 latency_timer;
+    U8 header_type;
+    U8 bist;
+    U32 bar0;
+    U32 bar1;
+    U32 bar2;
+    U32 bar3;
+    U32 bar4;
+    U32 bar5;
+    U32 cardbus_cis_pointer;
+    U16 subsystem_vendor_id;
+    U16 subsystem_id;
+    U32 expansion_rom_base;
+    U8 capabilities_pointer;
+    U8 reserved1[7];
+    U8 interrupt_line;
+    U8 interrupt_pin;
+    U8 min_grant;
+    U8 max_latency;
+} pci_type0_header_t;
+
+typedef struct _pci_device_entry_t {
+    U8 bus;
+    U8 slot;
+    U8 func;
+    pci_type0_header_t header;
+} pci_device_entry_t;
+
+typedef struct _e100_tx_cb_t {
+    U16 status;
+    U16 command;
+    U32 link;
+    U32 tbd_array_addr;
+    U16 byte_count;
+    U8  tx_threshold;
+    U8  tbd_number;
+    U8  frame[1518];
+} e100_tx_cb_t;
+
+typedef struct _e100_rfd_t {
+    U16 status;
+    U16 command;
+    U32 link;
+    U32 reserved;
+    U16 count;
+    U16 size;
+    U8  packet[1528];
+} e100_rfd_t;
+
+typedef struct _e100_device_t {
+    pci_device_entry_t pci_dev;
+    U16 io_base;
+    U8  mac[6];
+    U8  initialized;
+
+    e100_tx_cb_t *tx_cb;
+
+    e100_rfd_t   *rfd_ring[16];
+    U32          rx_head;
+
+    U32 tx_packets;
+    U32 rx_packets;
+    U32 tx_bytes;
+    U32 rx_bytes;
+} e100_device_t;
+
+e100_device_t g_e100_dev;
+
+U32 dcomprintf(PU8 fmt, U32 a1, U32 a2) {
+    return 0;
+}
+
+U32 test_rfd_allocation() {
+    for (U32 i = 0; i < 16; i = i + 1) {
+        dcomprintf("[E100] Allocated RX RFD descriptor #%d at 0x%08X", i, g_e100_dev.rfd_ring[i]);
+    }
+    return 0;
+}
+
+U32 main() {
+    test_rfd_allocation();
+    return 0;
+}
