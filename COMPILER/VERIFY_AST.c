@@ -333,12 +333,20 @@ STATIC COMP_TYPE VERIFY_NODE(PCNODE n) {
         case CNODE_INDEX: {
             COMP_TYPE bt = VERIFY_NODE(n->children[0]);
             VERIFY_NODE(n->children[1]);
+            PCNODE base_node = n->children[0];
+            BOOL is_array = (base_node && base_node->array_size > 0);
+            if (!is_array && base_node && base_node->ntype == CNODE_IDENT && base_node->txt) {
+                SYMBOL *s = V_FIND_SYM(base_node->txt);
+                if (s && s->array_size > 0) is_array = TRUE;
+            }
             if (bt.base == CTYPE_NONE)
                 n->dtype = COMP_MAKE_TYPE(CTYPE_U32, 0, NULLPTR);
+            else if (is_array)
+                n->dtype = bt;   /* base is an array: bt is already the element type */
             else if (bt.ptr_depth > 0 || IS_POINTER(bt))
                 n->dtype = STRIP_PTR_TYPE(bt);
             else
-                n->dtype = bt;   /* array symbol: s->type is already the element type */
+                n->dtype = bt;
             return n->dtype;
         }
 
