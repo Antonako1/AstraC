@@ -131,7 +131,7 @@ ASTRAC.EXE comp main.AC stepoff 1
 
 ## Testing & CI
  
-AstraC includes an automated compiler test suite under `TESTS/COMPILER/` covering all compiler language features. Tests run automatically in GitHub Actions CI (`.github/workflows/test.yml` and `.github/workflows/pre-release.yml`) across Windows and Linux.
+AstraC includes an automated compiler test suite under `TESTS/COMPILER/` covering all compiler language features. Tests run automatically in GitHub Actions CI (`.github/workflows/test.yml` and `.github/workflows/release.yml`) across Windows and Linux.
  
 Run the test suite locally:
  

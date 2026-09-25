@@ -2,6 +2,11 @@
 
 All notable changes to AstraC will be documented in this file.
 
+## 2026-09-26
+
+### CI & Release Automation
+- Converted release automation from pre-release to official GitHub Release workflow (`.github/workflows/release.yml`): setting `prerelease: false` and `make_latest: true`, publishing `AstraC v<version>` as the primary official release on pushes to `main`.
+
 ## 2026-09-25
 
 ### Compiler Fixes

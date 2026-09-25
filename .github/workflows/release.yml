@@ -1,4 +1,4 @@
-name: Create Pre-Release on Main Push
+name: Create Release on Main Push
 
 on:
   push:
@@ -10,7 +10,7 @@ on:
       - '.gitignore'
 
 concurrency:
-  group: pre-release-${{ github.ref }}
+  group: release-${{ github.ref }}
   cancel-in-progress: false
 
 permissions:
@@ -102,7 +102,7 @@ jobs:
         run: |
           VERSION=$(tr -d ' \t\r\n' < VERSION/VERSION.txt)
           TAG_NAME="v${VERSION}"
-          RELEASE_TITLE="patch-build-${VERSION}"
+          RELEASE_TITLE="AstraC v${VERSION}"
           
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "tag_name=${TAG_NAME}" >> "$GITHUB_OUTPUT"
@@ -215,7 +215,7 @@ jobs:
           ./TESTS/RUN_COMPILER_TESTS.sh
 
   publish-release:
-    name: Publish Pre-Release
+    name: Publish Release
     needs: [prepare-release, build-windows, build-linux, test-windows, test-linux]
     runs-on: ubuntu-latest
     steps:
@@ -236,13 +236,14 @@ jobs:
           name: linux-package
           path: dist
 
-      - name: Publish GitHub Pre-Release
+      - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.prepare-release.outputs.tag_name }}
           name: ${{ needs.prepare-release.outputs.release_title }}
           body_path: release_notes.md
-          prerelease: true
+          prerelease: false
+          make_latest: true
           files: dist/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
