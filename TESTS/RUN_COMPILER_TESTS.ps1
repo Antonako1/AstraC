@@ -138,6 +138,17 @@ foreach ($file in $testFiles) {
         }
     }
 
+    # Check 14_comprehensive_features: verify foo function and multi-feature compilation
+    if ($testName -eq "14_comprehensive_features.ac" -and (Test-Path $asPath)) {
+        $asContent = Get-Content $asPath -Raw
+        if ($asContent -match "_FOO:") {
+            Write-Host -NoNewline "[foo symbol & multi-feature verified] " -ForegroundColor DarkGray
+        } else {
+            $specificCheckFailed = $true
+            $specificDetail = "_FOO symbol not found in generated assembly"
+        }
+    }
+
     if ($specificCheckFailed) {
         Write-Host "FAILED ($specificDetail)" -ForegroundColor Red
         $failed++

@@ -4,6 +4,10 @@ All notable changes to AstraC will be documented in this file.
 
 ## 2026-09-26
 
+### Comprehensive Feature Test Suite
+- Added compiler test suite `TESTS/COMPILER/14_comprehensive_features.ac` integrating `foo(a,b)`, array indexing, pointer arithmetic, nested structs, function pointers, switch statements, `F32` floating point types, variadic function calls (`VA_LIST`, `va_start`, `va_arg`, `va_end`), complex nested expressions, register allocation, and loops (`while`, `for`).
+- Updated `TESTS/RUN_COMPILER_TESTS.ps1` to verify `_FOO` symbol emission and clean compilation across all 14 test cases.
+
 ### Unsized Global Array Declarations & Initializer Lists
 - Added support for unsized array declarations with initializer lists (e.g., `U32 g_arr[] = {1, 2, 3};`) in `COMPILER/PARSER.c`: empty brackets `[]` are allowed when followed by an initializer list, inferring `array_size` from `init_count`.
 - Fixed assembler verification (`ASSEMBLER/VERIFY_AST.c`) for non-BYTE list variables (e.g. `DD 1, 2, 3`), skipping single-value `is_numeric_value` validation on list initializers.

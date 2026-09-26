@@ -1,0 +1,122 @@
+// 14_comprehensive_features.ac - Test array indexing, pointer arithmetic, structs, function pointers, switch, F32, variadic calls, nested expressions, register allocation, and loops.
+
+U32 foo(U32 a, U32 b)
+{
+    U32 x = a + b;
+    return x * 10;
+}
+
+typedef U32 (*FUNC_PTR)(U32, U32);
+
+struct Point {
+    U32 x;
+    U32 y;
+    F32 weight;
+};
+
+struct DataNode {
+    struct Point pt;
+    U32 id;
+    U32 values[4];
+};
+
+U32 variadic_sum(U32 count, ...) {
+    VA_LIST args;
+    va_start(args, count);
+    U32 sum = 0;
+    for (U32 i = 0; i < count; i = i + 1) {
+        U32 val = va_arg(args, U32);
+        sum = sum + val;
+    }
+    va_end(args);
+    return sum;
+}
+
+U32 evaluate_op(U32 op, U32 a, U32 b) {
+    U32 res = 0;
+    switch (op) {
+        case 1:
+            res = a + b;
+            break;
+        case 2:
+            res = a * b;
+            break;
+        case 3:
+            res = (a > b) ? (a - b) : (b - a);
+            break;
+        default:
+            res = 0xFFFFFFFF;
+            break;
+    }
+    return res;
+}
+
+U32 test_complex_math_and_pointers(PU32 arr, U32 count) {
+    U32 total = 0;
+    PU32 ptr = arr;
+    
+    // Loops (while & for), pointer arithmetic, array indexing, nested expressions
+    U32 i = 0;
+    while (i < count) {
+        // Pointer arithmetic
+        U32 val_pa = *(ptr + i);
+        
+        // Array indexing
+        U32 val_ai = arr[i];
+        
+        // Nested expression to exercise register allocation
+        U32 expr = ((val_pa + 5) * (val_ai + 3) - (i * 7)) + ((val_pa & 0x0F) | (val_ai ^ 0x02));
+        
+        total = total + expr;
+        i = i + 1;
+    }
+    return total;
+}
+
+U32 main() {
+    // 1. Direct function call
+    U32 r_foo = foo(15, 25); // (15+25)*10 = 400
+
+    // 2. Function pointer call
+    FUNC_PTR fp = (FUNC_PTR)foo;
+    U32 r_fp = fp(3, 7); // (3+7)*10 = 100
+
+    // 3. Structs & F32
+    struct DataNode node;
+    node.pt.x = 10;
+    node.pt.y = 20;
+    node.pt.weight = 1.5;
+    node.id = 42;
+    node.values[0] = 5;
+    node.values[1] = 15;
+    node.values[2] = 25;
+    node.values[3] = 35;
+
+    struct DataNode* pnode = &node;
+    U32 struct_val = pnode->pt.x + pnode->pt.y + pnode->id + pnode->values[2]; // 10+20+42+25 = 97
+
+    // 4. Switch statement
+    U32 r_sw1 = evaluate_op(1, 10, 20); // 30
+    U32 r_sw2 = evaluate_op(2, 5, 6);   // 30
+    U32 r_sw3 = evaluate_op(4, 1, 1);   // 0xFFFFFFFF
+
+    // 5. Variadic function call
+    U32 r_var = variadic_sum(4, 100, 200, 300, 400); // 1000
+
+    // 6. Pointer arithmetic, array indexing, nested expressions, loops
+    U32 data_arr[4];
+    data_arr[0] = 10;
+    data_arr[1] = 20;
+    data_arr[2] = 30;
+    data_arr[3] = 40;
+    U32 r_complex = test_complex_math_and_pointers(data_arr, 4);
+
+    if (r_foo != 400) return 1;
+    if (r_fp != 100) return 2;
+    if (struct_val != 97) return 3;
+    if (r_sw1 != 30 || r_sw2 != 30 || r_sw3 != 0xFFFFFFFF) return 4;
+    if (r_var != 1000) return 5;
+    if (r_complex == 0) return 6;
+
+    return 0;
+}
