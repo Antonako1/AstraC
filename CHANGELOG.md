@@ -2,6 +2,12 @@
 
 All notable changes to AstraC will be documented in this file.
 
+## 2026-09-27
+
+### Dynamic Import Table Call Site Patch Recording
+- Fixed Import Table patch recording in `ASSEMBLER/GEN.c`: updated import tracking structures (`ASM_IMPORT_TABLE`, `ASM_IMPORT_PATCH`) so that every call site occurrence of an imported function (e.g. multiple `malloc` or `free` calls) generates a dedicated `AC_IMPORT_ENTRY` containing its specific `patch_offset`.
+- Added string table pool deduplication (`GET_OR_ADD_STRTAB`) in `ASSEMBLER/GEN.c` so repeated library and function names share string pool entries while preserving accurate call site patch locations.
+
 ## 2026-09-26
 
 ### Relocation Table Generation Fixes

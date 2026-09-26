@@ -42,19 +42,19 @@ STATIC U32 pass1_code_size;
 STATIC U32 pass1_data_size;
 STATIC U32 pass1_rodata_size;
 
-STATIC ASM_IMPORT_ARRAY asm_imports ATTRIB_DATA;
+STATIC ASM_IMPORT_TABLE asm_imports ATTRIB_DATA;
 
 VOID ADD_ASM_IMPORT(PU8 lib_name, PU8 func_name) {
     if (!lib_name || !func_name) return;
-    for (U32 i = 0; i < asm_imports.count; i++) {
-        if (AC_STRICMP(asm_imports.items[i].lib_name, lib_name) == 0 &&
-            AC_STRICMP(asm_imports.items[i].func_name, func_name) == 0)
+    for (U32 i = 0; i < asm_imports.decl_count; i++) {
+        if (AC_STRICMP(asm_imports.decls[i].lib_name, lib_name) == 0 &&
+            AC_STRICMP(asm_imports.decls[i].func_name, func_name) == 0)
             return;
     }
-    if (asm_imports.count < MAX_ASM_IMPORTS) {
-        asm_imports.items[asm_imports.count].lib_name = AC_STRDUP(lib_name);
-        asm_imports.items[asm_imports.count].func_name = AC_STRDUP(func_name);
-        asm_imports.count++;
+    if (asm_imports.decl_count < MAX_ASM_IMPORTS) {
+        asm_imports.decls[asm_imports.decl_count].lib_name = AC_STRDUP(lib_name);
+        asm_imports.decls[asm_imports.decl_count].func_name = AC_STRDUP(func_name);
+        asm_imports.decl_count++;
     }
 }
 
@@ -62,14 +62,48 @@ BOOL IS_ASM_IMPORTED_SYMBOL(PU8 name) {
     if (!name || !*name) return FALSE;
     PU8 p = name;
     if (*p == '_') p++;
-    for (U32 i = 0; i < asm_imports.count; i++) {
-        if (asm_imports.items[i].func_name) {
-            if (AC_STRICMP(asm_imports.items[i].func_name, name) == 0 ||
-                AC_STRICMP(asm_imports.items[i].func_name, p) == 0)
+    for (U32 i = 0; i < asm_imports.decl_count; i++) {
+        if (asm_imports.decls[i].func_name) {
+            if (AC_STRICMP(asm_imports.decls[i].func_name, name) == 0 ||
+                AC_STRICMP(asm_imports.decls[i].func_name, p) == 0)
                 return TRUE;
         }
     }
     return FALSE;
+}
+
+STATIC VOID RECORD_IMPORT_PATCH(PU8 name, U32 offset) {
+    if (CURRENT_PASS != SECOND_PASS || !name || !*name) return;
+    PU8 p = name;
+    if (*p == '_') p++;
+
+    PU8 lib_name = NULLPTR;
+    PU8 func_name = NULLPTR;
+    for (U32 i = 0; i < asm_imports.decl_count; i++) {
+        if (asm_imports.decls[i].func_name) {
+            if (AC_STRICMP(asm_imports.decls[i].func_name, name) == 0 ||
+                AC_STRICMP(asm_imports.decls[i].func_name, p) == 0) {
+                lib_name  = asm_imports.decls[i].lib_name;
+                func_name = asm_imports.decls[i].func_name;
+                break;
+            }
+        }
+    }
+    if (!lib_name || !func_name) return;
+
+    /* Prevent duplicate patch recording for the exact same offset */
+    if (asm_imports.patch_count > 0 &&
+        asm_imports.patches[asm_imports.patch_count - 1].patch_offset == offset &&
+        AC_STRICMP(asm_imports.patches[asm_imports.patch_count - 1].func_name, func_name) == 0) {
+        return;
+    }
+
+    if (asm_imports.patch_count < MAX_ASM_IMPORTS) {
+        asm_imports.patches[asm_imports.patch_count].lib_name = lib_name;
+        asm_imports.patches[asm_imports.patch_count].func_name = func_name;
+        asm_imports.patches[asm_imports.patch_count].patch_offset = offset;
+        asm_imports.patch_count++;
+    }
 }
 
 /* ── Assembler debug (.ASD output) ──────────────────────────────────────── */
@@ -852,6 +886,9 @@ STATIC BOOL ENCODE_INSTRUCTION(FILE *f, PASM_NODE node) {
                     EMIT_IMM(f, op->immediate, isz);
                 }
             } else if (op->type == OP_PTR && op->mem_ref && op->mem_ref->symbol_name) {
+                if (IS_ASM_IMPORTED_SYMBOL(op->mem_ref->symbol_name)) {
+                    RECORD_IMPORT_PATCH(op->mem_ref->symbol_name, CURRENT_CUMULATIVE_OFFSET());
+                }
                 /* Label reference in an immediate slot (e.g. CALL label) */
                 U32 target = RESOLVE_SYMBOL(op->mem_ref->symbol_name);
                 if (tbl->rel_type != RL_NONE) {
@@ -1599,6 +1636,29 @@ STATIC BOOL RELAX_JUMPS(ASM_AST_ARRAY *ast, ASTRAC_ARGS *cfg) {
 }
 
 
+STATIC U32 GET_OR_ADD_STRTAB(PU8 *pstrtab, U32 *pstrtab_len, U32 *pstr_cap, PU8 str) {
+    if (!str || !*str) return 0;
+    PU8 strtab = *pstrtab;
+    U32 len = *pstrtab_len;
+    U32 pos = 0;
+    while (pos < len) {
+        if (AC_STRCMP((const char*)(strtab + pos), (const char*)str) == 0)
+            return pos;
+        pos += (U32)AC_STRLEN(strtab + pos) + 1;
+    }
+    U32 slen = (U32)AC_STRLEN(str);
+    if (len + slen + 1 > *pstr_cap) {
+        *pstr_cap = (*pstr_cap + slen + 128) * 2;
+        *pstrtab = (PU8)AC_ReAlloc(*pstrtab, *pstr_cap);
+        strtab = *pstrtab;
+    }
+    U32 ret = len;
+    AC_MEMCPY(strtab + len, str, slen);
+    strtab[len + slen] = '\0';
+    *pstrtab_len = len + slen + 1;
+    return ret;
+}
+
 /*
  * ════════════════════════════════════════════════════════════════════════════
  *  GEN_BINARY  —  main code generation entry point
@@ -1838,8 +1898,10 @@ BOOLEAN GEN_BINARY(ASM_AST_ARRAY *ast, PASM_INFO info) {
         PU8 it_strtab = NULLPTR;
         U32 it_strtab_len = 0;
 
-        if (cfg->emit_import_table || asm_imports.count > 0) {
-            U32 it_count = asm_imports.count;
+        if (cfg->emit_import_table || asm_imports.decl_count > 0) {
+            U32 it_count = asm_imports.patch_count;
+            if (it_count == 0) it_count = asm_imports.decl_count;
+
             if (it_count > 0) {
                 it_entries = (AC_IMPORT_ENTRY*)AC_MAlloc(it_count * sizeof(AC_IMPORT_ENTRY));
                 AC_MEMZERO(it_entries, it_count * sizeof(AC_IMPORT_ENTRY));
@@ -1848,41 +1910,35 @@ BOOLEAN GEN_BINARY(ASM_AST_ARRAY *ast, PASM_INFO info) {
                 AC_MEMZERO(it_strtab, str_cap);
 
                 U32 idx = 0;
-                for (U32 i = 0; i < asm_imports.count; i++) {
-                    PU8 lib = asm_imports.items[i].lib_name;
-                    PU8 fn  = asm_imports.items[i].func_name;
-                    if (!lib || !fn) continue;
+                if (asm_imports.patch_count > 0) {
+                    for (U32 i = 0; i < asm_imports.patch_count; i++) {
+                        PU8 lib = asm_imports.patches[i].lib_name;
+                        PU8 fn  = asm_imports.patches[i].func_name;
+                        U32 p_off = asm_imports.patches[i].patch_offset;
+                        if (!lib || !fn) continue;
 
-                    U32 llen = (U32)AC_STRLEN(lib);
-                    U32 flen = (U32)AC_STRLEN(fn);
+                        U32 lib_off = GET_OR_ADD_STRTAB(&it_strtab, &it_strtab_len, &str_cap, lib);
+                        U32 fn_off  = GET_OR_ADD_STRTAB(&it_strtab, &it_strtab_len, &str_cap, fn);
 
-                    if (it_strtab_len + llen + flen + 2 > str_cap) {
-                        str_cap = (str_cap + llen + flen + 128) * 2;
-                        it_strtab = (PU8)AC_ReAlloc(it_strtab, str_cap);
+                        it_entries[idx].lib_name_offset  = lib_off;
+                        it_entries[idx].func_name_offset = fn_off;
+                        it_entries[idx].patch_offset     = sizeof(AC_FILE_HEADER) + p_off;
+                        idx++;
                     }
+                } else {
+                    for (U32 i = 0; i < asm_imports.decl_count; i++) {
+                        PU8 lib = asm_imports.decls[i].lib_name;
+                        PU8 fn  = asm_imports.decls[i].func_name;
+                        if (!lib || !fn) continue;
 
-                    it_entries[idx].lib_name_offset = it_strtab_len;
-                    AC_MEMCPY(it_strtab + it_strtab_len, lib, llen);
-                    it_strtab[it_strtab_len + llen] = '\0';
-                    it_strtab_len += llen + 1;
+                        U32 lib_off = GET_OR_ADD_STRTAB(&it_strtab, &it_strtab_len, &str_cap, lib);
+                        U32 fn_off  = GET_OR_ADD_STRTAB(&it_strtab, &it_strtab_len, &str_cap, fn);
 
-                    it_entries[idx].func_name_offset = it_strtab_len;
-                    AC_MEMCPY(it_strtab + it_strtab_len, fn, flen);
-                    it_strtab[it_strtab_len + flen] = '\0';
-                    it_strtab_len += flen + 1;
-
-                    U32 p_off = 0;
-                    U8 fn_label_buf[128] = "_";
-                    AC_STRCAT(fn_label_buf, fn);
-                    ASM_PTR *aptr = FIND_ASM_PTR(fn_label_buf);
-                    if (!aptr) aptr = FIND_ASM_PTR(fn);
-                    if (aptr) {
-                        p_off = aptr->offset;
-                    } else if (reloc_count > idx) {
-                        p_off = reloc_buf[idx];
+                        it_entries[idx].lib_name_offset  = lib_off;
+                        it_entries[idx].func_name_offset = fn_off;
+                        it_entries[idx].patch_offset     = sizeof(AC_FILE_HEADER);
+                        idx++;
                     }
-                    it_entries[idx].patch_offset = sizeof(AC_FILE_HEADER) + p_off;
-                    idx++;
                 }
                 it_hdr.entry_count = idx;
                 it_hdr.string_table_size = it_strtab_len;
