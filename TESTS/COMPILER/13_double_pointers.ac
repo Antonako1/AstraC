@@ -1,0 +1,36 @@
+// 13_double_pointers.ac - Test double pointers (U8** and PPU8)
+
+U32 main() {
+    U8 val = 0x42;
+    PU8 p = &val;
+    PPU8 pp1 = &p;
+    U8** pp2 = &p;
+
+    // Direct double dereference read
+    if (**pp1 != 0x42) return 1;
+    if (**pp2 != 0x42) return 2;
+
+    // Double dereference write via PPU8
+    **pp1 = 0x84;
+    if (val != 0x84) return 3;
+
+    // Double dereference write via U8**
+    **pp2 = 0x99;
+    if (val != 0x99) return 4;
+
+    // Array of pointers / double pointer indexing
+    U8 a = 10;
+    U8 b = 20;
+    U8 c = 30;
+    PU8 arr[3];
+    arr[0] = &a;
+    arr[1] = &b;
+    arr[2] = &c;
+
+    PPU8 ptr_arr = arr;
+    if (*ptr_arr[0] != 10) return 5;
+    if (*ptr_arr[1] != 20) return 6;
+    if (*ptr_arr[2] != 30) return 7;
+
+    return 0;
+}

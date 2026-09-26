@@ -148,9 +148,10 @@ type checking:
 
 | Category | Unsigned | Signed |
 |----------|----------|--------|
-| Single pointers | `PU8`, `PU16`, `PU32` | `PI8`, `PI16`, `PI32` |
-| Double pointers | `PPU8`, `PPU16`, `PPU32` | `PPI8`, `PPI16`, `PPI32` |
+| Single pointers | `PU8`, `PU16`, `PU32` (`U8*`, `U16*`, `U32*`) | `PI8`, `PI16`, `PI32` (`I8*`, `I16*`, `I32*`) |
+| Double pointers | `PPU8`, `PPU16`, `PPU32` (`U8**`, `U16**`, `U32**`) | `PPI8`, `PPI16`, `PPI32` (`I8**`, `I16**`, `I32**`) |
 
+Both built-in typedef aliases (`PU8`, `PPU8`) and standard C pointer syntax (`U8*`, `U8**`) are supported for single and multi-level pointers.
 `PU8` and `PI8` are distinct types despite pointing to the same-width data.
 Pointers are writable -- AC has no `CONST` qualifier.
 

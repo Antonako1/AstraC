@@ -404,8 +404,8 @@ STATIC BOOL verify_data_variable(PASM_NODE node, ASM_AST_ARRAY *ast, U32 node_id
             }
             /* Non-BYTE types must have numeric initializers, not string literals.
              * Allow $VARNAME references (variable byte-size) as valid.
-             * Allow identifiers and label expressions (resolved at codegen via eval_atom). */
-            if (var->raw_value[0] != '$' && !is_numeric_value(var->raw_value)) {
+             * Allow identifiers, label expressions, and initializer lists. */
+            if (!var->is_list && var->raw_value[0] != '$' && !is_numeric_value(var->raw_value)) {
                 /* Check if this is a label identifier or expression (starts with letter/underscore) */
                 U8 c = var->raw_value[0];
                 if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_')
@@ -415,7 +415,7 @@ STATIC BOOL verify_data_variable(PASM_NODE node, ASM_AST_ARRAY *ast, U32 node_id
                 else
                 {
                     AC_PRINTF("[AS VERIFY] Line %u: Non-BYTE variable '%s' has non-numeric initializer\n",
-                           node->line, var->name);
+                           node->line, var->name ? var->name : "(null)");
                     return FALSE;
                 }
             }

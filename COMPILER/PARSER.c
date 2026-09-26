@@ -761,13 +761,30 @@ STATIC PCNODE parse_stmt() {
             av->array_size = 0;
             while (MATCH(CTOK_LBRACKET)) {
                 ADV();
-                PCNODE sz = parse_expr();
+                PCNODE sz = NULLPTR;
+                if (!MATCH(CTOK_RBRACKET)) {
+                    sz = parse_expr();
+                }
                 if (sz) CNODE_ADD_CHILD(n, sz);
                 if (sz && sz->ntype == CNODE_INT_LIT) {
                     if (av->array_size == 0) av->array_size = sz->ival;
                     else av->array_size *= sz->ival;
                 }
                 EXPECT(CTOK_RBRACKET);
+            }
+            if (MATCH(CTOK_ASSIGN)) {
+                ADV();
+                if (MATCH(CTOK_LBRACE)) {
+                    ADV();
+                    PARSE_INIT_LIST(av);
+                    EXPECT(CTOK_RBRACE);
+                    if (av->array_size == 0 && av->init_count > 0) {
+                        av->array_size = av->init_count;
+                    }
+                } else {
+                    PCNODE init = parse_expr();
+                    if (init) CNODE_ADD_CHILD(n, init);
+                }
             }
             EXPECT(CTOK_SEMICOLON);
             return n;
@@ -1253,7 +1270,10 @@ STATIC PCNODE parse_toplevel() {
         vs->array_size = 0;
         while (MATCH(CTOK_LBRACKET)) {
             ADV();
-            PCNODE size = parse_atom();
+            PCNODE size = NULLPTR;
+            if (!MATCH(CTOK_RBRACKET)) {
+                size = parse_atom();
+            }
             if (size) CNODE_ADD_CHILD(n, size);
             if (size && size->ntype == CNODE_INT_LIT) {
                 if (vs->array_size == 0) vs->array_size = size->ival;
@@ -1267,6 +1287,9 @@ STATIC PCNODE parse_toplevel() {
                 ADV();
                 PARSE_INIT_LIST(vs);
                 EXPECT(CTOK_RBRACE);
+                if (vs->array_size == 0 && vs->init_count > 0) {
+                    vs->array_size = vs->init_count;
+                }
             } else {
                 PCNODE init = parse_expr();
                 if (init) CNODE_ADD_CHILD(n, init);

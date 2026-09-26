@@ -127,6 +127,17 @@ foreach ($file in $testFiles) {
         }
     }
 
+    # Check 13_double_pointers: verify MOVZX for U8 double deref and PPU8 / U8** type handling
+    if ($testName -eq "13_double_pointers.ac" -and (Test-Path $asPath)) {
+        $asContent = Get-Content $asPath -Raw
+        if ($asContent -match "MOVZX\s+EAX,\s+BYTE\s+\[EAX\]") {
+            Write-Host -NoNewline "[double-deref byte load verified] " -ForegroundColor DarkGray
+        } else {
+            $specificCheckFailed = $true
+            $specificDetail = "MOVZX BYTE [EAX] not found for double pointer dereference"
+        }
+    }
+
     if ($specificCheckFailed) {
         Write-Host "FAILED ($specificDetail)" -ForegroundColor Red
         $failed++

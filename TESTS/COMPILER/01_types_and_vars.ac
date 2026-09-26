@@ -11,6 +11,8 @@ BOOL g_bool = TRUE;
 U8 g_arr[16];
 U32 g_matrix[4][4];
 
+U32 g_arr_2[] = {1, 2, 3};
+
 U32 test_scalars() {
     U8  l_u8  = 10;
     U16 l_u16 = 200;
@@ -54,6 +56,7 @@ U32 test_arrays() {
 }
 
 U32 main() {
+    if (g_arr_2[0] != 1 || g_arr_2[1] != 2 || g_arr_2[2] != 3) return 100;
     U32 r1 = test_scalars();
     U32 r2 = test_pointers();
     U32 r3 = test_arrays();

@@ -4,6 +4,16 @@ All notable changes to AstraC will be documented in this file.
 
 ## 2026-09-26
 
+### Unsized Global Array Declarations & Initializer Lists
+- Added support for unsized array declarations with initializer lists (e.g., `U32 g_arr[] = {1, 2, 3};`) in `COMPILER/PARSER.c`: empty brackets `[]` are allowed when followed by an initializer list, inferring `array_size` from `init_count`.
+- Fixed assembler verification (`ASSEMBLER/VERIFY_AST.c`) for non-BYTE list variables (e.g. `DD 1, 2, 3`), skipping single-value `is_numeric_value` validation on list initializers.
+- Updated `TESTS/COMPILER/01_types_and_vars.ac` to test unsized global array `U32 g_arr_2[] = {1, 2, 3};`.
+
+### Double Pointer Verification & Test Suite
+- Added compiler test suite `TESTS/COMPILER/13_double_pointers.ac` testing `U8**`, `PPU8`, double dereferencing (`**pp`), address-of (`&`), pointer arithmetic, and double indexing (`ptr_arr[i]`).
+- Verified assembly generation (`MOV EAX, [EAX]` pointer dereference + `MOVZX EAX, BYTE [EAX]` target byte load, `MOV [EAX], BL` byte write).
+- Updated `TESTS/RUN_COMPILER_TESTS.ps1` with specific assembly assertions verifying `MOVZX EAX, BYTE [EAX]` for double pointer dereferencing (all 13 compiler tests passing).
+
 ### CLI Help Flags & Verbose Table Output
 - Added `-h` and `--help` CLI flag aliases alongside `help` for standard command line usage.
 - Added `--version` and `-v` CLI flag aliases alongside `version`.

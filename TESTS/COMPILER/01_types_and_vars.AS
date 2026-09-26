@@ -231,6 +231,64 @@ _MAIN:
     MOV EBP, ESP
     SUB ESP, 12
 ; U32 main() {
+; if (g_arr_2[0] != 1 || g_arr_2[1] != 2 || g_arr_2[2] != 3) return 100;
+    LEA EAX, [g_G_ARR_2]
+    PUSH EAX
+    MOV EAX, 0x0
+    POP EBX
+    LEA EAX, [EBX + EAX*4]
+    MOV EAX, [EAX]
+    PUSH EAX
+    MOV EAX, 0x1
+    MOV EBX, EAX
+    POP EAX
+    CMP EAX, EBX
+    SETNE AL
+    MOVZX EAX, AL
+    PUSH EAX
+    LEA EAX, [g_G_ARR_2]
+    PUSH EAX
+    MOV EAX, 0x1
+    POP EBX
+    LEA EAX, [EBX + EAX*4]
+    MOV EAX, [EAX]
+    PUSH EAX
+    MOV EAX, 0x2
+    MOV EBX, EAX
+    POP EAX
+    CMP EAX, EBX
+    SETNE AL
+    MOVZX EAX, AL
+    MOV EBX, EAX
+    POP EAX
+    OR EAX, EBX
+    PUSH EAX
+    LEA EAX, [g_G_ARR_2]
+    PUSH EAX
+    MOV EAX, 0x2
+    POP EBX
+    LEA EAX, [EBX + EAX*4]
+    MOV EAX, [EAX]
+    PUSH EAX
+    MOV EAX, 0x3
+    MOV EBX, EAX
+    POP EAX
+    CMP EAX, EBX
+    SETNE AL
+    MOVZX EAX, AL
+    MOV EBX, EAX
+    POP EAX
+    OR EAX, EBX
+    TEST EAX, EAX
+    JZ __lbl9
+; if (g_arr_2[0] != 1 || g_arr_2[1] != 2 || g_arr_2[2] != 3) return 100;
+    MOV EAX, 0x64
+    ADD ESP, 12
+    POP EBP
+    RET
+    JMP __lbl10
+__lbl9:
+__lbl10:
 ; U32 r1 = test_scalars();
     CALL _TEST_SCALARS
     MOV [EBP-4], EAX
@@ -272,3 +330,5 @@ g_G_ARR:
 .times 16 DB 0x0
 g_G_MATRIX:
 .times 16 DD 0x0
+g_G_ARR_2:
+DD 0x1, 0x2, 0x3
