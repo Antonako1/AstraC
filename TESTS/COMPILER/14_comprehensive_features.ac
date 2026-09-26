@@ -71,6 +71,8 @@ U32 test_complex_math_and_pointers(PU32 arr, U32 count) {
         i = i + 1;
     }
     return total;
+}
+
 U32 test_nested_control_flow() {
     U32 count = 0;
     U32 i = 0;
