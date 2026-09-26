@@ -227,8 +227,6 @@ _TEST_LOGIC:
     MOV EBX, EAX
     POP EAX
     ADD EAX, EBX
-    PUSH EAX
-    POP EAX
     MOV [EBP-4], EAX
     JMP __lbl2
 __lbl1:
@@ -264,8 +262,6 @@ __lbl2:
     MOV EBX, EAX
     POP EAX
     ADD EAX, EBX
-    PUSH EAX
-    POP EAX
     MOV [EBP-4], EAX
     JMP __lbl4
 __lbl3:
@@ -285,8 +281,6 @@ __lbl4:
     MOV EBX, EAX
     POP EAX
     ADD EAX, EBX
-    PUSH EAX
-    POP EAX
     MOV [EBP-4], EAX
     JMP __lbl6
 __lbl5:
@@ -317,8 +311,6 @@ _TEST_COMPOUND:
     MOV EBX, EAX
     POP EAX
     ADD EAX, EBX
-    PUSH EAX
-    POP EAX
     MOV [EBP-4], EAX
 ; a -= 2;
     MOV EAX, [EBP-4]
@@ -327,8 +319,6 @@ _TEST_COMPOUND:
     MOV EBX, EAX
     POP EAX
     SUB EAX, EBX
-    PUSH EAX
-    POP EAX
     MOV [EBP-4], EAX
 ; a *= 3;
     MOV EAX, [EBP-4]
@@ -337,8 +327,6 @@ _TEST_COMPOUND:
     MOV EBX, EAX
     POP EAX
     IMUL EAX, EBX
-    PUSH EAX
-    POP EAX
     MOV [EBP-4], EAX
 ; a /= 2;
     MOV EAX, [EBP-4]
@@ -348,8 +336,6 @@ _TEST_COMPOUND:
     POP EAX
     XOR EDX, EDX
     DIV EBX
-    PUSH EAX
-    POP EAX
     MOV [EBP-4], EAX
 ; a %= 7;
     MOV EAX, [EBP-4]
@@ -360,8 +346,6 @@ _TEST_COMPOUND:
     XOR EDX, EDX
     DIV EBX
     MOV EAX, EDX
-    PUSH EAX
-    POP EAX
     MOV [EBP-4], EAX
 ; a <<= 1;
     MOV EAX, [EBP-4]
@@ -371,8 +355,6 @@ _TEST_COMPOUND:
     POP EAX
     MOV ECX, EBX
     SHL EAX, CL
-    PUSH EAX
-    POP EAX
     MOV [EBP-4], EAX
 ; a >>= 1;
     MOV EAX, [EBP-4]
@@ -382,8 +364,6 @@ _TEST_COMPOUND:
     POP EAX
     MOV ECX, EBX
     SHR EAX, CL
-    PUSH EAX
-    POP EAX
     MOV [EBP-4], EAX
 ; a |= 4;
     MOV EAX, [EBP-4]
@@ -392,8 +372,6 @@ _TEST_COMPOUND:
     MOV EBX, EAX
     POP EAX
     OR EAX, EBX
-    PUSH EAX
-    POP EAX
     MOV [EBP-4], EAX
 ; a &= 0xFF;
     MOV EAX, [EBP-4]
@@ -402,8 +380,6 @@ _TEST_COMPOUND:
     MOV EBX, EAX
     POP EAX
     AND EAX, EBX
-    PUSH EAX
-    POP EAX
     MOV [EBP-4], EAX
 ; a ^= 1;
     MOV EAX, [EBP-4]
@@ -412,8 +388,6 @@ _TEST_COMPOUND:
     MOV EBX, EAX
     POP EAX
     XOR EAX, EBX
-    PUSH EAX
-    POP EAX
     MOV [EBP-4], EAX
 ; return a;
     MOV EAX, [EBP-4]

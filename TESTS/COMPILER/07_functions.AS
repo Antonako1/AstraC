@@ -154,8 +154,6 @@ __lbl3:
     MOV EBX, EAX
     POP EAX
     ADD EAX, EBX
-    PUSH EAX
-    POP EAX
     MOV [EBP-8], EAX
 __lbl5:
     MOV EAX, [EBP-12]
@@ -164,8 +162,6 @@ __lbl5:
     MOV EBX, EAX
     POP EAX
     ADD EAX, EBX
-    PUSH EAX
-    POP EAX
     MOV [EBP-12], EAX
     JMP __lbl3
 __lbl4:

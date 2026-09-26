@@ -11,7 +11,7 @@ jmp _MAIN
 _MAIN:
     PUSH EBP
     MOV EBP, ESP
-    SUB ESP, 4
+    SUB ESP, 8
     MOV EAX, 0xFF00
     PUSH EAX
     MOV EAX, 0x32
@@ -33,15 +33,45 @@ _MAIN:
     CALL _MALLOC
     ADD ESP, 4
     MOV [EBP-4], EAX
+    MOV EAX, 0x1
+    PUSH EAX
+    MOV EAX, 0x1
+    MOV EBX, EAX
+    POP EAX
+    CMP EAX, EBX
+    SETE AL
+    MOVZX EAX, AL
+    TEST EAX, EAX
+    JZ __lbl1
     MOV EAX, [EBP-4]
     PUSH EAX
     CALL _FREE
     ADD ESP, 4
-    MOV EAX, 0x0
+    MOV EAX, 0x1
+    ADD ESP, 8
+    POP EBP
+    RET
+    JMP __lbl2
+__lbl1:
+__lbl2:
+    MOV EAX, 0x29E
+    PUSH EAX
+    CALL _MALLOC
     ADD ESP, 4
+    MOV [EBP-8], EAX
+    MOV EAX, [EBP-4]
+    PUSH EAX
+    CALL _FREE
+    ADD ESP, 4
+    MOV EAX, [EBP-8]
+    PUSH EAX
+    CALL _FREE
+    ADD ESP, 4
+    MOV EAX, 0x0
+    ADD ESP, 8
     POP EBP
     RET
 __MAIN_ret:
-    ADD ESP, 4
+    ADD ESP, 8
     POP EBP
     RET

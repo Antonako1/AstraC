@@ -65,8 +65,6 @@ __lbl5:
     MOV EBX, EAX
     POP EAX
     ADD EAX, EBX
-    PUSH EAX
-    POP EAX
     MOV [EBP-4], EAX
 __lbl3:
     MOV EAX, [EBP-8]
@@ -75,8 +73,6 @@ __lbl3:
     MOV EBX, EAX
     POP EAX
     ADD EAX, EBX
-    PUSH EAX
-    POP EAX
     MOV [EBP-8], EAX
     JMP __lbl1
 __lbl2:
@@ -280,8 +276,6 @@ __lbl10:
     MOV EBX, EAX
     POP EAX
     ADD EAX, EBX
-    PUSH EAX
-    POP EAX
     MOV [EBP-132], EAX
 __lbl8:
     MOV EAX, [EBP-136]
@@ -290,8 +284,6 @@ __lbl8:
     MOV EBX, EAX
     POP EAX
     ADD EAX, EBX
-    PUSH EAX
-    POP EAX
     MOV [EBP-136], EAX
     JMP __lbl6
 __lbl7:
@@ -387,8 +379,6 @@ __lbl20:
     MOV EBX, EAX
     POP EAX
     ADD EAX, EBX
-    PUSH EAX
-    POP EAX
     MOV [EBP-4], EAX
 __lbl18:
     MOV EAX, [EBP-12]
@@ -397,8 +387,6 @@ __lbl18:
     MOV EBX, EAX
     POP EAX
     ADD EAX, EBX
-    PUSH EAX
-    POP EAX
     MOV [EBP-12], EAX
     JMP __lbl16
 __lbl17:
@@ -409,8 +397,6 @@ __lbl13:
     MOV EBX, EAX
     POP EAX
     ADD EAX, EBX
-    PUSH EAX
-    POP EAX
     MOV [EBP-8], EAX
     JMP __lbl11
 __lbl12:

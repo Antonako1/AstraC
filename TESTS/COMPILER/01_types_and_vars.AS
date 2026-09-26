@@ -51,8 +51,6 @@ _TEST_SCALARS:
     MOV EBX, EAX
     POP EAX
     ADD EAX, EBX
-    PUSH EAX
-    POP EAX
     MOV [EBP-8], EAX
     JMP __lbl2
 __lbl1:
@@ -164,8 +162,6 @@ __lbl5:
     MOV EBX, EAX
     POP EAX
     ADD EAX, EBX
-    PUSH EAX
-    POP EAX
     MOV [EBP-36], EAX
     JMP __lbl3
 __lbl4:
@@ -200,8 +196,6 @@ __lbl6:
     MOV EBX, EAX
     POP EAX
     ADD EAX, EBX
-    PUSH EAX
-    POP EAX
     MOV [EBP-40], EAX
 __lbl8:
     MOV EAX, [EBP-44]
@@ -210,8 +204,6 @@ __lbl8:
     MOV EBX, EAX
     POP EAX
     ADD EAX, EBX
-    PUSH EAX
-    POP EAX
     MOV [EBP-44], EAX
     JMP __lbl6
 __lbl7:

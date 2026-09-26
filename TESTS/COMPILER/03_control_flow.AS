@@ -88,8 +88,6 @@ __lbl5:
     MOV EBX, EAX
     POP EAX
     ADD EAX, EBX
-    PUSH EAX
-    POP EAX
     MOV [EBP-8], EAX
 ; if (i == 5) {
     MOV EAX, [EBP-8]
@@ -132,8 +130,6 @@ __lbl10:
     MOV EBX, EAX
     POP EAX
     ADD EAX, EBX
-    PUSH EAX
-    POP EAX
     MOV [EBP-4], EAX
     JMP __lbl5
 __lbl6:
@@ -169,8 +165,6 @@ __lbl11:
     MOV EBX, EAX
     POP EAX
     ADD EAX, EBX
-    PUSH EAX
-    POP EAX
     MOV [EBP-8], EAX
 ; if (i % 2 == 0) {
     MOV EAX, [EBP-8]
@@ -203,8 +197,6 @@ __lbl15:
     MOV EBX, EAX
     POP EAX
     ADD EAX, EBX
-    PUSH EAX
-    POP EAX
     MOV [EBP-4], EAX
 __lbl13:
     MOV EAX, [EBP-8]
@@ -239,55 +231,47 @@ _TEST_SWITCH:
     MOV [EBP-4], EAX
 ; switch (key) {
     MOV EAX, [EBP+8]
+    PUSH EAX
     MOV EAX, 0x1
     MOV EBX, EAX
-    POP EAX
+    MOV EAX, [ESP]
     CMP EAX, EBX
     JNE __lbl17
-    PUSH EAX
 ; res = 100;
     MOV EAX, 0x64
-    PUSH EAX
-    POP EAX
     MOV [EBP-4], EAX
 ; break;
-    POP EAX
+    JMP __lbl16
 __lbl17:
     MOV EAX, 0x2
     MOV EBX, EAX
-    POP EAX
+    MOV EAX, [ESP]
     CMP EAX, EBX
     JNE __lbl18
-    PUSH EAX
 ; res = 200;
     MOV EAX, 0xC8
-    PUSH EAX
-    POP EAX
     MOV [EBP-4], EAX
 ; break;
-    POP EAX
+    JMP __lbl16
 __lbl18:
     MOV EAX, 0x3
     MOV EBX, EAX
-    POP EAX
+    MOV EAX, [ESP]
     CMP EAX, EBX
     JNE __lbl19
-    PUSH EAX
 ; res = 300;
     MOV EAX, 0x12C
-    PUSH EAX
-    POP EAX
     MOV [EBP-4], EAX
 ; break;
-    POP EAX
+    JMP __lbl16
 __lbl19:
 ; res = 999;
     MOV EAX, 0x3E7
-    PUSH EAX
-    POP EAX
     MOV [EBP-4], EAX
 ; break;
+    JMP __lbl16
 __lbl16:
+    ADD ESP, 4
 ; return res;
     MOV EAX, [EBP-4]
     ADD ESP, 4
@@ -311,8 +295,6 @@ _TEST_GOTO:
     JMP MY_LABEL
 ; x = 100;
     MOV EAX, 0x64
-    PUSH EAX
-    POP EAX
     MOV [EBP-4], EAX
 ; my_label:
 MY_LABEL:
@@ -323,8 +305,6 @@ MY_LABEL:
     MOV EBX, EAX
     POP EAX
     ADD EAX, EBX
-    PUSH EAX
-    POP EAX
     MOV [EBP-4], EAX
 ; return x;
     MOV EAX, [EBP-4]

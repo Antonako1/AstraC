@@ -54,8 +54,6 @@ __lbl3:
     MOV EBX, EAX
     POP EAX
     ADD EAX, EBX
-    PUSH EAX
-    POP EAX
     MOV [EBP-20], EAX
     JMP __lbl1
 __lbl2:
@@ -149,8 +147,6 @@ __lbl6:
     MOV EBX, EAX
     POP EAX
     ADD EAX, EBX
-    PUSH EAX
-    POP EAX
     MOV [EBP-140], EAX
     JMP __lbl4
 __lbl5:

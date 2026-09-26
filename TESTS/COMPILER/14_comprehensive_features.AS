@@ -79,8 +79,6 @@ __lbl1:
     MOV EBX, EAX
     POP EAX
     ADD EAX, EBX
-    PUSH EAX
-    POP EAX
     MOV [EBP-8], EAX
 __lbl3:
     MOV EAX, [EBP-12]
@@ -89,8 +87,6 @@ __lbl3:
     MOV EBX, EAX
     POP EAX
     ADD EAX, EBX
-    PUSH EAX
-    POP EAX
     MOV [EBP-12], EAX
     JMP __lbl1
 __lbl2:
@@ -129,8 +125,6 @@ _EVALUATE_OP:
     MOV EBX, EAX
     POP EAX
     ADD EAX, EBX
-    PUSH EAX
-    POP EAX
     MOV [EBP-4], EAX
 ; break;
     JMP __lbl4
@@ -147,8 +141,6 @@ __lbl5:
     MOV EBX, EAX
     POP EAX
     IMUL EAX, EBX
-    PUSH EAX
-    POP EAX
     MOV [EBP-4], EAX
 ; break;
     JMP __lbl4
@@ -184,16 +176,12 @@ __lbl9:
     POP EAX
     SUB EAX, EBX
 __lbl8:
-    PUSH EAX
-    POP EAX
     MOV [EBP-4], EAX
 ; break;
     JMP __lbl4
 __lbl7:
 ; res = 0xFFFFFFFF;
     MOV EAX, 0xFFFFFFFF
-    PUSH EAX
-    POP EAX
     MOV [EBP-4], EAX
 ; break;
     JMP __lbl4
@@ -310,8 +298,6 @@ __lbl10:
     MOV EBX, EAX
     POP EAX
     ADD EAX, EBX
-    PUSH EAX
-    POP EAX
     MOV [EBP-4], EAX
 ; i = i + 1;
     MOV EAX, [EBP-12]
@@ -320,8 +306,6 @@ __lbl10:
     MOV EBX, EAX
     POP EAX
     ADD EAX, EBX
-    PUSH EAX
-    POP EAX
     MOV [EBP-12], EAX
     JMP __lbl10
 __lbl11:
@@ -334,12 +318,104 @@ __TEST_COMPLEX_MATH_AND_POINTERS_ret:
     ADD ESP, 24
     POP EBP
     RET
+; U32 test_nested_control_flow() {
+
+_TEST_NESTED_CONTROL_FLOW:
+    PUSH EBP
+    MOV EBP, ESP
+    SUB ESP, 8
+; U32 test_nested_control_flow() {
+; U32 count = 0;
+    MOV EAX, 0x0
+    MOV [EBP-4], EAX
+; U32 i = 0;
+    MOV EAX, 0x0
+    MOV [EBP-8], EAX
+; while (i < 10) {
+__lbl12:
+    MOV EAX, [EBP-8]
+    PUSH EAX
+    MOV EAX, 0xA
+    MOV EBX, EAX
+    POP EAX
+    CMP EAX, EBX
+    SETL AL
+    MOVZX EAX, AL
+    TEST EAX, EAX
+    JZ __lbl13
+; while (i < 10) {
+; switch (i) {
+    MOV EAX, [EBP-8]
+    PUSH EAX
+    MOV EAX, 0x3
+    MOV EBX, EAX
+    MOV EAX, [ESP]
+    CMP EAX, EBX
+    JNE __lbl15
+; i = i + 2;
+    MOV EAX, [EBP-8]
+    PUSH EAX
+    MOV EAX, 0x2
+    MOV EBX, EAX
+    POP EAX
+    ADD EAX, EBX
+    MOV [EBP-8], EAX
+; break;
+    JMP __lbl14
+__lbl15:
+    MOV EAX, 0x7
+    MOV EBX, EAX
+    MOV EAX, [ESP]
+    CMP EAX, EBX
+    JNE __lbl16
+; i = i + 3;
+    MOV EAX, [EBP-8]
+    PUSH EAX
+    MOV EAX, 0x3
+    MOV EBX, EAX
+    POP EAX
+    ADD EAX, EBX
+    MOV [EBP-8], EAX
+; break;
+    JMP __lbl14
+__lbl16:
+; i = i + 1;
+    MOV EAX, [EBP-8]
+    PUSH EAX
+    MOV EAX, 0x1
+    MOV EBX, EAX
+    POP EAX
+    ADD EAX, EBX
+    MOV [EBP-8], EAX
+; break;
+    JMP __lbl14
+__lbl14:
+    ADD ESP, 4
+; count = count + 1;
+    MOV EAX, [EBP-4]
+    PUSH EAX
+    MOV EAX, 0x1
+    MOV EBX, EAX
+    POP EAX
+    ADD EAX, EBX
+    MOV [EBP-4], EAX
+    JMP __lbl12
+__lbl13:
+; return count;
+    MOV EAX, [EBP-4]
+    ADD ESP, 8
+    POP EBP
+    RET
+__TEST_NESTED_CONTROL_FLOW_ret:
+    ADD ESP, 8
+    POP EBP
+    RET
 ; U32 main() {
 
 _MAIN:
     PUSH EBP
     MOV EBP, ESP
-    SUB ESP, 104
+    SUB ESP, 100
 ; U32 main() {
 ; U32 r_foo = foo(15, 25);
     MOV EAX, 0x19
@@ -577,15 +653,15 @@ _MAIN:
     SETNE AL
     MOVZX EAX, AL
     TEST EAX, EAX
-    JZ __lbl12
+    JZ __lbl17
 ; if (*(ptr + 0) != 10) return 7;
     MOV EAX, 0x7
-    ADD ESP, 104
+    ADD ESP, 100
     POP EBP
     RET
-    JMP __lbl13
-__lbl12:
-__lbl13:
+    JMP __lbl18
+__lbl17:
+__lbl18:
 ; if (*(ptr + 1) != 20) return 8;
     MOV EAX, [EBP-92]
     PUSH EAX
@@ -603,15 +679,15 @@ __lbl13:
     SETNE AL
     MOVZX EAX, AL
     TEST EAX, EAX
-    JZ __lbl14
+    JZ __lbl19
 ; if (*(ptr + 1) != 20) return 8;
     MOV EAX, 0x8
-    ADD ESP, 104
+    ADD ESP, 100
     POP EBP
     RET
-    JMP __lbl15
-__lbl14:
-__lbl15:
+    JMP __lbl20
+__lbl19:
+__lbl20:
 ; if (*(ptr + 2) != 30) return 9;
     MOV EAX, [EBP-92]
     PUSH EAX
@@ -629,15 +705,15 @@ __lbl15:
     SETNE AL
     MOVZX EAX, AL
     TEST EAX, EAX
-    JZ __lbl16
+    JZ __lbl21
 ; if (*(ptr + 2) != 30) return 9;
     MOV EAX, 0x9
-    ADD ESP, 104
+    ADD ESP, 100
     POP EBP
     RET
-    JMP __lbl17
-__lbl16:
-__lbl17:
+    JMP __lbl22
+__lbl21:
+__lbl22:
 ; if (*(ptr + 3) != 40) return 10;
     MOV EAX, [EBP-92]
     PUSH EAX
@@ -655,15 +731,15 @@ __lbl17:
     SETNE AL
     MOVZX EAX, AL
     TEST EAX, EAX
-    JZ __lbl18
+    JZ __lbl23
 ; if (*(ptr + 3) != 40) return 10;
     MOV EAX, 0xA
-    ADD ESP, 104
+    ADD ESP, 100
     POP EBP
     RET
-    JMP __lbl19
-__lbl18:
-__lbl19:
+    JMP __lbl24
+__lbl23:
+__lbl24:
 ; PU32 weight_bits = (PU32)&node.pt.weight;
     LEA EAX, [EBP-44]
     ADD EAX, 8
@@ -680,15 +756,15 @@ __lbl19:
     SETNE AL
     MOVZX EAX, AL
     TEST EAX, EAX
-    JZ __lbl20
+    JZ __lbl25
 ; if (*weight_bits != 0x3FC00000) return 11;
     MOV EAX, 0xB
-    ADD ESP, 104
+    ADD ESP, 100
     POP EBP
     RET
-    JMP __lbl21
-__lbl20:
-__lbl21:
+    JMP __lbl26
+__lbl25:
+__lbl26:
 ; if (r_foo != 400) return 1;
     MOV EAX, [EBP-4]
     PUSH EAX
@@ -699,15 +775,15 @@ __lbl21:
     SETNE AL
     MOVZX EAX, AL
     TEST EAX, EAX
-    JZ __lbl22
+    JZ __lbl27
 ; if (r_foo != 400) return 1;
     MOV EAX, 0x1
-    ADD ESP, 104
+    ADD ESP, 100
     POP EBP
     RET
-    JMP __lbl23
-__lbl22:
-__lbl23:
+    JMP __lbl28
+__lbl27:
+__lbl28:
 ; if (r_fp != 100) return 2;
     MOV EAX, [EBP-12]
     PUSH EAX
@@ -718,15 +794,15 @@ __lbl23:
     SETNE AL
     MOVZX EAX, AL
     TEST EAX, EAX
-    JZ __lbl24
+    JZ __lbl29
 ; if (r_fp != 100) return 2;
     MOV EAX, 0x2
-    ADD ESP, 104
+    ADD ESP, 100
     POP EBP
     RET
-    JMP __lbl25
-__lbl24:
-__lbl25:
+    JMP __lbl30
+__lbl29:
+__lbl30:
 ; if (struct_val != 97) return 3;
     MOV EAX, [EBP-52]
     PUSH EAX
@@ -737,15 +813,15 @@ __lbl25:
     SETNE AL
     MOVZX EAX, AL
     TEST EAX, EAX
-    JZ __lbl26
+    JZ __lbl31
 ; if (struct_val != 97) return 3;
     MOV EAX, 0x3
-    ADD ESP, 104
+    ADD ESP, 100
     POP EBP
     RET
-    JMP __lbl27
-__lbl26:
-__lbl27:
+    JMP __lbl32
+__lbl31:
+__lbl32:
 ; if (r_sw1 != 30 || r_sw2 != 30 || r_sw3 != 0xFFFFFFFF) return 4;
     MOV EAX, [EBP-56]
     PUSH EAX
@@ -780,15 +856,15 @@ __lbl27:
     POP EAX
     OR EAX, EBX
     TEST EAX, EAX
-    JZ __lbl28
+    JZ __lbl33
 ; if (r_sw1 != 30 || r_sw2 != 30 || r_sw3 != 0xFFFFFFFF) return 4;
     MOV EAX, 0x4
-    ADD ESP, 104
+    ADD ESP, 100
     POP EBP
     RET
-    JMP __lbl29
-__lbl28:
-__lbl29:
+    JMP __lbl34
+__lbl33:
+__lbl34:
 ; if (r_var != 1000) return 5;
     MOV EAX, [EBP-68]
     PUSH EAX
@@ -799,15 +875,15 @@ __lbl29:
     SETNE AL
     MOVZX EAX, AL
     TEST EAX, EAX
-    JZ __lbl30
+    JZ __lbl35
 ; if (r_var != 1000) return 5;
     MOV EAX, 0x5
-    ADD ESP, 104
+    ADD ESP, 100
     POP EBP
     RET
-    JMP __lbl31
-__lbl30:
-__lbl31:
+    JMP __lbl36
+__lbl35:
+__lbl36:
 ; if (r_complex != 3922) return 6;
     MOV EAX, [EBP-88]
     PUSH EAX
@@ -818,47 +894,43 @@ __lbl31:
     SETNE AL
     MOVZX EAX, AL
     TEST EAX, EAX
-    JZ __lbl32
+    JZ __lbl37
 ; if (r_complex != 3922) return 6;
     MOV EAX, 0x6
-    ADD ESP, 104
+    ADD ESP, 100
     POP EBP
     RET
-    JMP __lbl33
-__lbl32:
-__lbl33:
-; F32 test = 0.1;
-    MOV EAX, 0x3DCCCCCD
+    JMP __lbl38
+__lbl37:
+__lbl38:
+; U32 r_nested = test_nested_control_flow();
+    CALL _TEST_NESTED_CONTROL_FLOW
     MOV [EBP-100], EAX
-; test += 1.5;
+; if (r_nested != 7) return 12;
     MOV EAX, [EBP-100]
     PUSH EAX
-    MOV EAX, 0x3FC00000
+    MOV EAX, 0x7
     MOV EBX, EAX
     POP EAX
-    ADD EAX, EBX
-    PUSH EAX
-    POP EAX
-    MOV [EBP-100], EAX
-; f32 tst2 = 2.0;
-    MOV EAX, 0x40000000
-    MOV [EBP-104], EAX
-; tst2 = tst2 * test;
-    MOV EAX, [EBP-104]
-    PUSH EAX
-    MOV EAX, [EBP-100]
-    MOV EBX, EAX
-    POP EAX
-    IMUL EAX, EBX
-    PUSH EAX
-    POP EAX
-    MOV [EBP-104], EAX
+    CMP EAX, EBX
+    SETNE AL
+    MOVZX EAX, AL
+    TEST EAX, EAX
+    JZ __lbl39
+; if (r_nested != 7) return 12;
+    MOV EAX, 0xC
+    ADD ESP, 100
+    POP EBP
+    RET
+    JMP __lbl40
+__lbl39:
+__lbl40:
 ; return 0;
     MOV EAX, 0x0
-    ADD ESP, 104
+    ADD ESP, 100
     POP EBP
     RET
 __MAIN_ret:
-    ADD ESP, 104
+    ADD ESP, 100
     POP EBP
     RET

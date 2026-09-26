@@ -147,8 +147,6 @@ _TEST_STRUCT_ASSIGNMENT:
 ; POINT p2;
 ; p2 = p1;
     MOV EAX, [EBP-8]
-    PUSH EAX
-    POP EAX
     MOV EBX, EAX
     LEA EAX, [EBP-16]
     MOV EDX, [EBX]
@@ -307,8 +305,6 @@ __lbl1:
     MOV EBX, EAX
     POP EAX
     ADD EAX, EBX
-    PUSH EAX
-    POP EAX
     MOV [EBP-52], EAX
 __lbl3:
     MOV EAX, [EBP-56]
@@ -317,8 +313,6 @@ __lbl3:
     MOV EBX, EAX
     POP EAX
     ADD EAX, EBX
-    PUSH EAX
-    POP EAX
     MOV [EBP-56], EAX
     JMP __lbl1
 __lbl2:
