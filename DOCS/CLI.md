@@ -93,11 +93,13 @@ Displays version string, version header information, build configuration, and co
 AstraC version
 ```
 
-### 10. `help`
-Displays CLI command summary and option flags.
+### 10. `help` / `-h` / `--help`
+Displays CLI command summary, options, and flag documentation.
 
 ```sh
 AstraC help
+AstraC -h
+AstraC --help
 ```
 
 ---
@@ -108,7 +110,7 @@ AstraC help
 |---|---|---|
 | `macro` | `<name> <val>` | Defines a preprocessor macro (equivalent to `#define name val`). |
 | `stepoff` | `<1\|2\|3>` | Stops pipeline execution early: `1` = after preprocessing, `2` = after compile (emits `.AS`), `3` = after assemble. |
-| `verbose` | *None* | Enables detailed pipeline diagnostics and pass progress output. |
+| `verbose` | *None* | Enables detailed pipeline diagnostics, pass progress output, and lists all entries included in Relocations, Function Export, and Import Tables. |
 | `debug` | *None* | Emits source-line comments in generated `.AS` file and `.ASD` debug listing. |
 | `arch` | `<i386\|i286>` | Specifies target architecture (`i386` default 32-bit, `i286` 16-bit). |
 | `type` | `{exe\|lib} [table,...]` | Emits ACFH header with optional tables (`offset_table` / `ot`, `function_table` / `ft`, `import_table` / `it`). Multiple comma-separated or space-separated tables can be specified. |

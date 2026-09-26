@@ -4,6 +4,11 @@ All notable changes to AstraC will be documented in this file.
 
 ## 2026-09-26
 
+### CLI Help Flags & Verbose Table Output
+- Added `-h` and `--help` CLI flag aliases alongside `help` for standard command line usage.
+- Added `--version` and `-v` CLI flag aliases alongside `version`.
+- Enhanced `verbose` output mode to log full itemized contents of Relocation Tables, Function Export Tables, and Import Tables during binary code generation.
+
 ### ACFH Import Tables & #import Directive
 - Implemented ACFH Import Tables (`AC_IMPORT_TABLE_HDR`, `AC_IMPORT_ENTRY`, `AC_FLAG_HAS_IMPORTS`) in binary header structure (`AC_FH.h`) to support dynamic function resolution by OS loaders during multitasking. Preserved 108-byte header size (`reserved[40]`).
 - Added `#import <funcs> from "lib.lib"` directive in preprocessor, AC lexer (`CTOK_KW_IMPORT`), parser, AST, and codegen, allowing AC source files to specify external library origins.

@@ -1886,6 +1886,33 @@ BOOLEAN GEN_BINARY(ASM_AST_ARRAY *ast, PASM_INFO info) {
         if (ft_bytes > 0)    h.flags |= AC_FLAG_HAS_FUNCS;
         if (it_bytes > 0)    h.flags |= AC_FLAG_HAS_IMPORTS;
 
+        if (cfg->verbose) {
+            if (reloc_count > 0) {
+                AC_PRINTF("[ASM GEN] Relocations Table (%u entries):\n", reloc_count);
+                for (U32 i = 0; i < reloc_count; i++) {
+                    AC_PRINTF("[ASM GEN]   [Reloc #%u] patch_offset = 0x%X (code_offset = 0x%X)\n",
+                              i, (U32)(sizeof(AC_FILE_HEADER) + reloc_buf[i]), reloc_buf[i]);
+                }
+            }
+            if (ft_hdr.entry_count > 0) {
+                AC_PRINTF("[ASM GEN] Function Export Table (%u entries):\n", ft_hdr.entry_count);
+                for (U32 i = 0; i < ft_hdr.entry_count; i++) {
+                    PU8 fname = (PU8)(ft_strtab + ft_entries[i].name_offset);
+                    AC_PRINTF("[ASM GEN]   [Func #%u] %s @ address 0x%X (param_size=%u bytes, flags=0x%X)\n",
+                              i, fname, ft_entries[i].address, ft_entries[i].param_size, ft_entries[i].flags);
+                }
+            }
+            if (it_hdr.entry_count > 0) {
+                AC_PRINTF("[ASM GEN] Import Table (%u entries):\n", it_hdr.entry_count);
+                for (U32 i = 0; i < it_hdr.entry_count; i++) {
+                    PU8 lname = (PU8)(it_strtab + it_entries[i].lib_name_offset);
+                    PU8 fname = (PU8)(it_strtab + it_entries[i].func_name_offset);
+                    AC_PRINTF("[ASM GEN]   [Import #%u] %s -> %s @ patch_offset 0x%X\n",
+                              i, lname, fname, it_entries[i].patch_offset);
+                }
+            }
+        }
+
         h.entry_point_offset = main_ptr ? main_ptr->offset : OFFSET_NON_EXISTENT;
 
         h.code_offset   = sizeof(AC_FILE_HEADER);

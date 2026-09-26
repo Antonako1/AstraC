@@ -8,8 +8,9 @@
 #include "ASSEMBLER/ASSEMBLER.h"
 #include "DISSASEMBLER/DISSASEMBLER.h"
 
-#define ARG_CMP1(x)    (AC_STRICMP(arg, x) == 0)
-#define ARG_CMP2(x, y) (ARG_CMP1(x) || ARG_CMP1(y))
+#define ARG_CMP1(x)       (AC_STRICMP(arg, x) == 0)
+#define ARG_CMP2(x, y)    (ARG_CMP1(x) || ARG_CMP1(y))
+#define ARG_CMP3(x, y, z) (ARG_CMP1(x) || ARG_CMP1(y) || ARG_CMP1(z))
 
 static ASTRAC_ARGS args ATTRIB_DATA = { 0 };
 
@@ -62,36 +63,37 @@ STATIC ASTRAC_RESULT START_SHOWLINE() {
 VOID PRINT_HELP() {
     AC_PRINTF("\n%s v%s (%s)\n\n", TRADEMARK, VERSION, PLATFORM);
     AC_PRINTF(
-        "ASTRAC.EXE [options] [flags]\n"
+        "ASTRAC.EXE [options] [flags]\n\n"
 
         "Options:\n"
             "  asm <file.AS>                    ; Assemble input file\n"
             "  comp <file.AC>                   ; Compile input file\n"
             "  disasm <file.BIN>                ; Disassemble input file\n"
-            "  objdump <file.BIN> [mode]        ; Dump ACFH header and tables (all|header|tables|funcs|relocs)\n"
+            "  objdump <file.BIN> [mode]        ; Dump ACFH header and tables (all|header|tables|funcs|relocs|imports)\n"
             "  strdump <file.BIN>               ; Dump strings from ACFH binary rodata section\n"
             "  preproc <file.AC|file.AS>        ; Preprocess file\n"
             "  info <mnemonic>                  ; Show information about a mnemonic\n"
             "  showline <AS|AC> <ctx> <start> [end] ; Show source lines around a line number\n"
-            "  version                          ; Show version information\n"
-            "  help                             ; Show this help message\n"
+            "  version / -v / --version         ; Show version information\n"
+            "  help / -h / --help               ; Show this help message\n\n"
         
         "Flags:\n"
             "  macro <name> <value>             ; Define a macro for preprocessing\n"
             "  stepoff <level>                  ; Levels: 1=After preprocessing, 2=After assembling 3=After compiling\n"
-            "  verbose                          ; Verbose output\n"
+            "  verbose                          ; Verbose output (lists symbols & table contents)\n"
             "  debug                            ; Debug output to files. (AC->AS, AS->ASD)\n"
             "  arch <architecture>              ; Specify target architecture: i386 or i286. Default=i386\n"
-            "  type <exe|lib> [tables...]       ; Binary output format (exe/lib) with optional tables (offset_table|ot, function_table|ft)\n"
+            "  type <exe|lib> [tables...]       ; Binary output format (exe/lib) with optional tables (offset_table|ot, function_table|ft, import_table|it)\n"
             "  exe                              ; Specify to output a binary file with an executable ACFH header\n"
             "  lib                              ; Specify to output a binary file with a library ACFH header\n"
             "  offset_table / ot                ; Emit relocation offset table in ACFH header\n"
             "  function_table / ft              ; Emit function export table in ACFH header\n"
+            "  import_table / it                ; Emit import table in ACFH header\n"
             "  bits <16|32>                     ; Force 16-bit or 32-bit instruction encoding\n"
             "  org <address>                    ; Specify memory origin address for raw binaries (e.g., 0x7C00)\n"
             "  entry <label>                    ; Define the entry point for executables\n"
             "  warn <level>                     ; Warning level (0=none, 1=standard, 2=all, err=treat as errors)\n"
-            "  debug                           ; Emit source-line comments in generated .AS for debugging\n"
+            "  debug                            ; Emit source-line comments in generated .AS for debugging\n"
     );
 }
 
@@ -134,10 +136,10 @@ U32 main(U32 argc, PPU8 argv) {
 
     for (U32 i = 1; i < argc; i++) {
         PU8 arg = argv[i];
-        if(ARG_CMP2("help", "-h")) {
+        if(ARG_CMP3("help", "-h", "--help")) {
             PRINT_HELP();
             return ASTRAC_OK;
-        } else if(ARG_CMP2("version", "-v")) {
+        } else if(ARG_CMP3("version", "-v", "--version")) {
             PRINT_VERSION();
             return ASTRAC_OK;
         } else if(ARG_CMP1("asm")) {
