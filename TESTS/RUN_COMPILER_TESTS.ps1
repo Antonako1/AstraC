@@ -138,14 +138,19 @@ foreach ($file in $testFiles) {
         }
     }
 
-    # Check 14_comprehensive_features: verify foo function and multi-feature compilation
+    # Check 14_comprehensive_features: verify foo function, scaled ptr arith, switch stack peek, and F32 float representation
     if ($testName -eq "14_comprehensive_features.ac" -and (Test-Path $asPath)) {
         $asContent = Get-Content $asPath -Raw
-        if ($asContent -match "_FOO:") {
-            Write-Host -NoNewline "[foo symbol & multi-feature verified] " -ForegroundColor DarkGray
+        $hasFoo = $asContent -match "_FOO:"
+        $hasPtrArithScale = $asContent -match "IMUL\s+EBX,\s+EBX,\s+4"
+        $hasSwitchPeek = $asContent -match "MOV\s+EAX,\s+\[ESP\]"
+        $hasFloatRep = $asContent -match "0x3FC00000"
+
+        if ($hasFoo -and $hasPtrArithScale -and $hasSwitchPeek -and $hasFloatRep) {
+            Write-Host -NoNewline "[foo, ptr-scale, switch-peek & float-repr verified] " -ForegroundColor DarkGray
         } else {
             $specificCheckFailed = $true
-            $specificDetail = "_FOO symbol not found in generated assembly"
+            $specificDetail = "Assembly verification failed for 14_comprehensive_features (foo:$hasFoo, scale:$hasPtrArithScale, switch:$hasSwitchPeek, float:$hasFloatRep)"
         }
     }
 

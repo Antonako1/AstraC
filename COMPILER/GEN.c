@@ -54,6 +54,41 @@ SYMBOL *FIND_SYM(PU8 name) {
     return NULLPTR;
 }
 
+STATIC COMP_TYPE GEN_STRIP_PTR_TYPE(COMP_TYPE t) {
+    if (t.ptr_depth > 0)
+        return COMP_MAKE_TYPE(t.base, t.ptr_depth - 1, t.name);
+    switch (t.base) {
+        case CTYPE_PU8:   return COMP_MAKE_TYPE(CTYPE_U8, 0, NULLPTR);
+        case CTYPE_PU16:  return COMP_MAKE_TYPE(CTYPE_U16, 0, NULLPTR);
+        case CTYPE_PU32:  return COMP_MAKE_TYPE(CTYPE_U32, 0, NULLPTR);
+        case CTYPE_PI8:   return COMP_MAKE_TYPE(CTYPE_I8, 0, NULLPTR);
+        case CTYPE_PI16:  return COMP_MAKE_TYPE(CTYPE_I16, 0, NULLPTR);
+        case CTYPE_PI32:  return COMP_MAKE_TYPE(CTYPE_I32, 0, NULLPTR);
+        case CTYPE_PPU8:  return COMP_MAKE_TYPE(CTYPE_PU8, 0, NULLPTR);
+        case CTYPE_PPU16: return COMP_MAKE_TYPE(CTYPE_PU16, 0, NULLPTR);
+        case CTYPE_PPU32: return COMP_MAKE_TYPE(CTYPE_PU32, 0, NULLPTR);
+        case CTYPE_PPI8:  return COMP_MAKE_TYPE(CTYPE_PI8, 0, NULLPTR);
+        case CTYPE_PPI16: return COMP_MAKE_TYPE(CTYPE_PI16, 0, NULLPTR);
+        case CTYPE_PPI32: return COMP_MAKE_TYPE(CTYPE_PPI32, 0, NULLPTR);
+        case CTYPE_VOIDPTR: return COMP_MAKE_TYPE(CTYPE_U8, 0, NULLPTR);
+        default:          return COMP_MAKE_TYPE(CTYPE_U8, 0, NULLPTR);
+    }
+}
+
+STATIC BOOL IS_PTR_DTYPE(COMP_TYPE t) {
+    if (t.ptr_depth > 0) return TRUE;
+    switch (t.base) {
+        case CTYPE_PU8:  case CTYPE_PU16: case CTYPE_PU32:
+        case CTYPE_PPU8: case CTYPE_PPU16: case CTYPE_PPU32:
+        case CTYPE_PI8:  case CTYPE_PI16: case CTYPE_PI32:
+        case CTYPE_PPI8: case CTYPE_PPI16: case CTYPE_PPI32:
+        case CTYPE_VOIDPTR:
+            return TRUE;
+        default:
+            return FALSE;
+    }
+}
+
 /* Size of a type, resolving struct/union sizes through the symbol table.
  * COMP_TYPE_SIZE alone returns 0 for struct/union types. */
 STATIC U32 GEN_TYPE_SIZE(COMP_TYPE t) {
@@ -152,9 +187,12 @@ STATIC VOID GEN_LITERAL(PCNODE n) {
         case CNODE_INT_LIT:
             AC_FPRINTF(outf, "    MOV EAX, 0x%X\n", n->ival);
             break;
-        case CNODE_FLOAT_LIT:
-            AC_FPRINTF(outf, "    MOV EAX, 0x%X\n", (U32)n->fval);
+        case CNODE_FLOAT_LIT: {
+            union { F32 f; U32 u; } bits;
+            bits.f = n->fval;
+            AC_FPRINTF(outf, "    MOV EAX, 0x%X\n", bits.u);
             break;
+        }
         case CNODE_STR_LIT:
             AC_FPRINTF(outf, "    MOV EAX, _str%u\n", n->ival);
             break;
@@ -220,9 +258,21 @@ STATIC VOID GEN_ASSIGN(PCNODE n) {
         GEN_EXPR(n->children[1]);
         emit("    MOV EBX, EAX");
         emit("    POP EAX");
+        BOOL lhs_is_ptr = IS_PTR_DTYPE(lhs->dtype);
+        U32 lhs_elem_sz = lhs_is_ptr ? GEN_TYPE_SIZE(GEN_STRIP_PTR_TYPE(lhs->dtype)) : 1;
+        if (lhs_elem_sz == 0) lhs_elem_sz = 1;
+
         switch (n->op) {
-            case CTOK_PLUS_ASSIGN:  emit("    ADD EAX, EBX"); break;
-            case CTOK_MINUS_ASSIGN: emit("    SUB EAX, EBX"); break;
+            case CTOK_PLUS_ASSIGN:
+                if (lhs_is_ptr && lhs_elem_sz > 1)
+                    AC_FPRINTF(outf, "    IMUL EBX, EBX, %u\n", lhs_elem_sz);
+                emit("    ADD EAX, EBX");
+                break;
+            case CTOK_MINUS_ASSIGN:
+                if (lhs_is_ptr && lhs_elem_sz > 1)
+                    AC_FPRINTF(outf, "    IMUL EBX, EBX, %u\n", lhs_elem_sz);
+                emit("    SUB EAX, EBX");
+                break;
             case CTOK_STAR_ASSIGN:  emit("    IMUL EAX, EBX"); break;
             case CTOK_SLASH_ASSIGN:
                 emit("    XOR EDX, EDX");
@@ -242,17 +292,16 @@ STATIC VOID GEN_ASSIGN(PCNODE n) {
                 emit("    SHR EAX, CL"); break;
             default: break;
         }
-        emit("    PUSH EAX");
+        if (lhs->ntype != CNODE_IDENT) emit("    PUSH EAX");
     } else {
         GEN_EXPR(n->children[1]);
-        emit("    PUSH EAX");
+        if (lhs->ntype != CNODE_IDENT) emit("    PUSH EAX");
     }
 
     /* Common store */
     if (lhs->ntype == CNODE_IDENT) {
         s = FIND_SYM(lhs->txt);
-        if (!s) { emit("    POP EAX"); return; }
-        emit("    POP EAX");
+        if (!s) return;
         es = GEN_TYPE_SIZE(s->type);
         if (IS_AGGREGATE_TYPE(s->type) || es > 4) {
             emit("    MOV EBX, EAX");
@@ -350,9 +399,35 @@ STATIC VOID GEN_BINOP(PCNODE n) {
     GEN_EXPR(r);
     emit("    MOV EBX, EAX");
     emit("    POP EAX");
+    BOOL l_ptr = IS_PTR_DTYPE(l->dtype);
+    BOOL r_ptr = IS_PTR_DTYPE(r->dtype);
+    U32 l_elem_sz = l_ptr ? GEN_TYPE_SIZE(GEN_STRIP_PTR_TYPE(l->dtype)) : 1;
+    U32 r_elem_sz = r_ptr ? GEN_TYPE_SIZE(GEN_STRIP_PTR_TYPE(r->dtype)) : 1;
+    if (l_elem_sz == 0) l_elem_sz = 1;
+    if (r_elem_sz == 0) r_elem_sz = 1;
+
     switch (n->op) {
-        case CTOK_PLUS: emit("    ADD EAX, EBX"); break;
-        case CTOK_MINUS: emit("    SUB EAX, EBX"); break;
+        case CTOK_PLUS:
+            if (l_ptr && !r_ptr && l_elem_sz > 1) {
+                AC_FPRINTF(outf, "    IMUL EBX, EBX, %u\n", l_elem_sz);
+            } else if (r_ptr && !l_ptr && r_elem_sz > 1) {
+                AC_FPRINTF(outf, "    IMUL EAX, EAX, %u\n", r_elem_sz);
+            }
+            emit("    ADD EAX, EBX");
+            break;
+        case CTOK_MINUS:
+            if (l_ptr && !r_ptr && l_elem_sz > 1) {
+                AC_FPRINTF(outf, "    IMUL EBX, EBX, %u\n", l_elem_sz);
+                emit("    SUB EAX, EBX");
+            } else if (l_ptr && r_ptr) {
+                emit("    SUB EAX, EBX");
+                if (l_elem_sz > 1) {
+                    AC_FPRINTF(outf, "    XOR EDX, EDX\n    MOV ECX, %u\n    DIV ECX\n", l_elem_sz);
+                }
+            } else {
+                emit("    SUB EAX, EBX");
+            }
+            break;
         case CTOK_STAR: emit("    IMUL EAX, EBX"); break;
         case CTOK_SLASH:
             emit("    XOR EDX, EDX");
@@ -440,20 +515,6 @@ STATIC VOID GEN_ADDR(PCNODE n) {
             AC_FPRINTF(outf, "    LEA EAX, [EBP-%u]\n", (U32)(-(I32)s->offset));
     } else {
         GEN_EXPR(target);
-    }
-}
-
-STATIC BOOL IS_PTR_DTYPE(COMP_TYPE t) {
-    if (t.ptr_depth > 0) return TRUE;
-    switch (t.base) {
-        case CTYPE_PU8:  case CTYPE_PU16: case CTYPE_PU32:
-        case CTYPE_PPU8: case CTYPE_PPU16: case CTYPE_PPU32:
-        case CTYPE_PI8:  case CTYPE_PI16: case CTYPE_PI32:
-        case CTYPE_PPI8: case CTYPE_PPI16: case CTYPE_PPI32:
-        case CTYPE_VOIDPTR:
-            return TRUE;
-        default:
-            return FALSE;
     }
 }
 
@@ -785,24 +846,31 @@ STATIC VOID GEN_FOR(PCNODE n) {
 
 STATIC VOID GEN_SWITCH(PCNODE n) {
     U32 lbl_end = new_label();
+    U32 old_top = ctx->loop_label_stack_top;
+    ctx->loop_label_stack[ctx->loop_label_stack_top++] = lbl_end;
+    ctx->loop_label_stack[ctx->loop_label_stack_top++] = lbl_end;
+
     GEN_EXPR(n->children[0]); /* switch value → EAX */
+    emit("    PUSH EAX");     /* save switch value on stack */
+
     for (U32 i = 1; i < n->child_count; i++) {
         PCNODE cs = n->children[i];
         if (cs->ntype == CNODE_CASE && cs->child_count > 0) {
             U32 lbl_next = new_label();
-            GEN_EXPR(cs->children[0]); /* case value → EBX */
-            emit("    MOV EBX, EAX");
-            emit("    POP EAX");
+            GEN_EXPR(cs->children[0]); /* case value → EAX */
+            emit("    MOV EBX, EAX");  /* case value in EBX */
+            emit("    MOV EAX, [ESP]"); /* peek switch value from stack */
             AC_FPRINTF(outf, "    CMP EAX, EBX\n    JNE __lbl%u\n", lbl_next);
-            emit("    PUSH EAX");
             for (U32 j = 1; j < cs->child_count; j++) GEN_STMT(cs->children[j]);
-            emit("    POP EAX");
             AC_FPRINTF(outf, "__lbl%u:\n", lbl_next);
         } else if (cs->ntype == CNODE_DEFAULT) {
             for (U32 j = 0; j < cs->child_count; j++) GEN_STMT(cs->children[j]);
         }
     }
+
     AC_FPRINTF(outf, "__lbl%u:\n", lbl_end);
+    emit("    ADD ESP, 4");
+    ctx->loop_label_stack_top = old_top;
 }
 
 STATIC VOID GEN_GOTO(PCNODE n) {

@@ -169,6 +169,7 @@ PCOMP_TOK_ARRAY COMP_LEX(PCOMP_CTX ctx) {
         if (c >= '0' && c <= '9') {
             U32 sl = line, sc = col;
             U32 val = 0;
+            F32 fval = 0.0f;
             BOOL is_hex = FALSE, is_bin = FALSE, is_float = FALSE;
 
             if (c == '0' && (src[1] == 'x' || src[1] == 'X'))
@@ -189,15 +190,20 @@ PCOMP_TOK_ARRAY COMP_LEX(PCOMP_CTX ctx) {
                 if (*src == '.') {
                     is_float = TRUE;
                     src++; col++;
-                    while (*src && *src >= '0' && *src <= '9')
-                        { src++; col++; } /* skip fractional part */
-                    /* Parse as float by converting integer part */
+                    F32 frac = 0.1f;
+                    fval = (F32)val;
+                    while (*src && *src >= '0' && *src <= '9') {
+                        fval += (F32)(*src - '0') * frac;
+                        frac *= 0.1f;
+                        src++; col++;
+                    }
+                    if (*src == 'f' || *src == 'F') { src++; col++; }
                 }
             }
 
             if (is_float) {
                 PCOMP_TOK t = TOK_NEW(CTOK_FLOAT_LIT, NULLPTR, sl, sc);
-                t->fval = (F32)val;
+                t->fval = fval;
                 TOK_ARR_APPEND(arr, t);
             } else {
                 PCOMP_TOK t = TOK_NEW(CTOK_INT_LIT, NULLPTR, sl, sc);

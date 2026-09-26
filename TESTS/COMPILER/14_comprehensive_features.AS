@@ -116,12 +116,12 @@ _EVALUATE_OP:
     MOV [EBP-4], EAX
 ; switch (op) {
     MOV EAX, [EBP+8]
+    PUSH EAX
     MOV EAX, 0x1
     MOV EBX, EAX
-    POP EAX
+    MOV EAX, [ESP]
     CMP EAX, EBX
     JNE __lbl5
-    PUSH EAX
 ; res = a + b;
     MOV EAX, [EBP+12]
     PUSH EAX
@@ -133,14 +133,13 @@ _EVALUATE_OP:
     POP EAX
     MOV [EBP-4], EAX
 ; break;
-    POP EAX
+    JMP __lbl4
 __lbl5:
     MOV EAX, 0x2
     MOV EBX, EAX
-    POP EAX
+    MOV EAX, [ESP]
     CMP EAX, EBX
     JNE __lbl6
-    PUSH EAX
 ; res = a * b;
     MOV EAX, [EBP+12]
     PUSH EAX
@@ -152,14 +151,13 @@ __lbl5:
     POP EAX
     MOV [EBP-4], EAX
 ; break;
-    POP EAX
+    JMP __lbl4
 __lbl6:
     MOV EAX, 0x3
     MOV EBX, EAX
-    POP EAX
+    MOV EAX, [ESP]
     CMP EAX, EBX
     JNE __lbl7
-    PUSH EAX
 ; res = (a > b) ? (a - b) : (b - a);
     MOV EAX, [EBP+12]
     PUSH EAX
@@ -190,7 +188,7 @@ __lbl8:
     POP EAX
     MOV [EBP-4], EAX
 ; break;
-    POP EAX
+    JMP __lbl4
 __lbl7:
 ; res = 0xFFFFFFFF;
     MOV EAX, 0xFFFFFFFF
@@ -198,7 +196,9 @@ __lbl7:
     POP EAX
     MOV [EBP-4], EAX
 ; break;
+    JMP __lbl4
 __lbl4:
+    ADD ESP, 4
 ; return res;
     MOV EAX, [EBP-4]
     ADD ESP, 4
@@ -243,6 +243,7 @@ __lbl10:
     MOV EAX, [EBP-12]
     MOV EBX, EAX
     POP EAX
+    IMUL EBX, EBX, 4
     ADD EAX, EBX
     MOV EAX, [EAX]
     MOV [EBP-16], EAX
@@ -338,7 +339,7 @@ __TEST_COMPLEX_MATH_AND_POINTERS_ret:
 _MAIN:
     PUSH EBP
     MOV EBP, ESP
-    SUB ESP, 88
+    SUB ESP, 104
 ; U32 main() {
 ; U32 r_foo = foo(15, 25);
     MOV EAX, 0x19
@@ -374,7 +375,7 @@ _MAIN:
     POP EBX
     MOV [EAX], EBX
 ; node.pt.weight = 1.5;
-    MOV EAX, 0x1
+    MOV EAX, 0x3FC00000
     PUSH EAX
     LEA EAX, [EBP-44]
     ADD EAX, 8
@@ -556,6 +557,138 @@ _MAIN:
     CALL _TEST_COMPLEX_MATH_AND_POINTERS
     ADD ESP, 8
     MOV [EBP-88], EAX
+; PU32 ptr = data_arr;
+    LEA EAX, [EBP-84]
+    MOV [EBP-92], EAX
+; if (*(ptr + 0) != 10) return 7;
+    MOV EAX, [EBP-92]
+    PUSH EAX
+    MOV EAX, 0x0
+    MOV EBX, EAX
+    POP EAX
+    IMUL EBX, EBX, 4
+    ADD EAX, EBX
+    MOV EAX, [EAX]
+    PUSH EAX
+    MOV EAX, 0xA
+    MOV EBX, EAX
+    POP EAX
+    CMP EAX, EBX
+    SETNE AL
+    MOVZX EAX, AL
+    TEST EAX, EAX
+    JZ __lbl12
+; if (*(ptr + 0) != 10) return 7;
+    MOV EAX, 0x7
+    ADD ESP, 104
+    POP EBP
+    RET
+    JMP __lbl13
+__lbl12:
+__lbl13:
+; if (*(ptr + 1) != 20) return 8;
+    MOV EAX, [EBP-92]
+    PUSH EAX
+    MOV EAX, 0x1
+    MOV EBX, EAX
+    POP EAX
+    IMUL EBX, EBX, 4
+    ADD EAX, EBX
+    MOV EAX, [EAX]
+    PUSH EAX
+    MOV EAX, 0x14
+    MOV EBX, EAX
+    POP EAX
+    CMP EAX, EBX
+    SETNE AL
+    MOVZX EAX, AL
+    TEST EAX, EAX
+    JZ __lbl14
+; if (*(ptr + 1) != 20) return 8;
+    MOV EAX, 0x8
+    ADD ESP, 104
+    POP EBP
+    RET
+    JMP __lbl15
+__lbl14:
+__lbl15:
+; if (*(ptr + 2) != 30) return 9;
+    MOV EAX, [EBP-92]
+    PUSH EAX
+    MOV EAX, 0x2
+    MOV EBX, EAX
+    POP EAX
+    IMUL EBX, EBX, 4
+    ADD EAX, EBX
+    MOV EAX, [EAX]
+    PUSH EAX
+    MOV EAX, 0x1E
+    MOV EBX, EAX
+    POP EAX
+    CMP EAX, EBX
+    SETNE AL
+    MOVZX EAX, AL
+    TEST EAX, EAX
+    JZ __lbl16
+; if (*(ptr + 2) != 30) return 9;
+    MOV EAX, 0x9
+    ADD ESP, 104
+    POP EBP
+    RET
+    JMP __lbl17
+__lbl16:
+__lbl17:
+; if (*(ptr + 3) != 40) return 10;
+    MOV EAX, [EBP-92]
+    PUSH EAX
+    MOV EAX, 0x3
+    MOV EBX, EAX
+    POP EAX
+    IMUL EBX, EBX, 4
+    ADD EAX, EBX
+    MOV EAX, [EAX]
+    PUSH EAX
+    MOV EAX, 0x28
+    MOV EBX, EAX
+    POP EAX
+    CMP EAX, EBX
+    SETNE AL
+    MOVZX EAX, AL
+    TEST EAX, EAX
+    JZ __lbl18
+; if (*(ptr + 3) != 40) return 10;
+    MOV EAX, 0xA
+    ADD ESP, 104
+    POP EBP
+    RET
+    JMP __lbl19
+__lbl18:
+__lbl19:
+; PU32 weight_bits = (PU32)&node.pt.weight;
+    LEA EAX, [EBP-44]
+    ADD EAX, 8
+    MOV EAX, [EAX]
+    MOV [EBP-96], EAX
+; if (*weight_bits != 0x3FC00000) return 11;
+    MOV EAX, [EBP-96]
+    MOV EAX, [EAX]
+    PUSH EAX
+    MOV EAX, 0x3FC00000
+    MOV EBX, EAX
+    POP EAX
+    CMP EAX, EBX
+    SETNE AL
+    MOVZX EAX, AL
+    TEST EAX, EAX
+    JZ __lbl20
+; if (*weight_bits != 0x3FC00000) return 11;
+    MOV EAX, 0xB
+    ADD ESP, 104
+    POP EBP
+    RET
+    JMP __lbl21
+__lbl20:
+__lbl21:
 ; if (r_foo != 400) return 1;
     MOV EAX, [EBP-4]
     PUSH EAX
@@ -566,15 +699,15 @@ _MAIN:
     SETNE AL
     MOVZX EAX, AL
     TEST EAX, EAX
-    JZ __lbl12
+    JZ __lbl22
 ; if (r_foo != 400) return 1;
     MOV EAX, 0x1
-    ADD ESP, 88
+    ADD ESP, 104
     POP EBP
     RET
-    JMP __lbl13
-__lbl12:
-__lbl13:
+    JMP __lbl23
+__lbl22:
+__lbl23:
 ; if (r_fp != 100) return 2;
     MOV EAX, [EBP-12]
     PUSH EAX
@@ -585,15 +718,15 @@ __lbl13:
     SETNE AL
     MOVZX EAX, AL
     TEST EAX, EAX
-    JZ __lbl14
+    JZ __lbl24
 ; if (r_fp != 100) return 2;
     MOV EAX, 0x2
-    ADD ESP, 88
+    ADD ESP, 104
     POP EBP
     RET
-    JMP __lbl15
-__lbl14:
-__lbl15:
+    JMP __lbl25
+__lbl24:
+__lbl25:
 ; if (struct_val != 97) return 3;
     MOV EAX, [EBP-52]
     PUSH EAX
@@ -604,15 +737,15 @@ __lbl15:
     SETNE AL
     MOVZX EAX, AL
     TEST EAX, EAX
-    JZ __lbl16
+    JZ __lbl26
 ; if (struct_val != 97) return 3;
     MOV EAX, 0x3
-    ADD ESP, 88
+    ADD ESP, 104
     POP EBP
     RET
-    JMP __lbl17
-__lbl16:
-__lbl17:
+    JMP __lbl27
+__lbl26:
+__lbl27:
 ; if (r_sw1 != 30 || r_sw2 != 30 || r_sw3 != 0xFFFFFFFF) return 4;
     MOV EAX, [EBP-56]
     PUSH EAX
@@ -647,15 +780,15 @@ __lbl17:
     POP EAX
     OR EAX, EBX
     TEST EAX, EAX
-    JZ __lbl18
+    JZ __lbl28
 ; if (r_sw1 != 30 || r_sw2 != 30 || r_sw3 != 0xFFFFFFFF) return 4;
     MOV EAX, 0x4
-    ADD ESP, 88
+    ADD ESP, 104
     POP EBP
     RET
-    JMP __lbl19
-__lbl18:
-__lbl19:
+    JMP __lbl29
+__lbl28:
+__lbl29:
 ; if (r_var != 1000) return 5;
     MOV EAX, [EBP-68]
     PUSH EAX
@@ -666,40 +799,66 @@ __lbl19:
     SETNE AL
     MOVZX EAX, AL
     TEST EAX, EAX
-    JZ __lbl20
+    JZ __lbl30
 ; if (r_var != 1000) return 5;
     MOV EAX, 0x5
-    ADD ESP, 88
+    ADD ESP, 104
     POP EBP
     RET
-    JMP __lbl21
-__lbl20:
-__lbl21:
-; if (r_complex == 0) return 6;
+    JMP __lbl31
+__lbl30:
+__lbl31:
+; if (r_complex != 3922) return 6;
     MOV EAX, [EBP-88]
     PUSH EAX
-    MOV EAX, 0x0
+    MOV EAX, 0xF52
     MOV EBX, EAX
     POP EAX
     CMP EAX, EBX
-    SETE AL
+    SETNE AL
     MOVZX EAX, AL
     TEST EAX, EAX
-    JZ __lbl22
-; if (r_complex == 0) return 6;
+    JZ __lbl32
+; if (r_complex != 3922) return 6;
     MOV EAX, 0x6
-    ADD ESP, 88
+    ADD ESP, 104
     POP EBP
     RET
-    JMP __lbl23
-__lbl22:
-__lbl23:
+    JMP __lbl33
+__lbl32:
+__lbl33:
+; F32 test = 0.1;
+    MOV EAX, 0x3DCCCCCD
+    MOV [EBP-100], EAX
+; test += 1.5;
+    MOV EAX, [EBP-100]
+    PUSH EAX
+    MOV EAX, 0x3FC00000
+    MOV EBX, EAX
+    POP EAX
+    ADD EAX, EBX
+    PUSH EAX
+    POP EAX
+    MOV [EBP-100], EAX
+; f32 tst2 = 2.0;
+    MOV EAX, 0x40000000
+    MOV [EBP-104], EAX
+; tst2 = tst2 * test;
+    MOV EAX, [EBP-104]
+    PUSH EAX
+    MOV EAX, [EBP-100]
+    MOV EBX, EAX
+    POP EAX
+    IMUL EAX, EBX
+    PUSH EAX
+    POP EAX
+    MOV [EBP-104], EAX
 ; return 0;
     MOV EAX, 0x0
-    ADD ESP, 88
+    ADD ESP, 104
     POP EBP
     RET
 __MAIN_ret:
-    ADD ESP, 88
+    ADD ESP, 104
     POP EBP
     RET

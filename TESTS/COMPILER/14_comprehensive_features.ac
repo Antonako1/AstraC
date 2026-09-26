@@ -71,6 +71,24 @@ U32 test_complex_math_and_pointers(PU32 arr, U32 count) {
         i = i + 1;
     }
     return total;
+U32 test_nested_control_flow() {
+    U32 count = 0;
+    U32 i = 0;
+    while (i < 10) {
+        switch (i) {
+            case 3:
+                i = i + 2;
+                break;
+            case 7:
+                i = i + 3;
+                break;
+            default:
+                i = i + 1;
+                break;
+        }
+        count = count + 1;
+    }
+    return count;
 }
 
 U32 main() {
@@ -111,12 +129,27 @@ U32 main() {
     data_arr[3] = 40;
     U32 r_complex = test_complex_math_and_pointers(data_arr, 4);
 
+    // Verify pointer arithmetic on PU32 data_arr
+    PU32 ptr = data_arr;
+    if (*(ptr + 0) != 10) return 7;
+    if (*(ptr + 1) != 20) return 8;
+    if (*(ptr + 2) != 30) return 9;
+    if (*(ptr + 3) != 40) return 10;
+
+    // Verify F32 1.5f IEEE-754 bit pattern (0x3FC00000)
+    PU32 weight_bits = (PU32)&node.pt.weight;
+    if (*weight_bits != 0x3FC00000) return 11;
+
     if (r_foo != 400) return 1;
     if (r_fp != 100) return 2;
     if (struct_val != 97) return 3;
     if (r_sw1 != 30 || r_sw2 != 30 || r_sw3 != 0xFFFFFFFF) return 4;
     if (r_var != 1000) return 5;
-    if (r_complex == 0) return 6;
+    if (r_complex != 3922) return 6;
+
+    // Verify nested control flow (switch inside while loop)
+    U32 r_nested = test_nested_control_flow();
+    if (r_nested != 7) return 12;
 
     return 0;
 }

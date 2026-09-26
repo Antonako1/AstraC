@@ -4,6 +4,18 @@ All notable changes to AstraC will be documented in this file.
 
 ## 2026-09-26
 
+### Variable Assignment Optimization & Nested Control Flow Test
+- Optimized variable assignment lowering in `COMPILER/GEN.c`: eliminated redundant `PUSH EAX` / `POP EAX` stack instructions for simple variable assignments (`x = expr;`), storing `EAX` directly to variable memory.
+- Added `test_nested_control_flow()` to `TESTS/COMPILER/14_comprehensive_features.ac` verifying that `break;` inside a `switch` statement enclosed within a `while` loop targets the switch exit label, not the enclosing loop.
+- Updated `DOCS/AC_LANG.md` and website documentation (`docs/ac.php`) to clarify `F32` floating-point storage, IEEE-754 literal encoding, struct embedding, and parameter passing support.
+
+### Pointer Arithmetic, Switch Control Flow, and F32 Float Fixes
+- Fixed pointer arithmetic scaling in `COMPILER/GEN.c`: `ptr + i`, `i + ptr`, `ptr - i`, `ptr1 - ptr2`, `ptr += i`, and `ptr -= i` now scale integer offsets by `GEN_TYPE_SIZE(element_type)` via `IMUL` / `DIV` instructions.
+- Fixed `switch` statement control flow & stack handling in `COMPILER/GEN.c`: pushed `switch_expr` onto execution stack once, used `MOV EAX, [ESP]` peeking for case comparisons, wired `lbl_end` to `ctx->loop_label_stack` for `break;` statements, and restored stack pointer `ADD ESP, 4` at switch exit.
+- Fixed `F32` floating point literal lexing (`COMPILER/LEX.c`) and codegen (`COMPILER/GEN.c`): fractional digits after `.` are parsed into float values, and float literals emit 32-bit IEEE-754 binary representation (e.g. `0x3FC00000` for `1.5f`).
+- Updated `TESTS/COMPILER/14_comprehensive_features.ac` with strict mathematical assertions (`r_complex == 3922`, `*(ptr+i)` checks, `0x3FC00000` bit check).
+- Updated `TESTS/RUN_COMPILER_TESTS.ps1` with assembly assertions for scaled pointer arithmetic, switch stack peeking, and F32 binary representation.
+
 ### Comprehensive Feature Test Suite
 - Added compiler test suite `TESTS/COMPILER/14_comprehensive_features.ac` integrating `foo(a,b)`, array indexing, pointer arithmetic, nested structs, function pointers, switch statements, `F32` floating point types, variadic function calls (`VA_LIST`, `va_start`, `va_arg`, `va_end`), complex nested expressions, register allocation, and loops (`while`, `for`).
 - Updated `TESTS/RUN_COMPILER_TESTS.ps1` to verify `_FOO` symbol emission and clean compilation across all 14 test cases.

@@ -141,6 +141,8 @@ The standard `BOOL` type is the same width as `U32` at the ABI level but tracked
 as a distinct type by the compiler. `BOOL8` is not a built-in keyword -- it is
 available as a `typedef U8 BOOL8` in user code.
 
+`F32` represents 32-bit single-precision IEEE-754 floating-point values. F32 memory layout, array/struct storage, literal encoding (e.g. `1.5f` -> `0x3FC00000`), and cdecl parameter passing are fully implemented; dedicated x87/SSE floating-point arithmetic codegen passes are scheduled for future release.
+
 ### Pointer types
 
 All pointers are **32-bit** values. Distinct pointer types provide compile-time
