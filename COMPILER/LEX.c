@@ -37,6 +37,7 @@ STATIC const COMP_KW_MAP kw_map[] = {
     {CTOK_KW_ENUM, "ENUM"}, {CTOK_KW_SIZEOF, "SIZEOF"}, {CTOK_KW_ASM, "ASM"},
     {CTOK_KW_STATIC, "STATIC"}, {CTOK_KW_LOCAL, "LOCAL"},
     {CTOK_KW_TYPEDEF, "TYPEDEF"}, {CTOK_KW_VOID, "VOID"},
+    {CTOK_KW_IMPORT, "IMPORT"},
     {CTOK_EOF, NULLPTR}
 };
 
@@ -110,6 +111,24 @@ PCOMP_TOK_ARRAY COMP_LEX(PCOMP_CTX ctx) {
         if (c == ' ' || c == '\t') { src++; col++; continue; }
         if (c == '\r') { src++; col = 1; continue; }
         if (c == '\n') { src++; line++; col = 1; continue; }
+
+        /* Directives starting with # (e.g. #import) */
+        if (c == '#') {
+            U32 sl = line, sc = col;
+            src++; col++;
+            U8  buf[256]; U32 i = 0;
+            while (*src && IS_ID_CONT((U8)*src) && i < 254) {
+                buf[i++] = (U8)*src; src++; col++;
+            }
+            buf[i] = '\0';
+            STR_UPPER(buf);
+            if (AC_STRCMP(buf, "IMPORT") == 0) {
+                TOK_ARR_APPEND(arr, TOK_NEW(CTOK_KW_IMPORT, "IMPORT", sl, sc));
+                continue;
+            }
+            TOK_ARR_APPEND(arr, TOK_NEW(CTOK_ERROR, "unknown directive", sl, sc));
+            continue;
+        }
 
         /* Comments */
         if (c == '/' && src[1] == '/') {

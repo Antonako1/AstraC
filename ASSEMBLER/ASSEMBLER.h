@@ -119,8 +119,23 @@ typedef enum _ASM_DIRECTIVE {
     DIR_CODE_TYPE_16,
     DIR_ORG,
     DIR_TIMES,
+    DIR_IMPORT,
     DIR_AMOUNT,
 } ASM_DIRECTIVE;
+
+typedef struct {
+    PU8 lib_name;
+    PU8 func_name;
+} ASM_IMPORT_ITEM;
+
+#define MAX_ASM_IMPORTS 1024
+typedef struct {
+    ASM_IMPORT_ITEM items[MAX_ASM_IMPORTS];
+    U32 count;
+} ASM_IMPORT_ARRAY;
+
+VOID ADD_ASM_IMPORT(PU8 lib_name, PU8 func_name);
+BOOL IS_ASM_IMPORTED_SYMBOL(PU8 name);
 
 
 /* ════════════════════════════════════════════════════════════════════════════

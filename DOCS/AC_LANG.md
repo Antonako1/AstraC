@@ -43,8 +43,9 @@ Flags:
   verbose                          ; Verbose output
   debug                            ; Debug output to files. (AC->AS, AS->ASD)
   arch <architecture>              ; Specify target architecture: i386 or i286. Default=i386
-  exe                              ; Specify to output a binary file with a simple header. Off by default.
-  lib                              ; Specify to output a binary file with a simple header. Off by default.
+  type {exe|lib} [ot|ft|it]        ; Output binary format with header and tables (offset_table/ot, function_table/ft, import_table/it)
+  exe                              ; Shortcut for executable binary header output
+  lib                              ; Shortcut for library binary header output
   bits <16|32>                     ; Force 16-bit or 32-bit instruction encoding
   org <address>                    ; Specify memory origin address for raw binaries (e.g., 0x7C00)
   entry <label>                    ; Define the entry point for executables
@@ -585,6 +586,7 @@ C preprocessor functionality:
 | Directive | Description |
 |-----------|-------------|
 | `#include "file"` | Include another file (concatenation -- no separate linking) |
+| `#import funcs from "lib"` | Import external dynamic library functions for ACFH Import Table (`#import draw_rect, clear_screen from "graphics.lib"`) |
 | `#define NAME value` | Define object-like macro (no function-like macros) |
 | `#undef NAME` | Remove a macro definition |
 | `#ifdef NAME` / `#ifndef NAME` | Conditional on macro defined/undefined |

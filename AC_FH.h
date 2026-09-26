@@ -11,7 +11,7 @@
 
 #define AC_FILE_MAGIC         "ACFH"
 #define AC_FILE_MAGIC_LEN     4
-#define AC_FILE_RESERVED_SIZE 48
+#define AC_FILE_RESERVED_SIZE 40
 #define AC_FILE_VERSION_MAJOR ((U16)1)
 #define AC_FILE_VERSION_MINOR ((U16)0)
 #define AC_FILE_VERSION       ((U32)AC_FILE_VERSION_MAJOR << 16 | AC_FILE_VERSION_MINOR)
@@ -22,6 +22,7 @@ enum {
     AC_FLAG_DYNAMIC    = 1 << 1,
     AC_FLAG_HAS_RELOCS = 1 << 2,
     AC_FLAG_HAS_FUNCS  = 1 << 3,   /* Binary includes a function export table */
+    AC_FLAG_HAS_IMPORTS= 1 << 4,   /* Binary includes an import table */
 };
 
 enum {
@@ -43,6 +44,17 @@ typedef struct {
 } ATTRIB_PACKED AC_FUNC_ENTRY;
 
 typedef struct {
+    U32 entry_count;             /* Number of imported function entries */
+    U32 string_table_size;       /* Size of the import string table pool in bytes */
+} ATTRIB_PACKED AC_IMPORT_TABLE_HDR;
+
+typedef struct {
+    U32 lib_name_offset;         /* Byte offset into string pool for library name (e.g. "graphics.lib") */
+    U32 func_name_offset;        /* Byte offset into string pool for function name (e.g. "draw_rect") */
+    U32 patch_offset;            /* File offset in code section to be patched with 32-bit function pointer */
+} ATTRIB_PACKED AC_IMPORT_ENTRY;
+
+typedef struct {
     U8  magic[AC_FILE_MAGIC_LEN];
     U32 version;
     U32 flags;
@@ -52,13 +64,15 @@ typedef struct {
     U32 rodata_offset;
     U32 bss_offset;
     U32 reloc_offset;
+    U32 func_table_offset;       /* File offset to function export table header */
+    U32 import_table_offset;     /* File offset to import table header */
     U32 code_size;
     U32 data_size;
     U32 rodata_size;
     U32 bss_size;
     U32 reloc_size;
-    U32 func_table_offset;       /* File offset to function export table header */
     U32 func_table_size;         /* Total size of function export table section in bytes */
+    U32 import_table_size;       /* Total size of import table section in bytes */
     U8  reserved[AC_FILE_RESERVED_SIZE];
 } ATTRIB_PACKED AC_FILE_HEADER;
 

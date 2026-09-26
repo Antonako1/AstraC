@@ -55,6 +55,7 @@ typedef enum _COMP_TOK_TYPE {
     CTOK_KW_STRUCT,  CTOK_KW_UNION,
     CTOK_KW_ENUM,    CTOK_KW_SIZEOF,
     CTOK_KW_TYPEDEF, CTOK_KW_STATIC, CTOK_KW_LOCAL,
+    CTOK_KW_IMPORT,
 
     CTOK_KW_ASM,
     CTOK_ASM_BODY, /* raw text inside asm { ... } */
@@ -263,6 +264,13 @@ typedef struct {
     PCNODE node;
 } RODATA_STR;
 
+typedef struct {
+    U8 lib_name[128];
+    U8 func_name[128];
+} COMP_IMPORT_ENTRY;
+
+#define MAX_COMP_IMPORTS 256
+
 /* ════════════════════════════════════════════════════════════════════════════
  *  COMPILER CONTEXT
  * ════════════════════════════════════════════════════════════════════════════ */
@@ -277,6 +285,9 @@ typedef struct _COMP_CTX {
 
     RODATA_STR rodata_strings[MAX_RODATA_STRINGS];
     U32        rodata_string_count;
+
+    COMP_IMPORT_ENTRY imports[MAX_COMP_IMPORTS];
+    U32               import_count;
 
     SYM_TABLE  symtab;       /* symbol table for parser/verifier/codegen */
     BOOL       in_func;      /* inside a function body */

@@ -1017,7 +1017,11 @@ BOOL COMP_GEN(PCNODE root, PCOMP_CTX c) {
         AC_FPRINTF(outf, ".org 0x%X\n", cfg->org);
     emit((bits16 ? ".use16" : ".use32"));
     emit(".code");
-    
+    /* Emit import directives for assembler */
+    for (U32 i = 0; i < ctx->import_count; i++) {
+        AC_FPRINTF(outf, ".import \"%s\" %s\n", ctx->imports[i].lib_name, ctx->imports[i].func_name);
+    }
+
     // Emit entry point jump.  Function labels are emitted as `_<NAME>`
     // where NAME is the upper-cased symbol, so the jump target must match.
     {

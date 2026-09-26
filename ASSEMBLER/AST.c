@@ -505,6 +505,42 @@ STATIC PASM_NODE PARSE_SECTION(TOK_CURSOR *cur) {
         return n;
     }
 
+    /* ── .import "lib.lib" func1, func2 OR #import func1 from "lib.lib" ── */
+    if (dir_tok->directive == DIR_IMPORT) {
+        U8 funcs[32][128];
+        U32 func_count = 0;
+        U8 lib_name[128] = { 0 };
+
+        while (!TOK_AT_END(cur) && !TOK_MATCH(cur, TOK_EOL)) {
+            PASM_TOK t = TOK_ADVANCE(cur);
+            if (!t) break;
+            if (t->type == TOK_SYMBOL && t->symbol == SYM_COMMA) continue;
+            if (t->type == TOK_STRING) {
+                AC_STRCPY(lib_name, t->txt);
+            } else if (t->type == TOK_IDENTIFIER || t->type == TOK_MNEMONIC || t->type == TOK_IDENT_VAR) {
+                if (AC_STRICMP(t->txt, "FROM") == 0) {
+                    PASM_TOK lib_t = TOK_ADVANCE(cur);
+                    if (lib_t) {
+                        PU8 lstr = lib_t->txt;
+                        if (lstr && *lstr) AC_STRCPY(lib_name, lstr);
+                    }
+                    break;
+                } else {
+                    if (func_count < 32) {
+                        AC_STRCPY(funcs[func_count++], t->txt);
+                    }
+                }
+            }
+        }
+
+        if (lib_name[0] != '\0') {
+            for (U32 i = 0; i < func_count; i++) {
+                ADD_ASM_IMPORT(lib_name, funcs[i]);
+            }
+        }
+        return NULLPTR;
+    }
+
     PASM_NODE n = ALLOC_NODE(NODE_SECTION, dir_tok);
     if (!n) return NULLPTR;
     n->dir.section = dir_tok->directive;

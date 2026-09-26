@@ -9,7 +9,7 @@
 AstraC is a lightweight assembler and compiler for the Intel I386 and Intel I286 architecture.
   Designed and built for use on emulators and raw machines that run raw binary.
 
-- See the [documentation](./DOCS/README.md) for more information on how to use AstraC.
+- See the [documentation](./DOCS/README.md) and [CLI Reference](./DOCS/CLI.md) for more information on how to use AstraC.
 - See the [VS Code extension](https://marketplace.visualstudio.com/items?itemName=Antonako1.ac-language-support) for syntax highlighting and integration with Visual Studio Code.
 
 ## Features
@@ -86,7 +86,7 @@ Options:
   asm <file.AS>                    ; Assemble input file
   comp <file.AC>                   ; Compile input file
   disasm <file.BIN>                ; Disassemble input file
-  objdump <file.BIN> [sub-arg]       ; Dump ACFH binary header and tables (all, header, tables, funcs, relocs)
+  objdump <file.BIN> [sub-arg]       ; Dump ACFH binary header and tables (all, header, tables, funcs, relocs, imports)
   strdump <file.BIN>               ; Dump strings from ACFH binary rodata section
   preproc <file.AC|file.AS>        ; Preprocess file
   info <mnemonic>                  ; Show information about a mnemonic
@@ -100,7 +100,7 @@ Flags:
   verbose                          ; Verbose output
   debug                            ; Debug output to files. (AC->AS, AS->ASD)
   arch <architecture>              ; Specify target architecture: i386 or i286. Default=i386
-  type {exe|lib} [ot|ft]           ; Output binary format with header and tables (offset_table/ot, function_table/ft)
+  type {exe|lib} [ot|ft|it]        ; Output binary format with header and tables (offset_table/ot, function_table/ft, import_table/it)
   exe                              ; Shortcut for executable binary header output
   lib                              ; Shortcut for library binary header output
   bits <16|32>                     ; Force 16-bit or 32-bit instruction encoding

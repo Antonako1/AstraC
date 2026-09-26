@@ -157,7 +157,7 @@ STATIC BOOL verify_symbol_ref(PU8 sym, PLABEL_TABLE labels, U32 line, U32 op_idx
         return TRUE;                                    /* @f/@b resolved in codegen */
     if ((*sym == '@' && sym[1] == '@') || *sym == '.') 
         return TRUE;                                    /* @@name/.name scoped + resolved in codegen */
-    if (find_label(labels, sym)) return TRUE;
+    if (find_label(labels, sym) || IS_ASM_IMPORTED_SYMBOL(sym)) return TRUE;
     AC_PRINTF("[AS VERIFY] Line %u: Operand %u references undefined symbol '%s'\n",
            line, op_idx + 1, sym);
     return FALSE;

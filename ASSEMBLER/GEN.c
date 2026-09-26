@@ -42,6 +42,36 @@ STATIC U32 pass1_code_size;
 STATIC U32 pass1_data_size;
 STATIC U32 pass1_rodata_size;
 
+STATIC ASM_IMPORT_ARRAY asm_imports ATTRIB_DATA;
+
+VOID ADD_ASM_IMPORT(PU8 lib_name, PU8 func_name) {
+    if (!lib_name || !func_name) return;
+    for (U32 i = 0; i < asm_imports.count; i++) {
+        if (AC_STRICMP(asm_imports.items[i].lib_name, lib_name) == 0 &&
+            AC_STRICMP(asm_imports.items[i].func_name, func_name) == 0)
+            return;
+    }
+    if (asm_imports.count < MAX_ASM_IMPORTS) {
+        asm_imports.items[asm_imports.count].lib_name = AC_STRDUP(lib_name);
+        asm_imports.items[asm_imports.count].func_name = AC_STRDUP(func_name);
+        asm_imports.count++;
+    }
+}
+
+BOOL IS_ASM_IMPORTED_SYMBOL(PU8 name) {
+    if (!name || !*name) return FALSE;
+    PU8 p = name;
+    if (*p == '_') p++;
+    for (U32 i = 0; i < asm_imports.count; i++) {
+        if (asm_imports.items[i].func_name) {
+            if (AC_STRICMP(asm_imports.items[i].func_name, name) == 0 ||
+                AC_STRICMP(asm_imports.items[i].func_name, p) == 0)
+                return TRUE;
+        }
+    }
+    return FALSE;
+}
+
 /* ── Assembler debug (.ASD output) ──────────────────────────────────────── */
 STATIC BOOL asm_debug ATTRIB_DATA;
 STATIC FILE *asd_out ATTRIB_DATA;
@@ -205,6 +235,7 @@ STATIC U32 RESOLVE_SYMBOL(PU8 name) {
     if (AC_STRCMP(name, "$$") == 0) return 0;  /* section start = file offset 0 */
     ASM_PTR *p = FIND_ASM_PTR(name);
     if (!p) {
+        if (IS_ASM_IMPORTED_SYMBOL(name)) return 0;
         if(CURRENT_PASS == SECOND_PASS)
             AC_PRINTF_ERR("[ASM GEN] ERROR: undefined symbol '%s'\n", name);
         return 0;
@@ -1790,11 +1821,70 @@ BOOLEAN GEN_BINARY(ASM_AST_ARRAY *ast, PASM_INFO info) {
             }
         }
 
+        AC_IMPORT_TABLE_HDR it_hdr;
+        AC_MEMZERO(&it_hdr, sizeof(it_hdr));
+        AC_IMPORT_ENTRY *it_entries = NULLPTR;
+        PU8 it_strtab = NULLPTR;
+        U32 it_strtab_len = 0;
+
+        if (cfg->emit_import_table || asm_imports.count > 0) {
+            U32 it_count = asm_imports.count;
+            if (it_count > 0) {
+                it_entries = (AC_IMPORT_ENTRY*)AC_MAlloc(it_count * sizeof(AC_IMPORT_ENTRY));
+                AC_MEMZERO(it_entries, it_count * sizeof(AC_IMPORT_ENTRY));
+                U32 str_cap = it_count * 128 + 64;
+                it_strtab = (PU8)AC_MAlloc(str_cap);
+                AC_MEMZERO(it_strtab, str_cap);
+
+                U32 idx = 0;
+                for (U32 i = 0; i < asm_imports.count; i++) {
+                    PU8 lib = asm_imports.items[i].lib_name;
+                    PU8 fn  = asm_imports.items[i].func_name;
+                    if (!lib || !fn) continue;
+
+                    U32 llen = (U32)AC_STRLEN(lib);
+                    U32 flen = (U32)AC_STRLEN(fn);
+
+                    if (it_strtab_len + llen + flen + 2 > str_cap) {
+                        str_cap = (str_cap + llen + flen + 128) * 2;
+                        it_strtab = (PU8)AC_ReAlloc(it_strtab, str_cap);
+                    }
+
+                    it_entries[idx].lib_name_offset = it_strtab_len;
+                    AC_MEMCPY(it_strtab + it_strtab_len, lib, llen);
+                    it_strtab[it_strtab_len + llen] = '\0';
+                    it_strtab_len += llen + 1;
+
+                    it_entries[idx].func_name_offset = it_strtab_len;
+                    AC_MEMCPY(it_strtab + it_strtab_len, fn, flen);
+                    it_strtab[it_strtab_len + flen] = '\0';
+                    it_strtab_len += flen + 1;
+
+                    U32 p_off = 0;
+                    U8 fn_label_buf[128] = "_";
+                    AC_STRCAT(fn_label_buf, fn);
+                    ASM_PTR *aptr = FIND_ASM_PTR(fn_label_buf);
+                    if (!aptr) aptr = FIND_ASM_PTR(fn);
+                    if (aptr) {
+                        p_off = aptr->offset;
+                    } else if (reloc_count > idx) {
+                        p_off = reloc_buf[idx];
+                    }
+                    it_entries[idx].patch_offset = sizeof(AC_FILE_HEADER) + p_off;
+                    idx++;
+                }
+                it_hdr.entry_count = idx;
+                it_hdr.string_table_size = it_strtab_len;
+            }
+        }
+
         U32 reloc_bytes = reloc_count * sizeof(U32);
         U32 ft_bytes = (ft_hdr.entry_count > 0) ? (sizeof(AC_FUNC_TABLE_HDR) + (ft_hdr.entry_count * sizeof(AC_FUNC_ENTRY)) + ft_hdr.string_table_size) : 0;
+        U32 it_bytes = (it_hdr.entry_count > 0) ? (sizeof(AC_IMPORT_TABLE_HDR) + (it_hdr.entry_count * sizeof(AC_IMPORT_ENTRY)) + it_hdr.string_table_size) : 0;
 
         if (reloc_bytes > 0) h.flags |= AC_FLAG_HAS_RELOCS;
         if (ft_bytes > 0)    h.flags |= AC_FLAG_HAS_FUNCS;
+        if (it_bytes > 0)    h.flags |= AC_FLAG_HAS_IMPORTS;
 
         h.entry_point_offset = main_ptr ? main_ptr->offset : OFFSET_NON_EXISTENT;
 
@@ -1808,16 +1898,19 @@ BOOLEAN GEN_BINARY(ASM_AST_ARRAY *ast, PASM_INFO info) {
         h.bss_size      = 0;
         h.reloc_offset  = (reloc_bytes > 0) ? (sizeof(AC_FILE_HEADER) + ptrs.code + ptrs.data + ptrs.rodata) : OFFSET_NON_EXISTENT;
         h.reloc_size    = reloc_bytes;
-        h.func_table_offset = (ft_bytes > 0) ? (sizeof(AC_FILE_HEADER) + ptrs.code + ptrs.data + ptrs.rodata + reloc_bytes) : OFFSET_NON_EXISTENT;
-        h.func_table_size   = ft_bytes;
+        h.func_table_offset   = (ft_bytes > 0) ? (sizeof(AC_FILE_HEADER) + ptrs.code + ptrs.data + ptrs.rodata + reloc_bytes) : OFFSET_NON_EXISTENT;
+        h.func_table_size     = ft_bytes;
+        h.import_table_offset = (it_bytes > 0) ? (sizeof(AC_FILE_HEADER) + ptrs.code + ptrs.data + ptrs.rodata + reloc_bytes + ft_bytes) : OFFSET_NON_EXISTENT;
+        h.import_table_size   = it_bytes;
 
-        AC_DEBUG_PRINTF("[ASM GEN] Writing file header (entry=0x%X, code=0x%X+0x%X, data=0x%X+0x%X, rodata=0x%X+0x%X, reloc=0x%X+0x%X, funcs=0x%X+0x%X)\n",
+        AC_DEBUG_PRINTF("[ASM GEN] Writing file header (entry=0x%X, code=0x%X+0x%X, data=0x%X+0x%X, rodata=0x%X+0x%X, reloc=0x%X+0x%X, funcs=0x%X+0x%X, imports=0x%X+0x%X)\n",
                     h.entry_point_offset,
                     h.code_offset, h.code_size,
                     h.data_offset, h.data_size,
                     h.rodata_offset, h.rodata_size,
                     h.reloc_offset, h.reloc_size,
-                    h.func_table_offset, h.func_table_size);
+                    h.func_table_offset, h.func_table_size,
+                    h.import_table_offset, h.import_table_size);
         AC_FWRITE(out, (VOIDPTR)&h, sizeof(h));
 
         if (ptrs.code)   AC_FWRITE(out, (VOIDPTR)code_buf,   ptrs.code);
@@ -1831,8 +1924,15 @@ BOOLEAN GEN_BINARY(ASM_AST_ARRAY *ast, PASM_INFO info) {
             AC_FWRITE(out, (VOIDPTR)ft_entries, ft_hdr.entry_count * sizeof(AC_FUNC_ENTRY));
             AC_FWRITE(out, (VOIDPTR)ft_strtab, ft_hdr.string_table_size);
         }
+        if (it_bytes > 0) {
+            AC_FWRITE(out, (VOIDPTR)&it_hdr, sizeof(it_hdr));
+            AC_FWRITE(out, (VOIDPTR)it_entries, it_hdr.entry_count * sizeof(AC_IMPORT_ENTRY));
+            AC_FWRITE(out, (VOIDPTR)it_strtab, it_hdr.string_table_size);
+        }
         if (ft_entries) AC_MFree(ft_entries);
         if (ft_strtab)  AC_MFree(ft_strtab);
+        if (it_entries) AC_MFree(it_entries);
+        if (it_strtab)  AC_MFree(it_strtab);
     } else {
         if (ptrs.code)   AC_FWRITE(out, (VOIDPTR)code_buf,   ptrs.code);
         if (ptrs.data)   AC_FWRITE(out, (VOIDPTR)data_buf,   ptrs.data);

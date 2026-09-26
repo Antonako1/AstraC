@@ -32,6 +32,7 @@ typedef enum {
     IDENT_UNDEF,
     IDENT_PUSH,
     IDENT_POP,
+    IDENT_IMPORT,
 
     IDENT_MAX,
 } MACRO_IDENT;
@@ -54,6 +55,7 @@ static const MACRO_KW macros_kw[] ATTRIB_RODATA = {
     { "#undef",    IDENT_UNDEF    },
     { "#push",    IDENT_PUSH    },
     { "#pop",    IDENT_POP    },
+    { "#import",  IDENT_IMPORT },
 };
 
 
@@ -1025,6 +1027,11 @@ STATIC U32 PREPROCESS_FILE(FILE *file, FILE *tmp_file, MACRO_ARR *mcr,
                     if (!active) break;    /* skip remaining directives in dead branch */
 
                     switch (matched) {
+                        case IDENT_IMPORT: {
+                            AC_FPRINTF(tmp_file, "%s\n", buf);
+                            (*total_lines)++;
+                            break;
+                        }
                         /* ── #define ── */
                         case IDENT_DEFINE: {
                             /* Expand macros in the value, then try to evaluate

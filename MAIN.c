@@ -175,6 +175,7 @@ U32 main(U32 argc, PPU8 argv) {
                 else if (AC_STRICMP(sub, "tables") == 0 || AC_STRICMP(sub, "tbl") == 0) { args.objdump_mode = OBJDUMP_MODE_TABLES; i++; }
                 else if (AC_STRICMP(sub, "funcs") == 0 || AC_STRICMP(sub, "ft") == 0 || AC_STRICMP(sub, "function_table") == 0) { args.objdump_mode = OBJDUMP_MODE_FUNCS; i++; }
                 else if (AC_STRICMP(sub, "relocs") == 0 || AC_STRICMP(sub, "ot") == 0 || AC_STRICMP(sub, "offset_table") == 0) { args.objdump_mode = OBJDUMP_MODE_RELOCS; i++; }
+                else if (AC_STRICMP(sub, "imports") == 0 || AC_STRICMP(sub, "it") == 0 || AC_STRICMP(sub, "import_table") == 0) { args.objdump_mode = OBJDUMP_MODE_IMPORTS; i++; }
             }
         } else if(ARG_CMP1("strdump")) {
             args.build_type = BUILD_TYPE_STRDUMP;
@@ -301,6 +302,9 @@ U32 main(U32 argc, PPU8 argv) {
                 } else if (AC_STRICMP(next_arg, "function_table") == 0 || AC_STRICMP(next_arg, "ft") == 0) {
                     args.emit_func_table = TRUE;
                     i++;
+                } else if (AC_STRICMP(next_arg, "import_table") == 0 || AC_STRICMP(next_arg, "it") == 0) {
+                    args.emit_import_table = TRUE;
+                    i++;
                 } else {
                     break;
                 }
@@ -317,6 +321,9 @@ U32 main(U32 argc, PPU8 argv) {
         }
         else if(ARG_CMP1("function_table") || ARG_CMP1("ft")) {
             args.emit_func_table = TRUE;
+        }
+        else if(ARG_CMP1("import_table") || ARG_CMP1("it")) {
+            args.emit_import_table = TRUE;
         }
         else if(ARG_CMP1("bits")) {
             if(i + 1 >= argc) {
@@ -376,7 +383,7 @@ U32 main(U32 argc, PPU8 argv) {
             }
         }
         else {
-            AC_PRINTF_ERR("[ASTRAC] Error: unrecognized argument '%s'.\n", arg);
+            AC_PRINTF_ERR("[ASTRAC] Error: unrecognized argument '%s'. %s help for help\n", arg, argv[0]);
         }
     }
 

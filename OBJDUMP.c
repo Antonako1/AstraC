@@ -55,6 +55,7 @@ ASTRAC_RESULT START_OBJDUMP(VOID) {
     BOOL show_hdr   = (mode == OBJDUMP_MODE_ALL || mode == OBJDUMP_MODE_HEADER);
     BOOL show_reloc = (mode == OBJDUMP_MODE_ALL || mode == OBJDUMP_MODE_TABLES || mode == OBJDUMP_MODE_RELOCS);
     BOOL show_funcs = (mode == OBJDUMP_MODE_ALL || mode == OBJDUMP_MODE_TABLES || mode == OBJDUMP_MODE_FUNCS);
+    BOOL show_imports = (mode == OBJDUMP_MODE_ALL || mode == OBJDUMP_MODE_TABLES || mode == OBJDUMP_MODE_IMPORTS);
 
     if (show_hdr) {
         U16 ver_major = (U16)(hdr.version >> 16);
@@ -65,6 +66,7 @@ ASTRAC_RESULT START_OBJDUMP(VOID) {
         if (hdr.flags & AC_FLAG_DYNAMIC)    AC_STRCAT(flags_buf, "DYNAMIC ");
         if (hdr.flags & AC_FLAG_HAS_RELOCS) AC_STRCAT(flags_buf, "RELOCS ");
         if (hdr.flags & AC_FLAG_HAS_FUNCS)  AC_STRCAT(flags_buf, "FUNCS ");
+        if (hdr.flags & AC_FLAG_HAS_IMPORTS)AC_STRCAT(flags_buf, "IMPORTS ");
         if (flags_buf[0] == '\0')           AC_STRCPY(flags_buf, "NONE");
 
         AC_PRINTF("-- ACFH Header ---------------------------------------------\n");
@@ -162,6 +164,48 @@ ASTRAC_RESULT START_OBJDUMP(VOID) {
             }
         } else {
             AC_PRINTF("Function Table: None\n");
+        }
+        AC_PRINTF("\n");
+    }
+
+    if (show_imports) {
+        AC_PRINTF("-- Import Table --------------------------------------------\n");
+        if (hdr.import_table_offset != OFFSET_NON_EXISTENT && hdr.import_table_size > 0) {
+            if (hdr.import_table_offset + hdr.import_table_size > fsize) {
+                AC_PRINTF_WARN("[OBJDUMP] Warning: Import table extends beyond file size!\n");
+            } else {
+                AC_FSEEK(f, (long)hdr.import_table_offset, SEEK_SET);
+                AC_IMPORT_TABLE_HDR ihdr;
+                if (AC_FREAD(f, (U8*)&ihdr, sizeof(AC_IMPORT_TABLE_HDR)) == sizeof(AC_IMPORT_TABLE_HDR)) {
+                    AC_PRINTF("Import Table: offset 0x%08X, entries %u, string table %u bytes\n",
+                              hdr.import_table_offset, ihdr.entry_count, ihdr.string_table_size);
+
+                    U32 entries_size = ihdr.entry_count * sizeof(AC_IMPORT_ENTRY);
+                    AC_IMPORT_ENTRY *entries = (AC_IMPORT_ENTRY*)AC_MAlloc(entries_size);
+                    PU8 strtab = (PU8)AC_MAlloc(ihdr.string_table_size + 1);
+
+                    if (entries && strtab) {
+                        AC_FREAD(f, (U8*)entries, entries_size);
+                        AC_FREAD(f, strtab, ihdr.string_table_size);
+                        strtab[ihdr.string_table_size] = '\0';
+
+                        AC_PRINTF("  Idx     Library Name        Function Name       Patch Offset\n");
+                        for (U32 i = 0; i < ihdr.entry_count; i++) {
+                            PU8 lname = (entries[i].lib_name_offset < ihdr.string_table_size)
+                                      ? (strtab + entries[i].lib_name_offset) : (PU8)"<invalid>";
+                            PU8 fname = (entries[i].func_name_offset < ihdr.string_table_size)
+                                      ? (strtab + entries[i].func_name_offset) : (PU8)"<invalid>";
+
+                            AC_PRINTF("  [%04u]  %-18s  %-18s  0x%08X\n",
+                                      i, lname, fname, entries[i].patch_offset);
+                        }
+                    }
+                    if (entries) AC_MFree(entries);
+                    if (strtab)  AC_MFree(strtab);
+                }
+            }
+        } else {
+            AC_PRINTF("Import Table: None\n");
         }
         AC_PRINTF("\n");
     }

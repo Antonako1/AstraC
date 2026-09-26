@@ -923,6 +923,51 @@ STATIC PCNODE parse_toplevel() {
         }
     }
 
+    /* Top-level #import directive: #import func1, func2 from "lib.lib" */
+    if (MATCH(CTOK_KW_IMPORT)) {
+        ADV();
+        U8 funcs[32][128];
+        U32 func_cnt = 0;
+        while (PEEK() && !MATCH(CTOK_SEMICOLON) && !MATCH(CTOK_EOF)) {
+            if (MATCH(CTOK_IDENT)) {
+                PCOMP_TOK it = ADV();
+                if (AC_STRICMP(it->txt, "FROM") == 0) {
+                    break;
+                }
+                if (func_cnt < 32) {
+                    AC_STRCPY(funcs[func_cnt++], it->txt);
+                }
+            } else if (MATCH(CTOK_COMMA)) {
+                ADV();
+            } else {
+                break;
+            }
+        }
+        U8 lib_name[128] = {0};
+        if (MATCH(CTOK_STR_LIT)) {
+            PCOMP_TOK st = ADV();
+            AC_STRCPY(lib_name, st->txt);
+        }
+        if (MATCH(CTOK_SEMICOLON)) ADV();
+
+        if (lib_name[0] != '\0') {
+            for (U32 i = 0; i < func_cnt; i++) {
+                SYMBOL *fs = SYM_ADD(funcs[i], SYM_FUNCTION);
+                if (fs) {
+                    fs->ret_type = COMP_MAKE_TYPE(CTYPE_U32, 0, NULLPTR);
+                    fs->is_global = TRUE;
+                    fs->is_defined = TRUE;
+                }
+                if (ctx->import_count < MAX_COMP_IMPORTS) {
+                    AC_STRCPY(ctx->imports[ctx->import_count].lib_name, lib_name);
+                    AC_STRCPY(ctx->imports[ctx->import_count].func_name, funcs[i]);
+                    ctx->import_count++;
+                }
+            }
+        }
+        return CNODE_NEW(CNODE_EXPR_STMT, sl, sc);
+    }
+
     /* Top-level asm injection */
     if (MATCH(CTOK_KW_ASM)) {
         ADV();

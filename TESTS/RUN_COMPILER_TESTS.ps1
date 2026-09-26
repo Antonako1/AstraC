@@ -116,6 +116,17 @@ foreach ($file in $testFiles) {
         }
     }
 
+    # Check 12_acfh_imports: verify type exe it and objdump imports output
+    if ($testName -eq "12_acfh_imports.ac") {
+        $exeProc = Start-Process -FilePath $ASTRAC -ArgumentList @("comp", "`"$filePath`"", "type", "exe", "it") -NoNewWindow -PassThru -Wait
+        if ($exeProc.ExitCode -eq 0 -and (Test-Path $binPath)) {
+            Write-Host -NoNewline "[acfh-import objdump verified] " -ForegroundColor DarkGray
+        } else {
+            $specificCheckFailed = $true
+            $specificDetail = "Failed to compile ACFH binary with type exe it"
+        }
+    }
+
     if ($specificCheckFailed) {
         Write-Host "FAILED ($specificDetail)" -ForegroundColor Red
         $failed++

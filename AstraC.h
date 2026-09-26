@@ -125,7 +125,8 @@ typedef enum {
     OBJDUMP_MODE_HEADER,
     OBJDUMP_MODE_TABLES,
     OBJDUMP_MODE_FUNCS,
-    OBJDUMP_MODE_RELOCS
+    OBJDUMP_MODE_RELOCS,
+    OBJDUMP_MODE_IMPORTS
 } OBJDUMP_MODE;
 
 /* ── ARGUMENT STRUCTURE ───────────────────────────────────────────────── */
@@ -144,6 +145,7 @@ typedef struct _ASTRAC_ARGS {
     OUTPUT_TYPE output_type;
     BOOL emit_offset_table;   /* TRUE if offset_table or ot flag enabled */
     BOOL emit_func_table;     /* TRUE if function_table or ft flag enabled */
+    BOOL emit_import_table;   /* TRUE if import_table or it flag enabled */
     OBJDUMP_MODE objdump_mode;/* Sub-argument selection for objdump */
     U32 dsm_bits;
     U32 org;

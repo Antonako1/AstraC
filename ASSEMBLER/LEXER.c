@@ -41,6 +41,7 @@ STATIC CONST KEYWORD s_directives[] ATTRIB_RODATA = {
     { "use16",  DIR_CODE_TYPE_16  },
     { "org",    DIR_ORG           },
     { "times",  DIR_TIMES         },
+    { "import", DIR_IMPORT        },
     { NULLPTR, 0 }
 };
 

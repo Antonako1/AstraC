@@ -4,11 +4,23 @@ All notable changes to AstraC will be documented in this file.
 
 ## 2026-09-26
 
+### ACFH Import Tables & #import Directive
+- Implemented ACFH Import Tables (`AC_IMPORT_TABLE_HDR`, `AC_IMPORT_ENTRY`, `AC_FLAG_HAS_IMPORTS`) in binary header structure (`AC_FH.h`) to support dynamic function resolution by OS loaders during multitasking. Preserved 108-byte header size (`reserved[40]`).
+- Added `#import <funcs> from "lib.lib"` directive in preprocessor, AC lexer (`CTOK_KW_IMPORT`), parser, AST, and codegen, allowing AC source files to specify external library origins.
+- Implemented `.import "lib.lib" FUNC1, FUNC2` directive support in assembler lexer, AST (`ADD_ASM_IMPORT`), verifier (`IS_ASM_IMPORTED_SYMBOL`), and binary codegen.
+- Added `objdump <file.BIN> imports` (or `it` / `import_table`) sub-argument to display imported library names, symbol names, and patch offsets.
+- Added compiler test file `TESTS/COMPILER/12_acfh_imports.ac` and updated `TESTS/RUN_COMPILER_TESTS.ps1` (all 12 tests passing).
+
+### Dedicated CLI Documentation
+- Created dedicated CLI documentation file `DOCS/CLI.md` detailing every AstraC command (`asm`, `comp`, `disasm`, `objdump`, `strdump`, `preproc`, `info`, `showline`, `version`, `help`), sub-arguments (`all`, `header`, `tables`, `funcs`, `relocs`, `imports`), flags (`type {exe|lib} [ot|ft|it]`, `arch`, `bits`, `org`, `entry`, `warn`, `stepoff`, `macro`, `verbose`, `debug`), return codes, and examples.
+- Created external website CLI documentation page `C:\xampp\htdocs\astrac\docs\cli.php` matching project website styling.
+- Updated all repository markdown files (`README.md`, `AGENTS.md`, `DOCS/AC_FILEHEADER.md`, `DOCS/AC_LANG.md`) and website pages (`index.php`, `docs/fileheader.php`, `docs/ac.php`).
+
 ### ACFH Binary Header & Function Export Tables
-- Expanded `type {exe|lib} [offset_table(ot)|function_table(ft)]` CLI argument parsing to support multiple tables combined.
-- Expanded `AC_FILE_HEADER` with `func_table_offset` and `func_table_size` fields, `AC_FLAG_HAS_FUNCS` flag, preserving 108-byte total header size (`reserved[48]`).
+- Expanded `type {exe|lib} [offset_table(ot)|function_table(ft)|import_table(it)]` CLI argument parsing to support multiple tables combined.
+- Expanded `AC_FILE_HEADER` with `func_table_offset`, `func_table_size`, `import_table_offset`, `import_table_size` fields, `AC_FLAG_HAS_FUNCS`, `AC_FLAG_HAS_IMPORTS` flags, preserving 108-byte total header size (`reserved[40]`).
 - Implemented Function Export Table generation (`AC_FUNC_TABLE_HDR`, `AC_FUNC_ENTRY`, dynamic string table pool) with parameter stack size metadata (`param_size` in bytes) and calling convention flags (cdecl/stdcall/variadic), resolved via compiler symbol table (`FIND_SYM`/`COMP_TYPE_SIZE`).
-- Enhanced `objdump <file.BIN> [all|header|tables|funcs|relocs]` with sub-argument filtering for focused binary table inspection.
+- Enhanced `objdump <file.BIN> [all|header|tables|funcs|relocs|imports]` with sub-argument filtering for focused binary table inspection.
 - Added compiler test suite `11_acfh_tables.ac` and updated `TESTS/RUN_COMPILER_TESTS.ps1`.
 
 ### CI & Release Automation
