@@ -13,6 +13,7 @@
 /* ── Standard string operations ─────────────────────────────────────────── */
 #define AC_STRLEN(s)                strlen((const char*)(s))
 #define AC_STRCMP(a, b)             strcmp((const char*)(a), (const char*)(b))
+#define AC_STRNCMP(a, b, n)            strncmp((const char*)(a), (const char*)(b), (size_t)(n))
 #define AC_STRCAT(dst, src)         strcat((char*)(dst), (const char*)(src))
 #define AC_STRNCAT(dst, src, n)     strncat((char*)(dst), (const char*)(src), (size_t)(n))
 #define AC_STRCPY(dst, src)         strcpy((char*)(dst), (const char*)(src))

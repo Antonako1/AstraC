@@ -1718,7 +1718,84 @@ BOOLEAN GEN_BINARY(ASM_AST_ARRAY *ast, PASM_INFO info) {
         h.version = AC_FILE_VERSION;
         if (cfg->output_type == OUTPUT_EXE) h.flags |= AC_FLAG_EXECUTABLE;
         if (cfg->output_type == OUTPUT_LIB) h.flags |= AC_FLAG_DYNAMIC;
-        if (reloc_count > 0)                h.flags |= AC_FLAG_HAS_RELOCS;
+
+        /* Build function export table if function_table / ft flag is set */
+        AC_FUNC_TABLE_HDR ft_hdr;
+        AC_MEMZERO(&ft_hdr, sizeof(ft_hdr));
+        AC_FUNC_ENTRY *ft_entries = NULLPTR;
+        PU8 ft_strtab = NULLPTR;
+        U32 ft_entry_count = 0;
+        U32 ft_strtab_len = 0;
+
+        if (cfg->emit_func_table) {
+            for (U32 i = 0; i < ptrs.arr_tail; i++) {
+                ASM_PTR *p = &ptrs.ptrs[i];
+                if (!p->name || p->name[0] == '\0') continue;
+                if (p->name[0] == '@' || p->name[0] == '.') continue;
+                if (AC_STRNCMP(p->name, "_str", 4) == 0) continue;
+                if (p->section != DIR_DATA && p->section != DIR_RODATA) {
+                    ft_entry_count++;
+                }
+            }
+            if (ft_entry_count > 0) {
+                ft_entries = (AC_FUNC_ENTRY*)AC_MAlloc(ft_entry_count * sizeof(AC_FUNC_ENTRY));
+                AC_MEMZERO(ft_entries, ft_entry_count * sizeof(AC_FUNC_ENTRY));
+                U32 str_cap = ft_entry_count * 64;
+                ft_strtab = (PU8)AC_MAlloc(str_cap);
+                AC_MEMZERO(ft_strtab, str_cap);
+
+                U32 idx = 0;
+                for (U32 i = 0; i < ptrs.arr_tail; i++) {
+                    ASM_PTR *p = &ptrs.ptrs[i];
+                    if (!p->name || p->name[0] == '\0') continue;
+                    if (p->name[0] == '@' || p->name[0] == '.') continue;
+                    if (p->name[0] == '_' && p->name[1] == '_') continue;
+                    if (AC_STRNCMP(p->name, "_str", 4) == 0) continue;
+                    if (p->section != DIR_DATA && p->section != DIR_RODATA) {
+                        PU8 raw_name = p->name;
+                        PU8 export_name = raw_name;
+                        if (raw_name[0] == '_') export_name = raw_name + 1;
+
+                        U32 nlen = (U32)AC_STRLEN(export_name);
+                        if (ft_strtab_len + nlen + 1 > str_cap) {
+                            str_cap = (str_cap + nlen + 64) * 2;
+                            ft_strtab = (PU8)AC_ReAlloc(ft_strtab, str_cap);
+                        }
+
+                        ft_entries[idx].address = p->offset;
+                        ft_entries[idx].name_offset = ft_strtab_len;
+
+                        U16 p_size = 0;
+                        U16 f_flags = AC_FUNC_FLAG_CDECL;
+                        SYMBOL *sym = FIND_SYM(export_name);
+                        if (!sym) sym = FIND_SYM(raw_name);
+                        if (sym && sym->kind == SYM_FUNCTION) {
+                            for (U32 k = 0; k < sym->param_count; k++) {
+                                U32 psz = COMP_TYPE_SIZE(sym->param_types[k]);
+                                p_size += (psz < 4) ? 4 : psz;
+                            }
+                            if (sym->is_variadic) f_flags |= AC_FUNC_FLAG_VARIADIC;
+                        }
+                        ft_entries[idx].param_size = p_size;
+                        ft_entries[idx].flags = f_flags;
+
+                        AC_MEMCPY(ft_strtab + ft_strtab_len, export_name, nlen);
+                        ft_strtab[ft_strtab_len + nlen] = '\0';
+                        ft_strtab_len += nlen + 1;
+                        idx++;
+                    }
+                }
+                ft_hdr.entry_count = idx;
+                ft_hdr.string_table_size = ft_strtab_len;
+            }
+        }
+
+        U32 reloc_bytes = reloc_count * sizeof(U32);
+        U32 ft_bytes = (ft_hdr.entry_count > 0) ? (sizeof(AC_FUNC_TABLE_HDR) + (ft_hdr.entry_count * sizeof(AC_FUNC_ENTRY)) + ft_hdr.string_table_size) : 0;
+
+        if (reloc_bytes > 0) h.flags |= AC_FLAG_HAS_RELOCS;
+        if (ft_bytes > 0)    h.flags |= AC_FLAG_HAS_FUNCS;
+
         h.entry_point_offset = main_ptr ? main_ptr->offset : OFFSET_NON_EXISTENT;
 
         h.code_offset   = sizeof(AC_FILE_HEADER);
@@ -1729,23 +1806,37 @@ BOOLEAN GEN_BINARY(ASM_AST_ARRAY *ast, PASM_INFO info) {
         h.rodata_size   = ptrs.rodata;
         h.bss_offset    = sizeof(AC_FILE_HEADER) + ptrs.code + ptrs.data + ptrs.rodata;
         h.bss_size      = 0;
-        h.reloc_offset  = (reloc_count > 0) ? (sizeof(AC_FILE_HEADER) + ptrs.code + ptrs.data + ptrs.rodata) : OFFSET_NON_EXISTENT;
-        h.reloc_size    = reloc_count * sizeof(U32);
+        h.reloc_offset  = (reloc_bytes > 0) ? (sizeof(AC_FILE_HEADER) + ptrs.code + ptrs.data + ptrs.rodata) : OFFSET_NON_EXISTENT;
+        h.reloc_size    = reloc_bytes;
+        h.func_table_offset = (ft_bytes > 0) ? (sizeof(AC_FILE_HEADER) + ptrs.code + ptrs.data + ptrs.rodata + reloc_bytes) : OFFSET_NON_EXISTENT;
+        h.func_table_size   = ft_bytes;
 
-        AC_DEBUG_PRINTF("[ASM GEN] Writing file header (entry=0x%X, code=0x%X+0x%X, data=0x%X+0x%X, rodata=0x%X+0x%X, reloc=0x%X+0x%X)\n",
+        AC_DEBUG_PRINTF("[ASM GEN] Writing file header (entry=0x%X, code=0x%X+0x%X, data=0x%X+0x%X, rodata=0x%X+0x%X, reloc=0x%X+0x%X, funcs=0x%X+0x%X)\n",
                     h.entry_point_offset,
                     h.code_offset, h.code_size,
                     h.data_offset, h.data_size,
                     h.rodata_offset, h.rodata_size,
-                    h.reloc_offset, h.reloc_size);
+                    h.reloc_offset, h.reloc_size,
+                    h.func_table_offset, h.func_table_size);
         AC_FWRITE(out, (VOIDPTR)&h, sizeof(h));
-    }
 
-    if (ptrs.code)   AC_FWRITE(out, (VOIDPTR)code_buf,   ptrs.code);
-    if (ptrs.data)   AC_FWRITE(out, (VOIDPTR)data_buf,   ptrs.data);
-    if (ptrs.rodata) AC_FWRITE(out, (VOIDPTR)rodata_buf, ptrs.rodata);
-    if (cfg->output_type != OUTPUT_NONE && reloc_count > 0 && reloc_buf) {
-        AC_FWRITE(out, (VOIDPTR)reloc_buf, h.reloc_size);
+        if (ptrs.code)   AC_FWRITE(out, (VOIDPTR)code_buf,   ptrs.code);
+        if (ptrs.data)   AC_FWRITE(out, (VOIDPTR)data_buf,   ptrs.data);
+        if (ptrs.rodata) AC_FWRITE(out, (VOIDPTR)rodata_buf, ptrs.rodata);
+        if (reloc_bytes > 0 && reloc_buf) {
+            AC_FWRITE(out, (VOIDPTR)reloc_buf, h.reloc_size);
+        }
+        if (ft_bytes > 0) {
+            AC_FWRITE(out, (VOIDPTR)&ft_hdr, sizeof(ft_hdr));
+            AC_FWRITE(out, (VOIDPTR)ft_entries, ft_hdr.entry_count * sizeof(AC_FUNC_ENTRY));
+            AC_FWRITE(out, (VOIDPTR)ft_strtab, ft_hdr.string_table_size);
+        }
+        if (ft_entries) AC_MFree(ft_entries);
+        if (ft_strtab)  AC_MFree(ft_strtab);
+    } else {
+        if (ptrs.code)   AC_FWRITE(out, (VOIDPTR)code_buf,   ptrs.code);
+        if (ptrs.data)   AC_FWRITE(out, (VOIDPTR)data_buf,   ptrs.data);
+        if (ptrs.rodata) AC_FWRITE(out, (VOIDPTR)rodata_buf, ptrs.rodata);
     }
 
     AC_MFree(code_buf);   code_buf   = NULLPTR;

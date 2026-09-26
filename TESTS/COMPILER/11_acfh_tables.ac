@@ -1,0 +1,15 @@
+/* Test 11: ACFH Binary Header with Function Export Table & Offset Table */
+
+U32 add_numbers(U32 a, U32 b) {
+    return a + b;
+}
+
+U32 multiply_numbers(U32 a, U32 b, U32 c) {
+    return a * b * c;
+}
+
+U32 main() {
+    U32 sum = add_numbers(10, 20);
+    U32 prod = multiply_numbers(2, 3, 4);
+    return sum + prod;
+}

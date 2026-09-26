@@ -320,5 +320,6 @@ BOOL COMP_VERIFY(PCNODE root, PCOMP_CTX ctx);
 
 /* Code generation */
 BOOL COMP_GEN(PCNODE root, PCOMP_CTX ctx);
+SYMBOL *FIND_SYM(PU8 name);
 
 #endif /* COMPILER_H */

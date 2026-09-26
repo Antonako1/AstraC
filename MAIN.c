@@ -68,7 +68,7 @@ VOID PRINT_HELP() {
             "  asm <file.AS>                    ; Assemble input file\n"
             "  comp <file.AC>                   ; Compile input file\n"
             "  disasm <file.BIN>                ; Disassemble input file\n"
-            "  objdump <file.BIN>               ; Dump ACFH binary header and tables\n"
+            "  objdump <file.BIN> [mode]        ; Dump ACFH header and tables (all|header|tables|funcs|relocs)\n"
             "  strdump <file.BIN>               ; Dump strings from ACFH binary rodata section\n"
             "  preproc <file.AC|file.AS>        ; Preprocess file\n"
             "  info <mnemonic>                  ; Show information about a mnemonic\n"
@@ -82,8 +82,11 @@ VOID PRINT_HELP() {
             "  verbose                          ; Verbose output\n"
             "  debug                            ; Debug output to files. (AC->AS, AS->ASD)\n"
             "  arch <architecture>              ; Specify target architecture: i386 or i286. Default=i386\n"
-            "  exe                              ; Specify to output a binary file with a simple header. Off by default.\n"
-            "  lib                              ; Specify to output a binary file with a simple header. Off by default.\n"
+            "  type <exe|lib> [tables...]       ; Binary output format (exe/lib) with optional tables (offset_table|ot, function_table|ft)\n"
+            "  exe                              ; Specify to output a binary file with an executable ACFH header\n"
+            "  lib                              ; Specify to output a binary file with a library ACFH header\n"
+            "  offset_table / ot                ; Emit relocation offset table in ACFH header\n"
+            "  function_table / ft              ; Emit function export table in ACFH header\n"
             "  bits <16|32>                     ; Force 16-bit or 32-bit instruction encoding\n"
             "  org <address>                    ; Specify memory origin address for raw binaries (e.g., 0x7C00)\n"
             "  entry <label>                    ; Define the entry point for executables\n"
@@ -165,6 +168,14 @@ U32 main(U32 argc, PPU8 argv) {
                 return ASTRAC_ERR_ARGS;
             }
             args.input_file = argv[++i];
+            if (i + 1 < argc) {
+                PU8 sub = argv[i + 1];
+                if (AC_STRICMP(sub, "all") == 0) { args.objdump_mode = OBJDUMP_MODE_ALL; i++; }
+                else if (AC_STRICMP(sub, "header") == 0 || AC_STRICMP(sub, "hdr") == 0 || AC_STRICMP(sub, "info") == 0) { args.objdump_mode = OBJDUMP_MODE_HEADER; i++; }
+                else if (AC_STRICMP(sub, "tables") == 0 || AC_STRICMP(sub, "tbl") == 0) { args.objdump_mode = OBJDUMP_MODE_TABLES; i++; }
+                else if (AC_STRICMP(sub, "funcs") == 0 || AC_STRICMP(sub, "ft") == 0 || AC_STRICMP(sub, "function_table") == 0) { args.objdump_mode = OBJDUMP_MODE_FUNCS; i++; }
+                else if (AC_STRICMP(sub, "relocs") == 0 || AC_STRICMP(sub, "ot") == 0 || AC_STRICMP(sub, "offset_table") == 0) { args.objdump_mode = OBJDUMP_MODE_RELOCS; i++; }
+            }
         } else if(ARG_CMP1("strdump")) {
             args.build_type = BUILD_TYPE_STRDUMP;
             if(i + 1 >= argc) {
@@ -268,11 +279,44 @@ U32 main(U32 argc, PPU8 argv) {
                 return ASTRAC_ERR_ARGS;
             }
         }
+        else if(ARG_CMP1("type")) {
+            if (i + 1 >= argc) {
+                AC_PRINTF_ERR("[ASTRAC] Error: type requires 'exe' or 'lib'.\n");
+                return ASTRAC_ERR_ARGS;
+            }
+            PU8 target = argv[++i];
+            if (AC_STRICMP(target, "exe") == 0) {
+                args.output_type = OUTPUT_EXE;
+            } else if (AC_STRICMP(target, "lib") == 0) {
+                args.output_type = OUTPUT_LIB;
+            } else {
+                AC_PRINTF_ERR("[ASTRAC] Error: invalid binary type '%s' (expected exe or lib).\n", target);
+                return ASTRAC_ERR_ARGS;
+            }
+            while (i + 1 < argc) {
+                PU8 next_arg = argv[i + 1];
+                if (AC_STRICMP(next_arg, "offset_table") == 0 || AC_STRICMP(next_arg, "ot") == 0) {
+                    args.emit_offset_table = TRUE;
+                    i++;
+                } else if (AC_STRICMP(next_arg, "function_table") == 0 || AC_STRICMP(next_arg, "ft") == 0) {
+                    args.emit_func_table = TRUE;
+                    i++;
+                } else {
+                    break;
+                }
+            }
+        }
         else if(ARG_CMP1("exe")) {
             args.output_type = OUTPUT_EXE;
         }
         else if(ARG_CMP1("lib")) {
             args.output_type = OUTPUT_LIB;
+        }
+        else if(ARG_CMP1("offset_table") || ARG_CMP1("ot")) {
+            args.emit_offset_table = TRUE;
+        }
+        else if(ARG_CMP1("function_table") || ARG_CMP1("ft")) {
+            args.emit_func_table = TRUE;
         }
         else if(ARG_CMP1("bits")) {
             if(i + 1 >= argc) {

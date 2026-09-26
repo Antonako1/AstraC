@@ -1455,4 +1455,22 @@ CMP EAX, EBX
 SETZ AL
 SETNZ BL
 SETL CL
+
+## CLI Execution & Binary Output Options
+
+Assemble an assembly file:
+```
+AstraC asm input.AS
+```
+
+Binary header flags:
+```
+type {exe|lib} [offset_table(ot)|function_table(ft)]
+```
+Multiple tables can be combined (e.g. `type exe offset_table function_table` or `type lib ot ft`).
+
+Inspect generated binary:
+```
+AstraC objdump input.BIN [all|header|tables|funcs|relocs]
+```
 ```

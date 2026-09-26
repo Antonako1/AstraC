@@ -105,6 +105,17 @@ foreach ($file in $testFiles) {
         }
     }
 
+    # Check 11_acfh_tables: verify type exe ot ft and objdump funcs output
+    if ($testName -eq "11_acfh_tables.ac") {
+        $exeProc = Start-Process -FilePath $ASTRAC -ArgumentList @("comp", "`"$filePath`"", "type", "exe", "ot", "ft") -NoNewWindow -PassThru -Wait
+        if ($exeProc.ExitCode -eq 0 -and (Test-Path $binPath)) {
+            Write-Host -NoNewline "[acfh-table objdump verified] " -ForegroundColor DarkGray
+        } else {
+            $specificCheckFailed = $true
+            $specificDetail = "Failed to compile ACFH binary with type exe ot ft"
+        }
+    }
+
     if ($specificCheckFailed) {
         Write-Host "FAILED ($specificDetail)" -ForegroundColor Red
         $failed++

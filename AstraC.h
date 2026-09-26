@@ -120,6 +120,14 @@ BOOLEAN WARNING(U8 warning_level);
 // Returns TRUE if the --warnings-as-errors flag is set (SHARED/WARNINGS.c).
 BOOLEAN WARNINGS_AS_ERRORS();
 
+typedef enum {
+    OBJDUMP_MODE_ALL = 0,
+    OBJDUMP_MODE_HEADER,
+    OBJDUMP_MODE_TABLES,
+    OBJDUMP_MODE_FUNCS,
+    OBJDUMP_MODE_RELOCS
+} OBJDUMP_MODE;
+
 /* ── ARGUMENT STRUCTURE ───────────────────────────────────────────────── */
 typedef struct _ASTRAC_ARGS {
     MACRO_ARR macros;
@@ -134,6 +142,9 @@ typedef struct _ASTRAC_ARGS {
 
     ARCH arch;
     OUTPUT_TYPE output_type;
+    BOOL emit_offset_table;   /* TRUE if offset_table or ot flag enabled */
+    BOOL emit_func_table;     /* TRUE if function_table or ft flag enabled */
+    OBJDUMP_MODE objdump_mode;/* Sub-argument selection for objdump */
     U32 dsm_bits;
     U32 org;
     PU8 entry_point;

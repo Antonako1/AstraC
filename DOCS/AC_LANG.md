@@ -709,6 +709,27 @@ U32 main(U32 argc, PPU8 argv) {
 }
 ```
 
+---
+
+## Output Formats & Header Tables
+
+By default, AstraC emits flat binary (`.BIN`). To produce ACFH-headered executable or library binaries with relocation or function export tables:
+
+```
+type {exe|lib} [offset_table(ot)|function_table(ft)]
+```
+
+Example commands:
+```
+AstraC comp program.ac exe offset_table function_table
+AstraC comp library.ac lib ft
+```
+
+To inspect generated binaries:
+```
+AstraC objdump program.BIN [all|header|tables|funcs|relocs]
+```
+
 This example exercises: typedef struct, member access (`.` and `->`), function
 pointers, `for` loop with scoped counter, `if`/`else`, `switch`/`case`
 (fallthrough), `while` loop, `break`, stack array, `asm` block, and function

@@ -86,7 +86,7 @@ Options:
   asm <file.AS>                    ; Assemble input file
   comp <file.AC>                   ; Compile input file
   disasm <file.BIN>                ; Disassemble input file
-  objdump <file.BIN>               ; Dump ACFH binary header and tables
+  objdump <file.BIN> [sub-arg]       ; Dump ACFH binary header and tables (all, header, tables, funcs, relocs)
   strdump <file.BIN>               ; Dump strings from ACFH binary rodata section
   preproc <file.AC|file.AS>        ; Preprocess file
   info <mnemonic>                  ; Show information about a mnemonic
@@ -100,8 +100,9 @@ Flags:
   verbose                          ; Verbose output
   debug                            ; Debug output to files. (AC->AS, AS->ASD)
   arch <architecture>              ; Specify target architecture: i386 or i286. Default=i386
-  exe                              ; Specify to output a binary file with a simple header. Off by default.
-  lib                              ; Specify to output a binary file with a simple header. Off by default.
+  type {exe|lib} [ot|ft]           ; Output binary format with header and tables (offset_table/ot, function_table/ft)
+  exe                              ; Shortcut for executable binary header output
+  lib                              ; Shortcut for library binary header output
   bits <16|32>                     ; Force 16-bit or 32-bit instruction encoding
   org <address>                    ; Specify memory origin address for raw binaries (e.g., 0x7C00)
   entry <label>                    ; Define the entry point for executables

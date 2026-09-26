@@ -23,7 +23,7 @@ STATIC BOOL II_START(U8 c) { return (c>='A'&&c<='Z')||(c>='a'&&c<='z')||c=='_'; 
 STATIC BOOL II_CONT(U8 c)  { return II_START(c)||(c>='0'&&c<='9'); }
 STATIC VOID II_UPPER(PU8 s, U32 n) { for(U32 i=0;i<n;i++) if(s[i]>='a'&&s[i]<='z') s[i]-=32; }
 
-STATIC SYMBOL *FIND_SYM(PU8 name) {
+SYMBOL *FIND_SYM(PU8 name) {
     if (!name || !*name) return NULLPTR;
     /* First: check local symbols in the current function */
     if (cur_func_name) {

@@ -4,6 +4,13 @@ All notable changes to AstraC will be documented in this file.
 
 ## 2026-09-26
 
+### ACFH Binary Header & Function Export Tables
+- Expanded `type {exe|lib} [offset_table(ot)|function_table(ft)]` CLI argument parsing to support multiple tables combined.
+- Expanded `AC_FILE_HEADER` with `func_table_offset` and `func_table_size` fields, `AC_FLAG_HAS_FUNCS` flag, preserving 108-byte total header size (`reserved[48]`).
+- Implemented Function Export Table generation (`AC_FUNC_TABLE_HDR`, `AC_FUNC_ENTRY`, dynamic string table pool) with parameter stack size metadata (`param_size` in bytes) and calling convention flags (cdecl/stdcall/variadic), resolved via compiler symbol table (`FIND_SYM`/`COMP_TYPE_SIZE`).
+- Enhanced `objdump <file.BIN> [all|header|tables|funcs|relocs]` with sub-argument filtering for focused binary table inspection.
+- Added compiler test suite `11_acfh_tables.ac` and updated `TESTS/RUN_COMPILER_TESTS.ps1`.
+
 ### CI & Release Automation
 - Converted release automation from pre-release to official GitHub Release workflow (`.github/workflows/release.yml`): setting `prerelease: false` and `make_latest: true`, publishing `AstraC v<version>` as the primary official release on pushes to `main`.
 
