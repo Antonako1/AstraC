@@ -1,0 +1,12 @@
+/**
+ * Included as part of proc loader
+ */
+#include ../ac_fh.ah
+
+boolean resolve_import_table() {}
+boolean resolve_function_table() {}
+boolean resolve_reloc_table() {}
+
+bool resolve_tables(VOIDPTR bin, U32 bin_sz) {
+
+}
