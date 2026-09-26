@@ -1,13 +1,21 @@
-name: Create Release on Main Push
+name: Create Release
 
 on:
-  push:
-    branches:
-      - main
-    paths-ignore:
-      - 'DOCS/**'
-      - '**.md'
-      - '.gitignore'
+  workflow_dispatch:
+    inputs:
+      bump_type:
+        description: 'Version bump level'
+        required: true
+        default: 'patch'
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+      custom_version:
+        description: 'Custom version override (e.g. 1.0.0). If set, ignores bump_type.'
+        required: false
+        type: string
 
 concurrency:
   group: release-${{ github.ref }}
@@ -93,9 +101,19 @@ jobs:
           name: release-notes
           path: release_notes.md
 
-      - name: Increment Patch Version
+      - name: Bump Version
         run: |
-          python3 SCRIPTS/UPGRADE_VERSION.py 0 0 1
+          CUSTOM_VER="${{ inputs.custom_version }}"
+          BUMP_TYPE="${{ inputs.bump_type }}"
+          if [ -n "$CUSTOM_VER" ]; then
+            python3 SCRIPTS/UPGRADE_VERSION.py "$CUSTOM_VER"
+          elif [ "$BUMP_TYPE" = "major" ]; then
+            python3 SCRIPTS/UPGRADE_VERSION.py new_major
+          elif [ "$BUMP_TYPE" = "minor" ]; then
+            python3 SCRIPTS/UPGRADE_VERSION.py new_minor
+          else
+            python3 SCRIPTS/UPGRADE_VERSION.py new_patch
+          fi
 
       - name: Commit, Tag and Push Version Bump
         id: version_info

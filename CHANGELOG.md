@@ -12,7 +12,9 @@ All notable changes to AstraC will be documented in this file.
 - Added compiler test suite `11_acfh_tables.ac` and updated `TESTS/RUN_COMPILER_TESTS.ps1`.
 
 ### CI & Release Automation
-- Converted release automation from pre-release to official GitHub Release workflow (`.github/workflows/release.yml`): setting `prerelease: false` and `make_latest: true`, publishing `AstraC v<version>` as the primary official release on pushes to `main`.
+- Converted release workflow (`.github/workflows/release.yml`) to manual `workflow_dispatch` trigger: supports Major, Minor, or Patch bump selection (`patch`, `minor`, `major`) and optional explicit version overrides (e.g. `1.0.0`).
+- Updated `SCRIPTS/UPGRADE_VERSION.py` to support explicit target version strings (`python3 SCRIPTS/UPGRADE_VERSION.py 1.0.0`).
+- Automatically commits updated version files (`VERSION/VERSION.h`, `VERSION.txt`, `VERSION.nsh`) back to `main`, tags `v<version>`, and publishes official GitHub Release assets.
 
 ## 2026-09-25
 

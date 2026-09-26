@@ -50,11 +50,13 @@ def main():
             patch = 0
         elif arg == "new_patch":
             patch += 1
+        elif re.match(r'^\d+\.\d+\.\d+$', arg):
+            major, minor, patch = map(int, arg.split('.'))
         else:
-            print("Error: Invalid argument. Use 'new_major', 'new_minor', or 'new_patch'.")
+            print("Error: Invalid argument. Use 'new_major', 'new_minor', 'new_patch', or explicit version 'x.y.z'.")
             sys.exit(1)
     else:
-        print("Usage: python3 UPGRADE_VERSION.py [<major> <minor> <patch>] | [new_major] | [new_minor] | [new_patch]")
+        print("Usage: python3 UPGRADE_VERSION.py [<major> <minor> <patch>] | [new_major] | [new_minor] | [new_patch] | [<version_string>]")
         sys.exit(1)
 
     new_version = f"{major}.{minor}.{patch}"
