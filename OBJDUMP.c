@@ -98,25 +98,36 @@ ASTRAC_RESULT START_OBJDUMP(VOID) {
 
     if (show_reloc) {
         AC_PRINTF("-- Relocation Table ----------------------------------------\n");
-        if (hdr.reloc_offset != OFFSET_NON_EXISTENT && hdr.reloc_size > 0) {
+        if (hdr.reloc_offset != OFFSET_NON_EXISTENT) {
             U32 reloc_count = hdr.reloc_size / (U32)sizeof(U32);
             AC_PRINTF("Relocation Table: offset 0x%08X, size %u bytes (%u entries)\n",
                       hdr.reloc_offset, hdr.reloc_size, reloc_count);
 
-            if (hdr.reloc_offset + hdr.reloc_size > fsize) {
-                AC_PRINTF_WARN("[OBJDUMP] Warning: Relocation table extends beyond file size!\n");
-            } else {
-                PU32 relocs = (PU32)AC_MAlloc(hdr.reloc_size);
-                if (relocs) {
-                    AC_FSEEK(f, (long)hdr.reloc_offset, SEEK_SET);
-                    U32 read_bytes = AC_FREAD(f, (U8*)relocs, hdr.reloc_size);
-                    U32 actual_count = read_bytes / (U32)sizeof(U32);
+            if (hdr.reloc_size > 0) {
+                if (hdr.reloc_offset + hdr.reloc_size > fsize) {
+                    AC_PRINTF_WARN("[OBJDUMP] Warning: Relocation table extends beyond file size!\n");
+                } else {
+                    PU32 relocs = (PU32)AC_MAlloc(hdr.reloc_size);
+                    if (relocs) {
+                        AC_FSEEK(f, (long)hdr.reloc_offset, SEEK_SET);
+                        U32 read_bytes = AC_FREAD(f, (U8*)relocs, hdr.reloc_size);
+                        U32 actual_count = read_bytes / (U32)sizeof(U32);
 
-                    AC_PRINTF("  Idx     Instr Offset   Section Relative\n");
-                    for (U32 i = 0; i < actual_count; i++) {
-                        AC_PRINTF("  [%04u]  0x%08X     .code+0x%X\n", i, relocs[i], relocs[i]);
+                        AC_PRINTF("  Idx     Instr Offset   Section Relative\n");
+                        for (U32 i = 0; i < actual_count; i++) {
+                            PU8 sec_name = ".code";
+                            U32 sec_off = relocs[i];
+                            if (relocs[i] >= hdr.code_size + hdr.data_size) {
+                                sec_name = ".rodata";
+                                sec_off = relocs[i] - (hdr.code_size + hdr.data_size);
+                            } else if (relocs[i] >= hdr.code_size) {
+                                sec_name = ".data";
+                                sec_off = relocs[i] - hdr.code_size;
+                            }
+                            AC_PRINTF("  [%04u]  0x%08X     %s+0x%X\n", i, relocs[i], sec_name, sec_off);
+                        }
+                        AC_MFree(relocs);
                     }
-                    AC_MFree(relocs);
                 }
             }
         } else {

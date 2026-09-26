@@ -122,6 +122,15 @@ STATIC U32 CURRENT_OFFSET(VOID) {
     }
 }
 
+/* Current cumulative output offset across code -> data -> rodata for relocation entries. */
+STATIC U32 CURRENT_CUMULATIVE_OFFSET(VOID) {
+    switch (ptrs.current_section) {
+        case DIR_DATA:   return pass1_code_size + ptrs.data;
+        case DIR_RODATA: return pass1_code_size + pass1_data_size + ptrs.rodata;
+        default:         return ptrs.code;
+    }
+}
+
 /* Write bytes to the current section buffer and advance the section offset.
  *
  * During Pass 1 (f == NULL, CURRENT_PASS == FIRST_PASS) we only advance the
@@ -376,6 +385,7 @@ STATIC U32 eval_atom(PU8 *pp) {
             (*pp)++;
         }
         name[n] = '\0';
+        RECORD_RELOC(CURRENT_CUMULATIVE_OFFSET());
         return RESOLVE_SYMBOL_ADDR(name);
     }
 
@@ -1242,6 +1252,7 @@ STATIC BOOL ENCODE_DATA_VAR(FILE *f, PASM_NODE node) {
             while (*p && *p != ',' && *p != ' ' && nb < 127)
                 name_buf[nb++] = *p++;
             name_buf[nb] = '\0';
+            RECORD_RELOC(CURRENT_CUMULATIVE_OFFSET());
             EMIT_IMM(f, RESOLVE_SYMBOL_ADDR(name_buf),
                      (elem_sz == 1) ? SZ_8BIT
                    : (elem_sz == 2) ? SZ_16BIT
@@ -1882,7 +1893,7 @@ BOOLEAN GEN_BINARY(ASM_AST_ARRAY *ast, PASM_INFO info) {
         U32 ft_bytes = (ft_hdr.entry_count > 0) ? (sizeof(AC_FUNC_TABLE_HDR) + (ft_hdr.entry_count * sizeof(AC_FUNC_ENTRY)) + ft_hdr.string_table_size) : 0;
         U32 it_bytes = (it_hdr.entry_count > 0) ? (sizeof(AC_IMPORT_TABLE_HDR) + (it_hdr.entry_count * sizeof(AC_IMPORT_ENTRY)) + it_hdr.string_table_size) : 0;
 
-        if (reloc_bytes > 0) h.flags |= AC_FLAG_HAS_RELOCS;
+        if (reloc_bytes > 0 || cfg->emit_offset_table) h.flags |= AC_FLAG_HAS_RELOCS;
         if (ft_bytes > 0)    h.flags |= AC_FLAG_HAS_FUNCS;
         if (it_bytes > 0)    h.flags |= AC_FLAG_HAS_IMPORTS;
 
@@ -1923,7 +1934,7 @@ BOOLEAN GEN_BINARY(ASM_AST_ARRAY *ast, PASM_INFO info) {
         h.rodata_size   = ptrs.rodata;
         h.bss_offset    = sizeof(AC_FILE_HEADER) + ptrs.code + ptrs.data + ptrs.rodata;
         h.bss_size      = 0;
-        h.reloc_offset  = (reloc_bytes > 0) ? (sizeof(AC_FILE_HEADER) + ptrs.code + ptrs.data + ptrs.rodata) : OFFSET_NON_EXISTENT;
+        h.reloc_offset  = (reloc_bytes > 0 || cfg->emit_offset_table) ? (sizeof(AC_FILE_HEADER) + ptrs.code + ptrs.data + ptrs.rodata) : OFFSET_NON_EXISTENT;
         h.reloc_size    = reloc_bytes;
         h.func_table_offset   = (ft_bytes > 0) ? (sizeof(AC_FILE_HEADER) + ptrs.code + ptrs.data + ptrs.rodata + reloc_bytes) : OFFSET_NON_EXISTENT;
         h.func_table_size     = ft_bytes;

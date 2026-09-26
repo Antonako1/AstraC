@@ -70,7 +70,7 @@ STATIC BOOL CONST_FITS(COMP_TYPE dst, U32 val) {
 }
 
 STATIC BOOL IS_POINTER(COMP_TYPE t) {
-    return t.ptr_depth > 0 || (t.base >= CTYPE_PU8 && t.base <= CTYPE_PPI32) || t.base == CTYPE_VOIDPTR || t.base == CTYPE_TYPEDEF;
+    return t.ptr_depth > 0 || (t.base >= CTYPE_PU8 && t.base <= CTYPE_PPI32) || t.base == CTYPE_VOIDPTR;
 }
 
 STATIC BOOL ARE_TYPES_ASSIGNABLE(COMP_TYPE lt, COMP_TYPE rt, PCNODE rhs) {

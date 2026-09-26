@@ -4,6 +4,11 @@ All notable changes to AstraC will be documented in this file.
 
 ## 2026-09-26
 
+### Relocation Table Generation Fixes
+- Fixed relocation table output when requested via CLI flags (`type exe ot` / `type lib ot` / `offset_table`): `ASSEMBLER/GEN.c` now respects `cfg->emit_offset_table` when populating `h.flags` (`AC_FLAG_HAS_RELOCS`) and `h.reloc_offset`, ensuring relocation headers are emitted even when entry count is 0.
+- Fixed missing relocation recording for data section symbol references: `ENCODE_DATA_VAR()` and `eval_atom()` in `ASSEMBLER/GEN.c` now call `RECORD_RELOC()` with section-cumulative offsets (`CURRENT_CUMULATIVE_OFFSET()`) when resolving symbol addresses in `.data` and `.rodata` initializers (such as `_ptr_var: DD _my_var`).
+- Enhanced `OBJDUMP.c` relocation table inspector: updated header check to display relocation table metadata (offset and size) when `reloc_offset` is present, and added dynamic section relative offset formatting (`.code+0x...`, `.data+0x...`, `.rodata+0x...`).
+
 ### Variable Assignment Optimization & Nested Control Flow Test
 - Optimized variable assignment lowering in `COMPILER/GEN.c`: eliminated redundant `PUSH EAX` / `POP EAX` stack instructions for simple variable assignments (`x = expr;`), storing `EAX` directly to variable memory.
 - Added `test_nested_control_flow()` to `TESTS/COMPILER/14_comprehensive_features.ac` verifying that `break;` inside a `switch` statement enclosed within a `while` loop targets the switch exit label, not the enclosing loop.
