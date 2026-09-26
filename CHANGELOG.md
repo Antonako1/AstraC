@@ -15,6 +15,7 @@ All notable changes to AstraC will be documented in this file.
 - Implemented `.import "lib.lib" FUNC1, FUNC2` directive support in assembler lexer, AST (`ADD_ASM_IMPORT`), verifier (`IS_ASM_IMPORTED_SYMBOL`), and binary codegen.
 - Added `objdump <file.BIN> imports` (or `it` / `import_table`) sub-argument to display imported library names, symbol names, and patch offsets.
 - Added compiler test file `TESTS/COMPILER/12_acfh_imports.ac` and updated `TESTS/RUN_COMPILER_TESTS.ps1` (all 12 tests passing).
+- Updated preprocessor, assembler, and language documentation (`DOCS/PREPROCESSOR.md`, `DOCS/AC_LANG.md`, `DOCS/AS.md`, `DOCS/CLI.md`, `DOCS/AC_FILEHEADER.md`, and website pages `docs/preprocessor.php`, `docs/ac.php`, `docs/as.php`, `docs/cli.php`, `docs/fileheader.php`).
 
 ### Dedicated CLI Documentation
 - Created dedicated CLI documentation file `DOCS/CLI.md` detailing every AstraC command (`asm`, `comp`, `disasm`, `objdump`, `strdump`, `preproc`, `info`, `showline`, `version`, `help`), sub-arguments (`all`, `header`, `tables`, `funcs`, `relocs`, `imports`), flags (`type {exe|lib} [ot|ft|it]`, `arch`, `bits`, `org`, `entry`, `warn`, `stepoff`, `macro`, `verbose`, `debug`), return codes, and examples.

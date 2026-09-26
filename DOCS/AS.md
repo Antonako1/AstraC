@@ -78,6 +78,7 @@ Section and mode directives are prefixed with a dot (`.`):
 | `.use16` | Set **16-bit** code mode (real mode) |
 | `.org ADDR` | Set the **origin address** (base offset for label calculations) |
 | `.times N db V` | Fill **N** bytes with value **V** (supports `$` and `$$` in expressions) |
+| `.import "lib.lib" FUNCS` | Register external dynamic library function imports for ACFH binaries |
 
 ### Section Model
 

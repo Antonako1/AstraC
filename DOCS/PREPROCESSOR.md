@@ -43,6 +43,7 @@ int x = ADD(5, 10);
 | Directive | Description |
 |-----------|-------------|
 | `#include "file"` | Includes external header or source file |
+| `#import funcs from "lib"` | Specifies external dynamic library function imports for ACFH binaries |
 | `#define NAME value` | Defines an object-like macro |
 | `#define NAME(a,b) expr` | Defines a function-like macro |
 | `#undef NAME` | Undefines an existing macro |
@@ -56,6 +57,19 @@ int x = ADD(5, 10);
 | `#warning "msg"` | Outputs preprocessor warning message |
 | `#push <instruction>` | Pushes preprocessor/parser directive setting |
 | `#pop <instruction>` | Pops preprocessor/parser directive setting |
+
+## Dynamic Library Imports (`#import`)
+
+The `#import` directive specifies external dynamic library dependencies and target function symbols to be resolved at runtime by an OS binary loader.
+
+```c
+#import draw_rect, clear_screen from "graphics.lib"
+#import malloc, free from "libc.lib"
+```
+
+- **Preprocessing**: In C preprocessor mode, `#import` lines are passed through to the preprocessed file (`00.AC`).
+- **Compiler**: Registers the function symbols with default `cdecl` signatures and emits `.import` directives to the generated `.AS` source.
+- **Assembler & ACFH Output**: The assembler records the library names, function names, and patch offsets in the ACFH binary's Import Table (`AC_IMPORT_TABLE_HDR` and `AC_IMPORT_ENTRY`).
 
 ## Constant Expression Evaluation
 
