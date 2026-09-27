@@ -444,6 +444,10 @@ U32 main(U32 argc, PPU8 argv) {
     if (args.dsm_bits == 0) args.dsm_bits = 32;
     if (!args.entry_point) args.entry_point = "main";
     if(args.arch == ARCH_NONE) args.arch = ARCH_I386;
+    if(args.output_type != OUTPUT_NONE ) {
+        // add sizof(AC_FILE_HEADER) to org to reoffset
+        args.org += sizeof(AC_FILE_HEADER);
+    }
     PU8 arch_str = (args.arch == ARCH_I386) ? "i386" : (args.arch == ARCH_I286) ? "i286" : "unknown";
     PU8 build_type_str = (args.build_type == BUILD_TYPE_COMPILE) ? "COMPILE" :
                         (args.build_type == BUILD_TYPE_ASSEMBLE) ? "ASSEMBLE" :

@@ -1769,8 +1769,12 @@ BOOLEAN GEN_BINARY(ASM_AST_ARRAY *ast, PASM_INFO info) {
         asd_out = AC_FOPEN(asd_path, MODE_A | MODE_FAT32);
     }
 
-    ASM_PTR *main_ptr = FIND_ASM_PTR("_start");
-    AC_DEBUG_PRINTF("[ASM GEN] Entry point '_start' offset: 0x%X\n", main_ptr ? main_ptr->offset : OFFSET_NON_EXISTENT);
+    PU8 entry = AC_MAlloc(AC_STRLEN(cfg->entry_point + 2));
+    AC_STRCAT(entry, "_");
+    AC_STRCAT(entry, cfg->entry_point);
+    ASM_PTR *main_ptr = FIND_ASM_PTR(entry);
+    AC_DEBUG_PRINTF("[ASM GEN] Entry point '%s' offset: 0x%X\n",entry,  main_ptr ? main_ptr->offset : OFFSET_NON_EXISTENT);
+    AC_MFree(entry);
     /* ──────────────────────────────────────────────────────────────────
      *  Pass 2:  Emit binary
      * ────────────────────────────────────────────────────────────────── */
