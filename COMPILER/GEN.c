@@ -219,13 +219,15 @@ STATIC VOID GEN_IDENT(PCNODE n) {
         AC_FPRINTF(outf, "    MOV EAX, _%s\n", s->name);
         return;
     }
-    /* Array names decay to pointer-to-first-element (address, not value).
+    /* Array names and aggregate struct/union values decay to address (LEA, not value).
      * Parameters (offset > 0) are stack slots holding values/pointers, not inline arrays. */
-    if (s->array_size > 0 && (I32)s->offset <= 0) {
+    if ((s->array_size > 0 && (I32)s->offset <= 0) || IS_AGGREGATE_TYPE(s->type)) {
         if (s->is_global)
             AC_FPRINTF(outf, "    LEA EAX, [%s]\n", s->name);
         else if ((I32)s->offset == 0)
             AC_FPRINTF(outf, "    LEA EAX, [EBP]\n");
+        else if ((I32)s->offset > 0)
+            AC_FPRINTF(outf, "    LEA EAX, [EBP+%u]\n", s->offset);
         else
             AC_FPRINTF(outf, "    LEA EAX, [EBP-%u]\n", (U32)(-(I32)s->offset));
         return;
@@ -500,22 +502,7 @@ STATIC VOID GEN_CALL(PCNODE n) {
 
 STATIC VOID GEN_ADDR(PCNODE n) {
     PCNODE target = n->children[0];
-    if (target->ntype == CNODE_IDENT) {
-        SYMBOL *s = FIND_SYM(target->txt);
-        if (!s) { emit("    XOR EAX, EAX"); return; }
-        if (s->kind == SYM_FUNCTION)
-            AC_FPRINTF(outf, "    LEA EAX, [_%s]\n", s->name);
-        else if (s->is_global)
-            AC_FPRINTF(outf, "    LEA EAX, [%s]\n", s->name);
-        else if ((I32)s->offset == 0)
-            AC_FPRINTF(outf, "    LEA EAX, [EBP]\n");
-        else if ((I32)s->offset > 0)
-            AC_FPRINTF(outf, "    LEA EAX, [EBP+%u]\n", s->offset);
-        else
-            AC_FPRINTF(outf, "    LEA EAX, [EBP-%u]\n", (U32)(-(I32)s->offset));
-    } else {
-        GEN_EXPR(target);
-    }
+    GEN_LVALUE_ADDR(target);
 }
 
 /* A pointer-typed scalar variable (e.g. `PU8 p`) holds the buffer address
@@ -532,7 +519,11 @@ STATIC VOID GEN_ARR_BASE(PCNODE base) {
     if (base->ntype == CNODE_IDENT) {
         SYMBOL *s = FIND_SYM(base->txt);
         if (!s) { emit("    XOR EAX, EAX"); return; }
-        BOOL use_value = IS_PTR_VAR_SYMBOL(s) || (base->dtype.ptr_depth > 0) || IS_PTR_DTYPE(base->dtype);
+        BOOL use_value = FALSE;
+        if (s->array_size > 0 && (I32)s->offset <= 0)
+            use_value = FALSE;
+        else
+            use_value = IS_PTR_VAR_SYMBOL(s) || (base->dtype.ptr_depth > 0) || IS_PTR_DTYPE(base->dtype);
         if (s->is_global)
             AC_FPRINTF(outf, "    %s EAX, [%s]\n", use_value ? "MOV" : "LEA", s->name);
         else if ((I32)s->offset == 0)

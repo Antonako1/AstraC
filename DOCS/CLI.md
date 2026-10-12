@@ -117,7 +117,7 @@ AstraC --help
 | `exe` | *None* | Shortcut for ACFH executable format with header. |
 | `lib` | *None* | Shortcut for ACFH library format with header. |
 | `bits` | `<16\|32>` | Forces 16-bit (`.use16`) or 32-bit (`.use32`) instruction encoding mode. |
-| `org` | `<addr>` | Sets memory origin address for raw binary output (e.g. `0x7C00` or `0x100000`). |
+| `org` | `<addr>` | Sets memory origin address for raw binary output (e.g. `0x7C00`, `7C00`, or `0x100000`). Supports both prefixed (`0x`/`0X`) and raw hexadecimal notation. |
 | `entry` | `<label>` | Sets executable entry point label (default `_start` / `main`). |
 | `warn` | `<level>` | Sets warning level (`0` = suppress, `1` = standard, `2` = all, `err` = treat as errors). |
 

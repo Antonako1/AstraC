@@ -146,7 +146,7 @@ _TEST_STRUCT_ASSIGNMENT:
     MOV [EAX], EBX
 ; POINT p2;
 ; p2 = p1;
-    MOV EAX, [EBP-8]
+    LEA EAX, [EBP-8]
     MOV EBX, EAX
     LEA EAX, [EBP-16]
     MOV EDX, [EBX]
@@ -158,7 +158,7 @@ _TEST_STRUCT_ASSIGNMENT:
     LEA EAX, [EBP-24]
     MOV [EBP-28], EAX
 ; *dest = p2;
-    MOV EAX, [EBP-16]
+    LEA EAX, [EBP-16]
     PUSH EAX
     MOV EAX, [EBP-28]
     POP EBX

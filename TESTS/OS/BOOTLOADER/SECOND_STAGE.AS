@@ -11,7 +11,7 @@ main:
     XOR BX, BX          ; ES:BX = 0x10000
     MOV CX, 0x000A      ; CH=0 (cylinder 0), CL=10 (sector 10)
     XOR DX, DX          ; DH=0 (head 0), DL=0 (drive A:)
-    MOV AX, 0x0212      ; AH=0x02 (read), AL=18 (sectors)
+    MOV AX, 0x0220      ; AH=0x02 (read), AL=32 (sectors = 16 KB)
     INT 0x13
     JC error
 

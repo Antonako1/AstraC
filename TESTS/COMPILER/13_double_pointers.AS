@@ -129,7 +129,7 @@ __lbl8:
 ; arr[0] = &a;
     LEA EAX, [EBP-17]
     PUSH EAX
-    MOV EAX, [EBP-32]
+    LEA EAX, [EBP-32]
     PUSH EAX
     MOV EAX, 0x0
     POP EBX
@@ -139,7 +139,7 @@ __lbl8:
 ; arr[1] = &b;
     LEA EAX, [EBP-18]
     PUSH EAX
-    MOV EAX, [EBP-32]
+    LEA EAX, [EBP-32]
     PUSH EAX
     MOV EAX, 0x1
     POP EBX
@@ -149,7 +149,7 @@ __lbl8:
 ; arr[2] = &c;
     LEA EAX, [EBP-19]
     PUSH EAX
-    MOV EAX, [EBP-32]
+    LEA EAX, [EBP-32]
     PUSH EAX
     MOV EAX, 0x2
     POP EBX

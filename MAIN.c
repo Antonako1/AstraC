@@ -349,7 +349,13 @@ U32 main(U32 argc, PPU8 argv) {
             }
             PU8 addr_str = argv[++i];
             U32 addr = 0;
-            if (!AC_ATOI_HEX_E(addr_str, &addr)) {
+            BOOL parsed = FALSE;
+            if (addr_str[0] == '0' && (addr_str[1] == 'x' || addr_str[1] == 'X')) {
+                parsed = AC_ATOI_HEX_EP(addr_str, &addr);
+            } else {
+                parsed = AC_ATOI_HEX_E(addr_str, &addr);
+            }
+            if (!parsed) {
                 AC_PRINTF_ERR("[ASTRAC] Error: invalid org address '%s'. Must be a hexadecimal number.\n", addr_str);
                 return ASTRAC_ERR_ARGS;
             }

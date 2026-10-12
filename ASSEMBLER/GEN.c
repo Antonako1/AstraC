@@ -224,7 +224,7 @@ STATIC VOID EMIT_U32(FILE *f, U32 val) {
 
 /* Emit an immediate of the given size (little-endian). */
 STATIC VOID EMIT_IMM(FILE *f, U32 val, ASM_OPERAND_SIZE sz) {
-    AC_DEBUG_PRINTF("[ASM GEN] Emitting immediate value 0x%X with size %u bits\n", val, sz);
+    // AC_DEBUG_PRINTF("[ASM GEN] Emitting immediate value 0x%X with size %u bits\n", val, sz);
     switch (sz) {
         case SZ_8BIT:  EMIT_U8(f, (U8)val);   break;
         case SZ_16BIT: EMIT_U16(f, (U16)val);  break;
@@ -1686,7 +1686,7 @@ BOOLEAN GEN_BINARY(ASM_AST_ARRAY *ast, PASM_INFO info) {
     AC_MEMSET(&ptrs, 0, sizeof(ptrs));
     ptrs.current_section = DIR_NONE;
     ptrs.code_type       = DIR_CODE_TYPE_32;
-    
+    ptrs.origin          = cfg->org;
     CURRENT_PASS = FIRST_PASS;
 
     /* ── Scope local labels (@@name, .name) to enclosing global label ──── */
@@ -1706,6 +1706,9 @@ BOOLEAN GEN_BINARY(ASM_AST_ARRAY *ast, PASM_INFO info) {
 
     if (cfg->verbose)
         AC_PRINTF("[ASM GEN] Pass 1 complete: %u labels, code=%u data=%u rodata=%u origin=0x%X\n",
+               ptrs.arr_tail, ptrs.code, ptrs.data, ptrs.rodata, ptrs.origin);
+
+        AC_DEBUG_PRINTF("[ASM GEN] Pass 1 complete: %u labels, code=%u data=%u rodata=%u origin=0x%X\n",
                ptrs.arr_tail, ptrs.code, ptrs.data, ptrs.rodata, ptrs.origin);
 
     pass1_code_size   = ptrs.code;
@@ -1769,17 +1772,24 @@ BOOLEAN GEN_BINARY(ASM_AST_ARRAY *ast, PASM_INFO info) {
         asd_out = AC_FOPEN(asd_path, MODE_A | MODE_FAT32);
     }
 
-    PU8 entry = AC_MAlloc(AC_STRLEN(cfg->entry_point + 2));
-    AC_STRCAT(entry, "_");
-    AC_STRCAT(entry, cfg->entry_point);
+    U8 entry[128];
+    AC_MEMZERO(entry, sizeof(entry));
+    entry[0] = '_';
+    if (cfg->entry_point) {
+        AC_STRNCPY(entry + 1, cfg->entry_point, sizeof(entry) - 2);
+    }
     ASM_PTR *main_ptr = FIND_ASM_PTR(entry);
-    AC_DEBUG_PRINTF("[ASM GEN] Entry point '%s' offset: 0x%X\n",entry,  main_ptr ? main_ptr->offset : OFFSET_NON_EXISTENT);
-    AC_MFree(entry);
+    if (!main_ptr && cfg->entry_point) {
+        main_ptr = FIND_ASM_PTR(cfg->entry_point);
+    }
+    AC_DEBUG_PRINTF("[ASM GEN] Entry point '%s' offset: 0x%X\n", entry, main_ptr ? main_ptr->offset : OFFSET_NON_EXISTENT);
+
     /* ──────────────────────────────────────────────────────────────────
      *  Pass 2:  Emit binary
      * ────────────────────────────────────────────────────────────────── */
     CURRENT_PASS = SECOND_PASS;
     reloc_count = 0;
+    asm_imports.patch_count = 0;
     AC_DEBUG_PRINTF("[ASM GEN] Starting Pass 2: emitting binary to %s\n", outputfile);
 
     AC_MEMZERO(&h, sizeof(AC_FILE_HEADER));

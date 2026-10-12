@@ -743,7 +743,6 @@ __lbl24:
 ; PU32 weight_bits = (PU32)&node.pt.weight;
     LEA EAX, [EBP-44]
     ADD EAX, 8
-    MOV EAX, [EAX]
     MOV [EBP-96], EAX
 ; if (*weight_bits != 0x3FC00000) return 11;
     MOV EAX, [EBP-96]

@@ -2,6 +2,24 @@
 
 All notable changes to AstraC will be documented in this file.
 
+## 2026-10-12
+
+### ACFH Header & Binary Code Section Offset Alignment
+- Fixed binary code offset padding in `ASSEMBLER/GEN.c`: removed redundant `ptrs.code = sizeof(AC_FILE_HEADER)` initialization in Pass 1 and Pass 2. The code section now begins immediately following the 112-byte (`0x70`) header at file offset `0x70` instead of `0xE0`, eliminating 112 unwritten zero padding bytes that previously prevented jumping past the header (e.g. `jmp 0x10070` when `org` is `0x10000`).
+- Fixed heap corruption crash (`0xC0000374`) on entry point string formatting in `ASSEMBLER/GEN.c`: replaced unsafe `AC_MAlloc(AC_STRLEN(cfg->entry_point + 2))` buffer overrun with a safe stack buffer `U8 entry[128]` with fallback lookup.
+- Fixed Pass 2 import patch tracking in `ASSEMBLER/GEN.c`: reset `asm_imports.patch_count = 0` at the beginning of Pass 2 to avoid duplicate patch entries.
+
+### Compiler Codegen Fixes (Struct Copy, Array Bases, Member Address-of)
+- Fixed struct copy source evaluation in `COMPILER/GEN.c`: updated `GEN_IDENT` to recognize aggregate types (`IS_AGGREGATE_TYPE(s->type)`) and emit `LEA EAX, [EBP-offset]` instead of scalar `MOV EAX, [EBP-offset]`. When copying structs (`p2 = p1`), `EAX` now holds the struct base address for `GEN_STRUCT_COPY` instead of loading the first 4 bytes as a scalar pointer, resolving runtime memory faults.
+- Fixed local array base address resolution in `COMPILER/GEN.c`: updated `GEN_ARR_BASE` to check stack array allocation (`s->array_size > 0 && (I32)s->offset <= 0`) before checking pointer depth, ensuring `LEA` is emitted for local arrays such as `PU8 arr[3]` rather than reading an uninitialized stack slot via `MOV`.
+- Fixed address-of struct member codegen in `COMPILER/GEN.c`: updated `GEN_ADDR` to delegate directly to `GEN_LVALUE_ADDR(target)`, preventing an extraneous `MOV EAX, [EAX]` dereference when taking the address of struct fields (e.g. `&node.pt.weight`).
+
+### CLI Hexadecimal Prefix Parsing
+- Enhanced `org` flag argument parsing in `MAIN.c`: added automatic detection of `0x` and `0X` hexadecimal prefixes using `AC_ATOI_HEX_EP` while preserving backward compatibility with raw hex string parsing via `AC_ATOI_HEX_E`.
+
+### OS Bootloader Second Stage Capacity Expansion
+- Expanded BIOS `INT 0x13` floppy read sector count from 18 sectors (9 KB) to 32 sectors (16 KB) in `TESTS/OS/BOOTLOADER/SECOND_STAGE.AS`, preventing premature truncation of kernel binaries exceeding 9 KB.
+
 ## 2026-09-27
 
 ### Dynamic Import Table Call Site Patch Recording

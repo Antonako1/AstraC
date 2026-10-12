@@ -6,11 +6,11 @@ The **ACFH** (AstraC File Header) format is the native executable and dynamic li
 
 ## 1. File Layout Overview
 
-An ACFH binary file consists of a fixed 108-byte header followed by up to six contiguous sections:
+An ACFH binary file consists of a fixed 112-byte (0x70) header followed by up to six contiguous sections:
 
 ```text
 +-------------------------------------------------------------+
-| AC_FILE_HEADER (108 bytes)                                  |
+| AC_FILE_HEADER (112 bytes / 0x70)                           |
 +-------------------------------------------------------------+
 | Code Section (.code)                                        |
 +-------------------------------------------------------------+
@@ -52,7 +52,7 @@ typedef struct {
     U32 reloc_size;              /* Size of Relocation Table in bytes */
     U32 func_table_size;         /* Size of Function Export Table section in bytes */
     U32 import_table_size;       /* Size of Import Table section in bytes */
-    U8  reserved[40];            /* Reserved bytes (padded to 108 bytes total) */
+    U8  reserved[40];            /* Reserved bytes (padded to 112 bytes total / 0x70) */
 } ATTRIB_PACKED AC_FILE_HEADER;
 ```
 
