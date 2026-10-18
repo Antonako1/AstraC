@@ -3,43 +3,31 @@
 .use32
 .code
 jmp _MAIN
-; U32 test_scalars() {
 
 _TEST_SCALARS:
     PUSH EBP
     MOV EBP, ESP
     SUB ESP, 20
-; U32 test_scalars() {
-; U8  l_u8  = 10;
     MOV EAX, 0xA
     MOV [EBP-1], AL
-; U16 l_u16 = 200;
     MOV EAX, 0xC8
     MOV [EBP-4], AX
-; U32 l_u32 = 30000;
     MOV EAX, 0x7530
     MOV [EBP-8], EAX
-; I8  l_i8  = 5;
     MOV EAX, 0x5
     MOV [EBP-9], AL
-; I16 l_i16 = 50;
     MOV EAX, 0x32
     MOV [EBP-12], AX
-; I32 l_i32 = 500;
     MOV EAX, 0x1F4
     MOV [EBP-16], EAX
-; BOOL l_b  = FALSE;
     MOV EAX, 0
     MOV [EBP-20], EAX
-; if (!l_b) {
     MOV EAX, [EBP-20]
     TEST EAX, EAX
     SETE AL
     MOVZX EAX, AL
     TEST EAX, EAX
     JZ __lbl1
-; if (!l_b) {
-; l_u32 = l_u32 + (U32)l_u8 + (U32)l_u16;
     MOV EAX, [EBP-8]
     PUSH EAX
     MOVZX EAX, BYTE [EBP-1]
@@ -55,7 +43,6 @@ _TEST_SCALARS:
     JMP __lbl2
 __lbl1:
 __lbl2:
-; return l_u32 + (U32)l_i32;
     MOV EAX, [EBP-8]
     PUSH EAX
     MOV EAX, [EBP-16]
@@ -69,39 +56,29 @@ __TEST_SCALARS_ret:
     ADD ESP, 20
     POP EBP
     RET
-; U32 test_pointers() {
 
 _TEST_POINTERS:
     PUSH EBP
     MOV EBP, ESP
     SUB ESP, 24
-; U32 test_pointers() {
-; U32 val = 0xCAFEBABE;
     MOV EAX, 0xCAFEBABE
     MOV [EBP-4], EAX
-; PU32 ptr = &val;
     LEA EAX, [EBP-4]
     MOV [EBP-8], EAX
-; *ptr = 0x12345678;
     MOV EAX, 0x12345678
     PUSH EAX
     MOV EAX, [EBP-8]
     POP EBX
     MOV [EAX], EBX
-; PU8 byte_ptr = (PU8)&val;
     LEA EAX, [EBP-4]
     MOV [EBP-12], EAX
-; U8 first_byte = *byte_ptr;
     MOV EAX, [EBP-12]
     MOVZX EAX, BYTE [EAX]
     MOV [EBP-13], AL
-; VOIDPTR vp = ptr;
     MOV EAX, [EBP-8]
     MOV [EBP-20], EAX
-; PU32 ptr2 = (PU32)vp;
     MOV EAX, [EBP-20]
     MOV [EBP-24], EAX
-; return *ptr2 + (U32)first_byte;
     MOV EAX, [EBP-24]
     MOV EAX, [EAX]
     PUSH EAX
@@ -116,16 +93,11 @@ __TEST_POINTERS_ret:
     ADD ESP, 24
     POP EBP
     RET
-; U32 test_arrays() {
 
 _TEST_ARRAYS:
     PUSH EBP
     MOV EBP, ESP
     SUB ESP, 44
-; U32 test_arrays() {
-; U32 local_arr[8];
-; for (U32 i = 0; i < 8; i = i + 1) {
-; for (U32 i = 0; i < 8; i = i + 1) {
     MOV EAX, 0x0
     MOV [EBP-36], EAX
 __lbl3:
@@ -139,8 +111,6 @@ __lbl3:
     MOVZX EAX, AL
     TEST EAX, EAX
     JZ __lbl4
-; for (U32 i = 0; i < 8; i = i + 1) {
-; local_arr[i] = i * 2;
     MOV EAX, [EBP-36]
     PUSH EAX
     MOV EAX, 0x2
@@ -165,11 +135,8 @@ __lbl5:
     MOV [EBP-36], EAX
     JMP __lbl3
 __lbl4:
-; U32 sum = 0;
     MOV EAX, 0x0
     MOV [EBP-40], EAX
-; for (U32 j = 0; j < 8; j = j + 1) {
-; for (U32 j = 0; j < 8; j = j + 1) {
     MOV EAX, 0x0
     MOV [EBP-44], EAX
 __lbl6:
@@ -183,8 +150,6 @@ __lbl6:
     MOVZX EAX, AL
     TEST EAX, EAX
     JZ __lbl7
-; for (U32 j = 0; j < 8; j = j + 1) {
-; sum = sum + local_arr[j];
     MOV EAX, [EBP-40]
     PUSH EAX
     LEA EAX, [EBP-32]
@@ -207,7 +172,6 @@ __lbl8:
     MOV [EBP-44], EAX
     JMP __lbl6
 __lbl7:
-; return sum;
     MOV EAX, [EBP-40]
     ADD ESP, 44
     POP EBP
@@ -216,14 +180,11 @@ __TEST_ARRAYS_ret:
     ADD ESP, 44
     POP EBP
     RET
-; U32 main() {
 
 _MAIN:
     PUSH EBP
     MOV EBP, ESP
     SUB ESP, 12
-; U32 main() {
-; if (g_arr_2[0] != 1 || g_arr_2[1] != 2 || g_arr_2[2] != 3) return 100;
     LEA EAX, [g_G_ARR_2]
     PUSH EAX
     MOV EAX, 0x0
@@ -273,7 +234,6 @@ _MAIN:
     OR EAX, EBX
     TEST EAX, EAX
     JZ __lbl9
-; if (g_arr_2[0] != 1 || g_arr_2[1] != 2 || g_arr_2[2] != 3) return 100;
     MOV EAX, 0x64
     ADD ESP, 12
     POP EBP
@@ -281,16 +241,12 @@ _MAIN:
     JMP __lbl10
 __lbl9:
 __lbl10:
-; U32 r1 = test_scalars();
     CALL _TEST_SCALARS
     MOV [EBP-4], EAX
-; U32 r2 = test_pointers();
     CALL _TEST_POINTERS
     MOV [EBP-8], EAX
-; U32 r3 = test_arrays();
     CALL _TEST_ARRAYS
     MOV [EBP-12], EAX
-; return r1 + r2 + r3;
     MOV EAX, [EBP-4]
     PUSH EAX
     MOV EAX, [EBP-8]
