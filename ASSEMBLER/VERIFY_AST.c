@@ -329,6 +329,8 @@ STATIC BOOL verify_instruction(PASM_NODE node, PLABEL_TABLE labels) {
         case OP_SEG:
         case OP_MOFFS:
         case OP_FAR:
+        case OP_CR:
+        case OP_DR:
             break;
 
         default:

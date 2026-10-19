@@ -42,6 +42,10 @@ jobs:
         shell: powershell
         run: powershell -ExecutionPolicy Bypass -File TESTS/RUN_COMPILER_TESTS.ps1
 
+      - name: Run Assembler Test Suite
+        shell: powershell
+        run: powershell -ExecutionPolicy Bypass -File TESTS/RUN_ASSEMBLER_TESTS.ps1
+
   test-linux:
     name: Test Linux (GCC Ninja)
     runs-on: ubuntu-latest
@@ -64,3 +68,8 @@ jobs:
         run: |
           chmod +x TESTS/RUN_COMPILER_TESTS.sh
           ./TESTS/RUN_COMPILER_TESTS.sh
+
+      - name: Run Assembler Test Suite
+        run: |
+          chmod +x TESTS/RUN_ASSEMBLER_TESTS.sh
+          ./TESTS/RUN_ASSEMBLER_TESTS.sh

@@ -64,8 +64,8 @@ When an **ACFH binary** is passed (`magic == "ACFH"` at byte 0):
 ### Pipeline
 
 1. **Read & ACFH Check** — The binary is loaded into memory and checked for the `"ACFH"` header magic.
-2. **Prefix scan** — Legacy prefixes (`66h`, `F2h`, `F3h`) and the address-size
-   override (`67h`) are consumed before each instruction.
+2. **Prefix scan** — Legacy operand-size prefix (`66h`), repeat prefixes (`F2h` for `repne`, `F3h` for `rep`/`repe`), and the address-size
+   override (`67h`) are consumed before each instruction. Repeat prefixes (`rep`, `repe`, `repne`) are preserved and printed before the decoded string instruction mnemonic.
 3. **Opcode lookup** — The mnemonic table (shared with the assembler) is searched
    for a match on prefix, opcode byte(s), and ModRM `/digit` extension.
 4. **Operand decode** — ModRM, SIB, displacement, and immediate bytes are

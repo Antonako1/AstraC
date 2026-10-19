@@ -495,28 +495,28 @@ STATIC U32 EVAL_EXPR(PU8 text) {
  */
 STATIC U8 REG_NUM(ASM_REGS reg) {
     switch (reg) {
-        case REG_AL: case REG_AX: case REG_EAX: case REG_ES: case REG_CR0:
+        case REG_AL: case REG_AX: case REG_EAX: case REG_ES: case REG_CR0: case REG_DR0:
         case REG_ST0: case REG_MM0: case REG_XMM0:
             return 0;
-        case REG_CL: case REG_CX: case REG_ECX: case REG_CS: case REG_CR2:
+        case REG_CL: case REG_CX: case REG_ECX: case REG_CS: case REG_DR1:
         case REG_ST1: case REG_MM1: case REG_XMM1:
             return 1;
-        case REG_DL: case REG_DX: case REG_EDX: case REG_SS: case REG_CR3:
+        case REG_DL: case REG_DX: case REG_EDX: case REG_SS: case REG_CR2: case REG_DR2:
         case REG_ST2: case REG_MM2: case REG_XMM2:
             return 2;
-        case REG_BL: case REG_BX: case REG_EBX: case REG_DS: case REG_CR4:
+        case REG_BL: case REG_BX: case REG_EBX: case REG_DS: case REG_CR3: case REG_DR3:
         case REG_ST3: case REG_MM3: case REG_XMM3:
             return 3;
-        case REG_AH: case REG_SP: case REG_ESP: case REG_FS:
+        case REG_AH: case REG_SP: case REG_ESP: case REG_FS: case REG_CR4:
         case REG_ST4: case REG_MM4: case REG_XMM4:
             return 4;
         case REG_CH: case REG_BP: case REG_EBP: case REG_GS:
         case REG_ST5: case REG_MM5: case REG_XMM5:
             return 5;
-        case REG_DH: case REG_SI: case REG_ESI:
+        case REG_DH: case REG_SI: case REG_ESI: case REG_DR6:
         case REG_ST6: case REG_MM6: case REG_XMM6:
             return 6;
-        case REG_BH: case REG_DI: case REG_EDI:
+        case REG_BH: case REG_DI: case REG_EDI: case REG_DR7:
         case REG_ST7: case REG_MM7: case REG_XMM7:
             return 7;
         default:
@@ -841,8 +841,13 @@ STATIC BOOL ENCODE_INSTRUCTION(FILE *f, PASM_NODE node) {
     switch (tbl->encoding) {
 
     case ENC_DIRECT:
-        /* Single opcode byte, no operands. */
-        EMIT_U8(f, tbl->opcode[0]);
+        /* Single opcode byte, or 0F-prefixed two-byte opcode, no operands. */
+        if (tbl->opcode_prefix == PFX_0F) {
+            EMIT_U8(f, 0x0F);
+            EMIT_U8(f, tbl->opcode[1]);
+        } else {
+            EMIT_U8(f, tbl->opcode[0]);
+        }
         break;
 
     case ENC_REG_OPCODE: {
@@ -1002,14 +1007,23 @@ STATIC BOOL ENCODE_INSTRUCTION(FILE *f, PASM_NODE node) {
                 /* Determine direction from the operand type layout:
                  *   tbl->operand[0]==OP_MEM  → op0=r/m, op1=reg
                  *   tbl->operand[0]==OP_REG  → op0=reg, op1=r/m */
-                if (tbl->operand[0] == OP_REG || tbl->operand[0] == OP_SEG) {
+                if (tbl->operand[0] == OP_CR || tbl->operand[0] == OP_DR) {
+                    /* MOV CR/DR, r32: op0 is CR/DR (reg_field), op1 is r32 (rm_op) */
+                    reg_op = &node->instr.operands[0];
+                    rm_op  = &node->instr.operands[1];
+                } else if (tbl->operand[1] == OP_CR || tbl->operand[1] == OP_DR) {
+                    /* MOV r32, CR/DR: op0 is r32 (rm_op), op1 is CR/DR (reg_field) */
+                    rm_op  = &node->instr.operands[0];
+                    reg_op = &node->instr.operands[1];
+                } else if (tbl->operand[0] == OP_REG || tbl->operand[0] == OP_SEG) {
                     reg_op = &node->instr.operands[0];
                     rm_op  = &node->instr.operands[1];
                 } else {
                     rm_op  = &node->instr.operands[0];
                     reg_op = &node->instr.operands[1];
                 }
-                reg_field = (reg_op && (reg_op->type == OP_REG || reg_op->type == OP_SEG))
+                reg_field = (reg_op && (reg_op->type == OP_REG || reg_op->type == OP_SEG ||
+                                        reg_op->type == OP_CR  || reg_op->type == OP_DR))
                           ? REG_NUM(reg_op->reg) : 0;
             } else if (node->instr.operand_count == 1) {
                 rm_op = &node->instr.operands[0];

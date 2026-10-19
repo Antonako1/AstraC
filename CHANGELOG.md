@@ -4,6 +4,29 @@ All notable changes to AstraC will be documented in this file.
 
 ## 2026-10-19
 
+### Assembler Test Suite & Automated CI Verification
+- Created comprehensive x86 assembly test suite under `TESTS/ASSEMBLER/` featuring 7 test targets:
+  - `01_data_and_sections.AS`: Section placement (`.data`, `.rodata`, `.bss`), bare numbers, label addresses, and 0-disk-byte `.bss` sizing verification.
+  - `02_registers_and_addressing.AS`: 8-bit, 16-bit, and 32-bit registers, ModR/M and SIB modes with scales (`*1`, `*2`, `*4`, `*8`) and displacements, segment overrides, and CR0-4 / DR0-7 control and debug registers.
+  - `03_arithmetic_logic_bits.AS`: Full ALU set (`ADD`, `SUB`, `ADC`, `SBB`, `CMP`, `TEST`, `INC`, `DEC`, `NEG`, `NOT`), multiplication and division (1, 2, and 3-operand forms), shifts and rotates (`SHL`, `SHR`, `SAR`, `ROL`, `ROR`, `RCL`, `RCR`, `SHLD`, `SHRD`), bit manipulation (`BSF`, `BSR`, `BT`, `BTS`, `BTR`, `BTC`), zero/sign extension (`MOVZX`, `MOVSX`), condition setting (`SETcc`), atomic exchange (`XCHG`), and BCD adjustments (`DAA`, `DAS`, `AAA`, `AAS`, `AAM`, `AAD`).
+  - `04_control_flow_and_labels.AS`: Local numeric labels (`@@`, `@f`, `@b`), dot-prefixed sub-labels, indirect register and memory jumps/calls, conditional jumps, automatic jump relaxation (>127 bytes relaxed to `0F 84` near branches), and loop instructions (`LOOP`, `LOOPE`, `LOOPNE`, `JCXZ`/`JECXZ`).
+  - `05_strings_ports_system.AS`: String operations (`MOVS*`, `LODS*`, `STOS*`, `CMPS*`, `SCAS*`, `INS*`, `OUTS*`), repeat prefixes (`REP`, `REPE`, `REPNE`), port I/O (`IN`, `OUT`), and privileged system operations (`CPUID`, `RDTSC`, `LGDT`, `LIDT`, `SGDT`, `SIDT`, `ENTER`, `LEAVE`, `INT`, `IRET`).
+  - `06_bootloader_realmode.AS`: 16-bit real-mode MBR bootloader with 16-bit ModR/M addressing, BIOS `INT 0x10` teletype printing, `.times` padding, and `0xAA55` boot signature verifying an exact 512-byte image.
+  - `07_acfh_exe_and_tables.AS`: ACFH executable header with Relocation Table, Function Export Table, and Import Table verifying multiple call site patch offsets for imported symbols (`libc.lib malloc`, `libc.lib free`).
+- Added automated test runners `TESTS/RUN_ASSEMBLER_TESTS.ps1` (PowerShell) and `TESTS/RUN_ASSEMBLER_TESTS.sh` (Bash).
+- Integrated assembler test suite execution into GitHub Actions CI (`.github/workflows/test.yml` and `.github/workflows/release.yml`) on Windows and Linux runners.
+
+### Assembler & Disassembler Instruction Encoding and Decoding Fixes
+- Fixed Control and Debug Register encoding and disassembly in `ASSEMBLER/GEN.c`, `ASSEMBLER/AST.c`, and `DISSASEMBLER/DISMAIN.c`:
+  - Added dedicated operand types `OP_CR` and `OP_DR` and table entries `OPS_R32_CR`, `OPS_CR_R32`, `OPS_R32_DR`, `OPS_DR_R32` so `MOV EAX, CR0` and `MOV EBX, DR7` do not incorrectly match standard `MOV r32, r/m32`.
+  - Corrected `REG_NUM` mapping for `REG_CR2` (2), `REG_CR3` (3), `REG_CR4` (4), and added `REG_DR0`..`REG_DR7`.
+  - Updated `MNEMONIC` macro in `ASSEMBLER/MNEMONICS.h` to properly emit `PFX_0F` prefix for `EX_PREFIX_0F` table entries.
+  - Added `OP_CR` and `OP_DR` rendering in `DISSASEMBLER/DISMAIN.c` to display exact register names (`cr0`..`cr4`, `dr0`..`dr7`).
+- Fixed two-byte opcode emission in `ASSEMBLER/GEN.c`: `case ENC_DIRECT` now checks `tbl->opcode_prefix == PFX_0F` to emit `0x0F` followed by `tbl->opcode[1]`, fixing `CPUID` (`0F A2`) and `RDTSC` (`0F 31`) which were previously truncated to single `0x0F` bytes.
+- Fixed repeat prefix handling in `DISSASEMBLER/DISMAIN.c`: separated operand-size prefix (`0x66`) from repeat prefixes (`0xF3` / `0xF2`) so string instructions disassemble with correct `rep `, `repe `, and `repne ` prefixes instead of fallback `db` bytes.
+- Fixed segment register operand printing in `DISSASEMBLER/DISMAIN.c` for `MOV sreg, r/m` and `MOV r/m, sreg` (`OP_SEG`).
+- Fixed shift/rotate canonicalization in `ASSEMBLER/AST.c` for `RCL reg, CL`, `RCR reg, 1`, and 3-operand `SHLD`/`SHRD` with `CL`.
+
 ### Preprocessor `#line` Source Tracking & Per-Target Temporary Files
 - Implemented automatic `#line <line> "<file>"` marker emission in `SHARED/PREPROCESS.c` across file entry, `#include` enter/return boundaries, and multi-line comments/skipped conditional blocks (`READ_LOGICAL_LINE_CNT`).
 - Added explicit `#line <line> ["file"]` directive support (`IDENT_LINE`) in `SHARED/PREPROCESS.c`, `COMPILER/LEX.c`, and `ASSEMBLER/LEXER.c` so compiler and assembler diagnostics accurately report original source files and line numbers instead of preprocessed temporary paths.

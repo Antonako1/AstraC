@@ -383,7 +383,8 @@ BOOL DISASSEMBLE_FILE(FILE *input, FILE *output, ASTRAC_ARGS *cfg) {
         }
 
         /* ── Legacy prefix detection ───────────────────────────────────── */
-        U8   raw_prefix  = PF_NONE;
+        U8   op_prefix   = PF_NONE;
+        U8   rep_prefix  = PF_NONE;
         BOOL is0F        = FALSE;
         BOOL addr_override = FALSE;  /* 0x67 address-size override */
 
@@ -391,9 +392,9 @@ BOOL DISASSEMBLE_FILE(FILE *input, FILE *output, ASTRAC_ARGS *cfg) {
         for (;;) {
             if (off >= size) break;
             U8 b = data[off];
-            if      (b == 0x66) { raw_prefix = PF_66; off++; }
-            else if (b == 0xF3) { raw_prefix = PF_F3; off++; }
-            else if (b == 0xF2) { raw_prefix = PF_F2; off++; }
+            if      (b == 0x66) { op_prefix = PF_66; off++; }
+            else if (b == 0xF3) { rep_prefix = PF_F3; off++; }
+            else if (b == 0xF2) { rep_prefix = PF_F2; off++; }
             else if (b == 0x67) { addr_override = TRUE; off++; }
             else break;
         }
@@ -421,13 +422,11 @@ BOOL DISASSEMBLE_FILE(FILE *input, FILE *output, ASTRAC_ARGS *cfg) {
          * In 16-bit mode the meaning is inverted:
          *   no prefix in binary → 16-bit operand → match PF_66 entries
          *   0x66 in binary      → 32-bit operand → match PF_NONE entries
-         *
-         * F2/F3 (REP/REPNE) are mode-independent.
          */
-        U8 tbl_prefix = raw_prefix;
+        U8 tbl_prefix = op_prefix;
         if (bits16) {
-            if (raw_prefix == PF_NONE) tbl_prefix = PF_66;
-            else if (raw_prefix == PF_66) tbl_prefix = PF_NONE;
+            if (op_prefix == PF_NONE) tbl_prefix = PF_66;
+            else if (op_prefix == PF_66) tbl_prefix = PF_NONE;
         }
 
         /* ── Effective address size ─────────────────────────────────────
@@ -483,7 +482,18 @@ BOOL DISASSEMBLE_FILE(FILE *input, FILE *output, ASTRAC_ARGS *cfg) {
             }
 
             /* Mnemonic name */
-            ilen = dsm_apnd(instr_buf, 0, DSM_IBUF_SZ, "%s", m->name);
+            if (rep_prefix == PF_F3) {
+                if (AC_STRICMP(m->name, "cmpsb") == 0 || AC_STRICMP(m->name, "cmpsw") == 0 || AC_STRICMP(m->name, "cmpsd") == 0 ||
+                    AC_STRICMP(m->name, "scasb") == 0 || AC_STRICMP(m->name, "scasw") == 0 || AC_STRICMP(m->name, "scasd") == 0) {
+                    ilen = dsm_apnd(instr_buf, 0, DSM_IBUF_SZ, "repe %s", m->name);
+                } else {
+                    ilen = dsm_apnd(instr_buf, 0, DSM_IBUF_SZ, "rep %s", m->name);
+                }
+            } else if (rep_prefix == PF_F2) {
+                ilen = dsm_apnd(instr_buf, 0, DSM_IBUF_SZ, "repne %s", m->name);
+            } else {
+                ilen = dsm_apnd(instr_buf, 0, DSM_IBUF_SZ, "%s", m->name);
+            }
 
             /* Operands */
             if (m->operand_count > OPN_NONE)
@@ -507,7 +517,37 @@ BOOL DISASSEMBLE_FILE(FILE *input, FILE *output, ASTRAC_ARGS *cfg) {
                         U8 ridx = (m->encoding == ENC_REG_OPCODE)
                                   ? (opcode0 & 0x7)
                                   : reg_field;
+                        if (is0F && (opcode1 == 0x20 || opcode1 == 0x21 ||
+                                     opcode1 == 0x22 || opcode1 == 0x23)) {
+                            ridx = rm_field;
+                        }
                         ilen = dsm_apnd(instr_buf, ilen, DSM_IBUF_SZ, "%s", regnames[ridx]);
+                        break;
+                    }
+                    case OP_CR: {
+                        ilen = dsm_apnd(instr_buf, ilen, DSM_IBUF_SZ, "cr%u", (U32)reg_field);
+                        break;
+                    }
+                    case OP_DR: {
+                        ilen = dsm_apnd(instr_buf, ilen, DSM_IBUF_SZ, "dr%u", (U32)reg_field);
+                        break;
+                    }
+                    case OP_SEG: {
+                        static const U8 *sregs[8] = {"es", "cs", "ss", "ds", "fs", "gs", "?", "?"};
+                        const U8 *sname = "?";
+                        if (m->encoding == ENC_MODRM) {
+                            sname = sregs[reg_field & 0x7];
+                        } else {
+                            /* ENC_DIRECT for push/pop sreg instructions */
+                            U8 opc = is0F ? opcode1 : opcode0;
+                            if (opc == 0x06 || opc == 0x07) sname = "es";
+                            else if (opc == 0x0E) sname = "cs";
+                            else if (opc == 0x16 || opc == 0x17) sname = "ss";
+                            else if (opc == 0x1E || opc == 0x1F) sname = "ds";
+                            else if (opc == 0xA0 || opc == 0xA1) sname = "fs";
+                            else if (opc == 0xA8 || opc == 0xA9) sname = "gs";
+                        }
+                        ilen = dsm_apnd(instr_buf, ilen, DSM_IBUF_SZ, "%s", sname);
                         break;
                     }
                     case OP_MEM: {
@@ -547,7 +587,7 @@ BOOL DISASSEMBLE_FILE(FILE *input, FILE *output, ASTRAC_ARGS *cfg) {
                              * emits a rel16 displacement (unless a 0x66 override
                              * widened it back to 32).
                              */
-                            BOOL rel_is_16 = bits16 && (raw_prefix != PF_66);
+                            BOOL rel_is_16 = bits16 && (op_prefix != PF_66);
                             if (rel_is_16) {
                                 if (off + 2 <= size) {
                                     I16 rel16 = 0;

@@ -83,6 +83,27 @@ STATIC BOOL ast_is_seg_reg(ASM_REGS reg) {
     }
 }
 
+/* Is this a control register? (CR0, CR2, CR3, CR4) */
+STATIC BOOL ast_is_cr_reg(ASM_REGS reg) {
+    switch (reg) {
+        case REG_CR0: case REG_CR2: case REG_CR3: case REG_CR4:
+            return TRUE;
+        default:
+            return FALSE;
+    }
+}
+
+/* Is this a debug register? (DR0, DR1, DR2, DR3, DR6, DR7) */
+STATIC BOOL ast_is_dr_reg(ASM_REGS reg) {
+    switch (reg) {
+        case REG_DR0: case REG_DR1: case REG_DR2: case REG_DR3:
+        case REG_DR6: case REG_DR7:
+            return TRUE;
+        default:
+            return FALSE;
+    }
+}
+
 /*
  * Check whether 'actual' operand type satisfies 'expected' from the table.
  * r/m accepts a plain register (or segment register), and a label reference
@@ -125,7 +146,8 @@ STATIC const ASM_MNEMONIC_TABLE *RESOLVE_MNEMONIC(
      * in .use16 picks PUSH_IMM16 instead of PUSH_IMM32. */
     BOOL has_size_constraint = FALSE;
     for (U32 j = 0; j < op_count; j++) {
-        if (operands[j].type == OP_REG || operands[j].type == OP_SEG) {
+        if (operands[j].type == OP_REG || operands[j].type == OP_SEG ||
+            operands[j].type == OP_CR  || operands[j].type == OP_DR) {
             has_size_constraint = TRUE;
             break;
         }
@@ -187,7 +209,8 @@ STATIC const ASM_MNEMONIC_TABLE *RESOLVE_MNEMONIC(
             for (U32 j = 0; j < op_count; j++) {
                 if (is_0f_two_op && j == 0) continue; /* skip dest size check */
 
-                if (operands[j].type == OP_REG || operands[j].type == OP_SEG) {
+                if (operands[j].type == OP_REG || operands[j].type == OP_SEG ||
+                    operands[j].type == OP_CR  || operands[j].type == OP_DR) {
                     /* Fixed/implicit register operand (e.g. DX in IN/OUT) is
                      * not subject to the operand-size check. */
                     if (tbl->reg_fixed != REG_NONE
@@ -730,7 +753,10 @@ STATIC BOOL PARSE_OPERAND(TOK_CURSOR *cur, ASM_OPERAND *out) {
     /* Register */
     if (t && t->type == TOK_REGISTER) {
         TOK_ADVANCE(cur);
-        out->type = ast_is_seg_reg(t->reg) ? OP_SEG : OP_REG;
+        if (ast_is_seg_reg(t->reg))      out->type = OP_SEG;
+        else if (ast_is_cr_reg(t->reg)) out->type = OP_CR;
+        else if (ast_is_dr_reg(t->reg)) out->type = OP_DR;
+        else                            out->type = OP_REG;
         out->reg  = t->reg;
         /* Infer size from register unless an explicit PTR override was given */
         if (out->size == SZ_NONE)
@@ -1049,7 +1075,9 @@ STATIC PASM_NODE PARSE_INSTRUCTION(TOK_CURSOR *cur) {
          || AC_STRICMP(mnem_tok->txt, "shr")  == 0
          || AC_STRICMP(mnem_tok->txt, "sar")  == 0
          || AC_STRICMP(mnem_tok->txt, "rol")  == 0
-         || AC_STRICMP(mnem_tok->txt, "ror")  == 0)) {
+         || AC_STRICMP(mnem_tok->txt, "ror")  == 0
+         || AC_STRICMP(mnem_tok->txt, "rcl")  == 0
+         || AC_STRICMP(mnem_tok->txt, "rcr")  == 0)) {
         ASM_OPERAND *op2 = &n->instr.operands[1];
         if (op2->type == OP_REG && op2->reg == REG_CL) {
             /* Strip CL — the _CL table entry is 1-operand */
@@ -1059,6 +1087,14 @@ STATIC PASM_NODE PARSE_INSTRUCTION(TOK_CURSOR *cur) {
             /* Strip literal 1 — the _1 table entry is 1-operand */
             n->instr.operand_count = 1;
             n->instr.shift_by_cl = FALSE;
+        }
+    } else if (n->instr.operand_count == 3
+        && (AC_STRICMP(mnem_tok->txt, "shld") == 0
+         || AC_STRICMP(mnem_tok->txt, "shrd") == 0)) {
+        ASM_OPERAND *op3 = &n->instr.operands[2];
+        if (op3->type == OP_REG && op3->reg == REG_CL) {
+            /* Strip CL — the _CL table entry is 2-operand */
+            n->instr.operand_count = 2;
         }
     }
 

@@ -109,7 +109,7 @@ typedef enum _ASM_MNEMONIC {
                  reg_fixed,ext,has_modrm,proc,status,                         \
                  mode,mem,rel,lock,opcode_ext,                                 \
                  tst_f,mod_f,def_f,undef_f,flg_val,desc)                      \
-    { id, name, prefix, PFX_NONE, opcode, enc, ops,                           \
+    { id, name, prefix, ((opcode_ext == EX_PREFIX_0F) ? PFX_0F : PFX_NONE), opcode, enc, ops, \
       cnt, sz, reg_fixed, ext, has_modrm,                                     \
       proc, status, mode, mem, rel, lock, opcode_ext,                         \
       tst_f, mod_f, def_f, undef_f, flg_val, desc },

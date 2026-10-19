@@ -220,7 +220,7 @@ typedef enum {
  *  ENCODING / OPERAND ENUMS
  * ════════════════════════════════════════════════════════════════════════════ */
 typedef enum { ENC_DIRECT, ENC_REG_OPCODE, ENC_MODRM, ENC_IMM } ASM_ENCODING_TYPE;
-typedef enum { OP_NONE, OP_REG, OP_MEM, OP_IMM, OP_SEG, OP_PTR, OP_FAR, OP_MOFFS } ASM_OPERAND_TYPE;
+typedef enum { OP_NONE, OP_REG, OP_MEM, OP_IMM, OP_SEG, OP_PTR, OP_FAR, OP_MOFFS, OP_CR, OP_DR } ASM_OPERAND_TYPE;
 typedef enum { SZ_NONE = 0, SZ_8BIT = 8, SZ_16BIT = 16, SZ_32BIT = 32 } ASM_OPERAND_SIZE;
 /* Distance hint attached to a branch operand by the NEAR/SHORT/FAR keywords. */
 typedef enum { JD_AUTO = 0, JD_SHORT, JD_NEAR, JD_FAR } ASM_JUMP_DIST;
@@ -283,6 +283,10 @@ typedef enum {
 #define OPS_MOFFS8_REG     { OP_MOFFS, OP_REG,  OP_NONE, OP_NONE }
 #define OPS_MOFFS16_REG    { OP_MOFFS, OP_REG,  OP_NONE, OP_NONE }
 #define OPS_MOFFS32_REG    { OP_MOFFS, OP_REG,  OP_NONE, OP_NONE }
+#define OPS_R32_CR         { OP_REG,   OP_CR,   OP_NONE, OP_NONE }
+#define OPS_CR_R32         { OP_CR,    OP_REG,  OP_NONE, OP_NONE }
+#define OPS_R32_DR         { OP_REG,   OP_DR,   OP_NONE, OP_NONE }
+#define OPS_DR_R32         { OP_DR,    OP_REG,  OP_NONE, OP_NONE }
 #define OPS_RM8            { OP_MEM,   OP_NONE, OP_NONE, OP_NONE }
 #define OPS_IMM8           { OP_IMM,   OP_NONE, OP_NONE, OP_NONE }
 #define OPS_IMM16          { OP_IMM,   OP_NONE, OP_NONE, OP_NONE }
