@@ -23,22 +23,52 @@ STATIC BOOL II_START(U8 c) { return (c>='A'&&c<='Z')||(c>='a'&&c<='z')||c=='_'; 
 STATIC BOOL II_CONT(U8 c)  { return II_START(c)||(c>='0'&&c<='9'); }
 STATIC VOID II_UPPER(PU8 s, U32 n) { for(U32 i=0;i<n;i++) if(s[i]>='a'&&s[i]<='z') s[i]-=32; }
 
+STATIC SYMBOL *FIND_TYPE_SYM(PU8 name) {
+    if (!sym || !sym->entries || !name || !*name) return NULLPTR;
+    for (U32 i = 0; i < sym->count; i++) {
+        if (!SYM_IS_TYPE(&sym->entries[i])) continue;
+        if (sym->entries[i].name && AC_STRCMP(sym->entries[i].name, name) == 0) {
+            if (ctx && ctx->file_scope && sym->entries[i].is_file_local && sym->entries[i].file_scope != ctx->file_scope)
+                continue;
+            return &sym->entries[i];
+        }
+    }
+    return NULLPTR;
+}
+
+STATIC PU8 SYM_ASM_NAME(SYMBOL *s, U8 *buf) {
+    if (!s || !s->name) { buf[0] = '\0'; return buf; }
+    if (s->is_file_local && s->file_scope > 1) {
+        AC_SPRINTF(buf, "f%u_%s", s->file_scope, s->name);
+        return buf;
+    }
+    return s->name;
+}
+
 SYMBOL *FIND_SYM(PU8 name) {
-    if (!name || !*name) return NULLPTR;
+    if (!sym || !sym->entries || !name || !*name) return NULLPTR;
     /* First: check local symbols in the current function */
     if (cur_func_name) {
         for (U32 i = 0; i < sym->count; i++) {
+            if (SYM_IS_TYPE(&sym->entries[i])) continue;
             if (sym->entries[i].name && AC_STRCMP(sym->entries[i].name, name) == 0) {
-                if (sym->entries[i].func_name && AC_STRCMP(sym->entries[i].func_name, cur_func_name) == 0)
+                if (sym->entries[i].func_name && AC_STRCMP(sym->entries[i].func_name, cur_func_name) == 0) {
+                    if (ctx && ctx->file_scope && sym->entries[i].file_scope && sym->entries[i].file_scope != ctx->file_scope)
+                        continue;
                     return &sym->entries[i];
+                }
             }
         }
     }
     /* Second: check global symbols */
     for (U32 i = 0; i < sym->count; i++) {
+        if (SYM_IS_TYPE(&sym->entries[i])) continue;
         if (sym->entries[i].name && AC_STRCMP(sym->entries[i].name, name) == 0) {
-            if (!sym->entries[i].func_name)
+            if (!sym->entries[i].func_name) {
+                if (ctx && ctx->file_scope && sym->entries[i].is_file_local && sym->entries[i].file_scope != ctx->file_scope)
+                    continue;
                 return &sym->entries[i];
+            }
         }
     }
     /* Fallback: a bare identifier may name a global variable, which is stored
@@ -46,12 +76,16 @@ SYMBOL *FIND_SYM(PU8 name) {
     U8 gname[256];
     AC_SPRINTF(gname, "g_%s", name);
     for (U32 i = 0; i < sym->count; i++) {
+        if (SYM_IS_TYPE(&sym->entries[i])) continue;
         if (sym->entries[i].name && AC_STRCMP(sym->entries[i].name, gname) == 0) {
-            if (!sym->entries[i].func_name)
+            if (!sym->entries[i].func_name) {
+                if (ctx && ctx->file_scope && sym->entries[i].is_file_local && sym->entries[i].file_scope != ctx->file_scope)
+                    continue;
                 return &sym->entries[i];
+            }
         }
     }
-    return NULLPTR;
+    return FIND_TYPE_SYM(name);
 }
 
 STATIC COMP_TYPE GEN_STRIP_PTR_TYPE(COMP_TYPE t) {
@@ -93,7 +127,7 @@ STATIC BOOL IS_PTR_DTYPE(COMP_TYPE t) {
  * COMP_TYPE_SIZE alone returns 0 for struct/union types. */
 STATIC U32 GEN_TYPE_SIZE(COMP_TYPE t) {
     if (t.ptr_depth == 0 && (t.base == CTYPE_STRUCT || t.base == CTYPE_UNION)) {
-        SYMBOL *s = FIND_SYM(t.name ? t.name : (PU8)"");
+        SYMBOL *s = FIND_TYPE_SYM(t.name ? t.name : (PU8)"");
         if (s) {
             if (s->kind == SYM_TYPEDEF)
                 return GEN_TYPE_SIZE(s->type);
@@ -212,18 +246,20 @@ STATIC VOID GEN_LITERAL(PCNODE n) {
 }
 
 STATIC VOID GEN_IDENT(PCNODE n) {
+    U8 sbuf[256];
     SYMBOL *s = FIND_SYM(n->txt);
     if (!s) { emit("    XOR EAX, EAX"); return; }
+    PU8 sname = SYM_ASM_NAME(s, sbuf);
     /* Function names decay to pointer to function entry point */
     if (s->kind == SYM_FUNCTION) {
-        AC_FPRINTF(outf, "    MOV EAX, _%s\n", s->name);
+        AC_FPRINTF(outf, "    MOV EAX, _%s\n", sname);
         return;
     }
     /* Array names and aggregate struct/union values decay to address (LEA, not value).
      * Parameters (offset > 0) are stack slots holding values/pointers, not inline arrays. */
     if ((s->array_size > 0 && (I32)s->offset <= 0) || IS_AGGREGATE_TYPE(s->type)) {
         if (s->is_global)
-            AC_FPRINTF(outf, "    LEA EAX, [%s]\n", s->name);
+            AC_FPRINTF(outf, "    LEA EAX, [%s]\n", sname);
         else if ((I32)s->offset == 0)
             AC_FPRINTF(outf, "    LEA EAX, [EBP]\n");
         else if ((I32)s->offset > 0)
@@ -236,7 +272,7 @@ STATIC VOID GEN_IDENT(PCNODE n) {
         U32 es = COMP_TYPE_SIZE(s->type);
         PU8 op = (es == 1) ? "MOVZX EAX, BYTE" : (es == 2) ? "MOVZX EAX, WORD" : "MOV EAX,";
         if (s->is_global)
-            AC_FPRINTF(outf, "    %s [%s]\n", op, s->name);
+            AC_FPRINTF(outf, "    %s [%s]\n", op, sname);
         else if ((I32)s->offset == 0)
             AC_FPRINTF(outf, "    %s [EBP]\n", op);
         else if ((I32)s->offset > 0)
@@ -302,13 +338,15 @@ STATIC VOID GEN_ASSIGN(PCNODE n) {
 
     /* Common store */
     if (lhs->ntype == CNODE_IDENT) {
+        U8 sbuf[256];
         s = FIND_SYM(lhs->txt);
         if (!s) return;
+        PU8 sname = SYM_ASM_NAME(s, sbuf);
         es = GEN_TYPE_SIZE(s->type);
         if (IS_AGGREGATE_TYPE(s->type) || es > 4) {
             emit("    MOV EBX, EAX");
             if (s->is_global)
-                AC_FPRINTF(outf, "    LEA EAX, [%s]\n", s->name);
+                AC_FPRINTF(outf, "    LEA EAX, [%s]\n", sname);
             else if ((I32)s->offset == 0)
                 AC_FPRINTF(outf, "    LEA EAX, [EBP]\n");
             else if ((I32)s->offset > 0)
@@ -318,7 +356,7 @@ STATIC VOID GEN_ASSIGN(PCNODE n) {
             GEN_STRUCT_COPY(es);
         } else if (es == 1) {
             if (s->is_global)
-                AC_FPRINTF(outf, "    MOV [%s], AL\n", s->name);
+                AC_FPRINTF(outf, "    MOV [%s], AL\n", sname);
             else if ((I32)s->offset == 0)
                 AC_FPRINTF(outf, "    MOV [EBP], AL\n");
             else if ((I32)s->offset > 0)
@@ -327,7 +365,7 @@ STATIC VOID GEN_ASSIGN(PCNODE n) {
                 AC_FPRINTF(outf, "    MOV [EBP-%u], AL\n", (U32)(-(I32)s->offset));
         } else if (es == 2) {
             if (s->is_global)
-                AC_FPRINTF(outf, "    MOV [%s], AX\n", s->name);
+                AC_FPRINTF(outf, "    MOV [%s], AX\n", sname);
             else if ((I32)s->offset == 0)
                 AC_FPRINTF(outf, "    MOV [EBP], AX\n");
             else if ((I32)s->offset > 0)
@@ -336,7 +374,7 @@ STATIC VOID GEN_ASSIGN(PCNODE n) {
                 AC_FPRINTF(outf, "    MOV [EBP-%u], AX\n", (U32)(-(I32)s->offset));
         } else {
             if (s->is_global)
-                AC_FPRINTF(outf, "    MOV [%s], EAX\n", s->name);
+                AC_FPRINTF(outf, "    MOV [%s], EAX\n", sname);
             else if ((I32)s->offset == 0)
                 AC_FPRINTF(outf, "    MOV [EBP], EAX\n");
             else if ((I32)s->offset > 0)
@@ -475,6 +513,7 @@ STATIC VOID GEN_UNARY(PCNODE n) {
 }
 
 STATIC VOID GEN_CALL(PCNODE n) {
+    U8 sbuf[256];
     /* Push args right-to-left */
     for (I32 i = (I32)n->child_count - 1; i >= 0; i--) {
         GEN_EXPR(n->children[i]);
@@ -485,13 +524,15 @@ STATIC VOID GEN_CALL(PCNODE n) {
     if (n->txt && cs && cs->kind == SYM_VARIABLE) {
         /* Indirect call through function pointer */
         if (cs->is_global)
-            AC_FPRINTF(outf, "    CALL [%s]\n", cs->name);
+            AC_FPRINTF(outf, "    CALL [%s]\n", SYM_ASM_NAME(cs, sbuf));
         else if ((I32)cs->offset == 0)
             AC_FPRINTF(outf, "    CALL [EBP]\n");
         else if ((I32)cs->offset > 0)
             AC_FPRINTF(outf, "    CALL [EBP+%u]\n", cs->offset);
         else
             AC_FPRINTF(outf, "    CALL [EBP-%u]\n", (U32)(-(I32)cs->offset));
+    } else if (cs && cs->kind == SYM_FUNCTION) {
+        AC_FPRINTF(outf, "    CALL _%s\n", SYM_ASM_NAME(cs, sbuf));
     } else {
         AC_FPRINTF(outf, "    CALL _%s\n", n->txt ? n->txt : (PU8)"_unknown");
     }
@@ -517,6 +558,7 @@ STATIC BOOL IS_PTR_VAR_SYMBOL(SYMBOL *s) {
 
 STATIC VOID GEN_ARR_BASE(PCNODE base) {
     if (base->ntype == CNODE_IDENT) {
+        U8 sbuf[256];
         SYMBOL *s = FIND_SYM(base->txt);
         if (!s) { emit("    XOR EAX, EAX"); return; }
         BOOL use_value = FALSE;
@@ -525,7 +567,7 @@ STATIC VOID GEN_ARR_BASE(PCNODE base) {
         else
             use_value = IS_PTR_VAR_SYMBOL(s) || (base->dtype.ptr_depth > 0) || IS_PTR_DTYPE(base->dtype);
         if (s->is_global)
-            AC_FPRINTF(outf, "    %s EAX, [%s]\n", use_value ? "MOV" : "LEA", s->name);
+            AC_FPRINTF(outf, "    %s EAX, [%s]\n", use_value ? "MOV" : "LEA", SYM_ASM_NAME(s, sbuf));
         else if ((I32)s->offset == 0)
             AC_FPRINTF(outf, "    %s EAX, [EBP]\n", use_value ? "MOV" : "LEA");
         else if ((I32)s->offset > 0)
@@ -568,12 +610,14 @@ STATIC VOID GEN_LVALUE_ADDR(PCNODE n) {
     if (!n) { emit("    XOR EAX, EAX"); return; }
     switch (n->ntype) {
         case CNODE_IDENT: {
+            U8 sbuf[256];
             SYMBOL *s = FIND_SYM(n->txt);
             if (!s) { emit("    XOR EAX, EAX"); return; }
+            PU8 sname = SYM_ASM_NAME(s, sbuf);
             if (s->kind == SYM_FUNCTION)
-                AC_FPRINTF(outf, "    LEA EAX, [_%s]\n", s->name);
+                AC_FPRINTF(outf, "    LEA EAX, [_%s]\n", sname);
             else if (s->is_global)
-                AC_FPRINTF(outf, "    LEA EAX, [%s]\n", s->name);
+                AC_FPRINTF(outf, "    LEA EAX, [%s]\n", sname);
             else if ((I32)s->offset == 0)
                 AC_FPRINTF(outf, "    LEA EAX, [EBP]\n");
             else if ((I32)s->offset > 0)
@@ -663,10 +707,12 @@ STATIC VOID GEN_POSTFIX(PCNODE n) {
     if (target->dtype.base >= CTYPE_PU8 || target->dtype.base == CTYPE_VOIDPTR || target->dtype.ptr_depth > 0)
         inc = PTR_INC(target->dtype);
     if (target->ntype == CNODE_IDENT) {
+        U8 sbuf[256];
         SYMBOL *s = FIND_SYM(target->txt);
         if (!s) { emit("    XOR EAX, EAX"); return; }
+        PU8 sname = SYM_ASM_NAME(s, sbuf);
         if (s->is_global)
-            AC_FPRINTF(outf, "    MOV EAX, [%s]\n", s->name);
+            AC_FPRINTF(outf, "    MOV EAX, [%s]\n", sname);
         else if ((I32)s->offset == 0)
             AC_FPRINTF(outf, "    MOV EAX, [EBP]\n");
         else if ((I32)s->offset > 0)
@@ -679,7 +725,7 @@ STATIC VOID GEN_POSTFIX(PCNODE n) {
         else
             AC_FPRINTF(outf, "    SUB EAX, %u\n", inc);
         if (s->is_global)
-            AC_FPRINTF(outf, "    MOV [%s], EAX\n", s->name);
+            AC_FPRINTF(outf, "    MOV [%s], EAX\n", sname);
         else if ((I32)s->offset == 0)
             AC_FPRINTF(outf, "    MOV [EBP], EAX\n");
         else if ((I32)s->offset > 0)
@@ -696,12 +742,13 @@ STATIC VOID GEN_VA_START(PCNODE n) {
     /* va_list args = address of the first variadic argument.  Fixed params
      * occupy EBP+8 .. EBP+8+4*(fixed-1), so variadic args begin at
      * EBP + 8 + 4*cur_param_count. */
+    U8 sbuf[256];
     SYMBOL *s = FIND_SYM(n->txt);
     if (!s) return;
     U32 off = 8 + cur_param_count * 4;
     AC_FPRINTF(outf, "    LEA EAX, [EBP+%u]\n", off);
     if (s->is_global)
-        AC_FPRINTF(outf, "    MOV [%s], EAX\n", s->name);
+        AC_FPRINTF(outf, "    MOV [%s], EAX\n", SYM_ASM_NAME(s, sbuf));
     else if ((I32)s->offset == 0)
         emit("    MOV [EBP], EAX");
     else if ((I32)s->offset > 0)
@@ -907,9 +954,9 @@ STATIC VOID GEN_ASM_BLOCK(PCNODE n) {
                 while (*p && II_CONT(*p) && fi < 62) fname[fi++] = *p++;
                 fname[fi] = '\0';
                 II_UPPER(fname, fi);
-                SYMBOL *ts = FIND_SYM(s->type.name);
+                SYMBOL *ts = FIND_TYPE_SYM(s->type.name);
                 while (ts && ts->kind == SYM_TYPEDEF) {
-                    ts = FIND_SYM(ts->type.name);
+                    ts = FIND_TYPE_SYM(ts->type.name);
                 }
                 U32 foff = 0;
                 if (ts) {
@@ -934,9 +981,11 @@ STATIC VOID GEN_ASM_BLOCK(PCNODE n) {
                     AC_FPRINTF(outf, "[EBP-%u]", (U32)(-(I32)s->offset));
             }
         } else if (s && s->kind == SYM_FUNCTION) {
-            AC_FPRINTF(outf, "_%s", s->name);
+            U8 sbuf[256];
+            AC_FPRINTF(outf, "_%s", SYM_ASM_NAME(s, sbuf));
         } else if (s && s->is_global) {
-            AC_FPRINTF(outf, "[%s]", s->name);
+            U8 sbuf[256];
+            AC_FPRINTF(outf, "[%s]", SYM_ASM_NAME(s, sbuf));
         } else {
             AC_FPRINTF(outf, "%s", name);
         }
@@ -956,6 +1005,7 @@ STATIC VOID GEN_DEBUG_LINE(PCNODE n) {
 
 STATIC VOID GEN_STMT(PCNODE n) {
     if (!n) return;
+    if (n->file_id) ctx->file_scope = n->file_id;
     GEN_DEBUG_LINE(n);
     switch (n->ntype) {
         case CNODE_BLOCK:    GEN_BLOCK(n); break;
@@ -984,9 +1034,11 @@ STATIC VOID GEN_STMT(PCNODE n) {
                 GEN_EXPR(init);
                 U32 es = s ? COMP_TYPE_SIZE(s->type) : 4;
                 if (s && s->is_global) {
-                    if (es == 1)      AC_FPRINTF(outf, "    MOV [%s], AL\n", s->name);
-                    else if (es == 2) AC_FPRINTF(outf, "    MOV [%s], AX\n", s->name);
-                    else              AC_FPRINTF(outf, "    MOV [%s], EAX\n", s->name);
+                    U8 sbuf[256];
+                    PU8 sname = SYM_ASM_NAME(s, sbuf);
+                    if (es == 1)      AC_FPRINTF(outf, "    MOV [%s], AL\n", sname);
+                    else if (es == 2) AC_FPRINTF(outf, "    MOV [%s], AX\n", sname);
+                    else              AC_FPRINTF(outf, "    MOV [%s], EAX\n", sname);
                 } else if (s && (I32)s->offset > 0) {
                     if (es == 1)      AC_FPRINTF(outf, "    MOV [EBP+%u], AL\n", s->offset);
                     else if (es == 2) AC_FPRINTF(outf, "    MOV [EBP+%u], AX\n", s->offset);
@@ -1054,6 +1106,54 @@ STATIC VOID EMIT_RODATA_STRINGS() {
     }
 }
 
+STATIC SYM_SECTION RESOLVED_VAR_SECTION(SYMBOL *s) {
+    if (s->section != SYM_SEC_DEFAULT) return s->section;
+    if ((s->init_list && s->init_count > 0) || s->has_init)
+        return SYM_SEC_DATA;
+    return SYM_SEC_BSS;
+}
+
+STATIC VOID EMIT_GLOBAL_VAR(SYMBOL *s, BOOL force_zero) {
+    U8 sbuf[256];
+    PU8 sname = SYM_ASM_NAME(s, sbuf);
+    U32 count = (s->array_size > 0) ? s->array_size : 1;
+    U32 elem_size = GEN_TYPE_SIZE(s->type);
+    if (elem_size == 0) elem_size = 4;
+    PU8 der = (elem_size == 1) ? "DB" : (elem_size == 2) ? "DW" : "DD";
+
+    /* Brace-enclosed initializer list → emit the values directly (unless .bss). */
+    if (!force_zero && s->init_list && s->init_count > 0) {
+        AC_FPRINTF(outf, "%s:\n", sname);
+        U32 per_line = 16;
+        U32 j = 0;
+        while (j < s->init_count) {
+            AC_FPRINTF(outf, "%s", der);
+            U32 k = 0;
+            for (; k < per_line && j < s->init_count; k++, j++) {
+                AC_FPRINTF(outf, " 0x%X%s", s->init_list[j],
+                           (k + 1 < per_line && j + 1 < s->init_count) ? "," : "");
+            }
+            AC_FPRINTF(outf, "\n");
+        }
+        /* Zero-fill any remaining elements not covered by the list. */
+        if (s->array_size > s->init_count)
+            AC_FPRINTF(outf, ".times %u %s 0\n",
+                       s->array_size - s->init_count, der);
+        return;
+    }
+
+    U32 init_val = (!force_zero && s->has_init) ? s->init_value : 0;
+    BOOL is_struct_or_union = (s->type.ptr_depth == 0 && (s->type.base == CTYPE_STRUCT || s->type.base == CTYPE_UNION));
+    if (is_struct_or_union || (elem_size != 1 && elem_size != 2 && elem_size != 4)) {
+        U32 total_bytes = count * elem_size;
+        AC_FPRINTF(outf, "%s:\n.times %u DB 0x%X\n", sname, total_bytes, init_val);
+    } else if (count == 1) {
+        AC_FPRINTF(outf, "%s %s 0x%X\n", sname, der, init_val);
+    } else {
+        AC_FPRINTF(outf, "%s:\n.times %u %s 0x%X\n", sname, count, der, init_val);
+    }
+}
+
 /* ── Top-level codegen ────────────────────────────────────────────────────── */
 
 BOOL COMP_GEN(PCNODE root, PCOMP_CTX c) {
@@ -1097,6 +1197,7 @@ BOOL COMP_GEN(PCNODE root, PCOMP_CTX c) {
     /* Emit functions and top-level assembly */
     for (U32 i = 0; i < root->child_count; i++) {
         PCNODE n = root->children[i];
+        if (n && n->file_id) ctx->file_scope = n->file_id;
         
         // Emit top-level assembly blocks
         if(n->ntype == CNODE_ASM_BLOCK) {
@@ -1113,12 +1214,14 @@ BOOL COMP_GEN(PCNODE root, PCOMP_CTX c) {
             if (n->children[j]->ntype != CNODE_PARAM) { has_body = TRUE; break; }
         if (!has_body) continue;
 
+        U8 fsbuf[256];
+        PU8 fsname = SYM_ASM_NAME(fs, fsbuf);
         cur_func_name = fs->name;
         cur_param_count = fs->param_count;
 
         if (!bootloader) {
             GEN_DEBUG_LINE(n);
-            AC_FPRINTF(outf, "\n_%s:\n", fs->name);
+            AC_FPRINTF(outf, "\n_%s:\n", fsname);
             emit("    PUSH EBP");
             emit("    MOV EBP, ESP");
         }
@@ -1155,7 +1258,7 @@ BOOL COMP_GEN(PCNODE root, PCOMP_CTX c) {
 
         /* Default return */
         if (!bootloader) {
-            AC_FPRINTF(outf, "__%s_ret:\n", fs->name);
+            AC_FPRINTF(outf, "__%s_ret:\n", fsname);
             if (local_offset < 0)
                 AC_FPRINTF(outf, "    ADD ESP, %u\n", (U32)(-local_offset));
             emit("    POP EBP");
@@ -1164,55 +1267,37 @@ BOOL COMP_GEN(PCNODE root, PCOMP_CTX c) {
         cur_func_name = NULLPTR;
     }
 
-    /* Emit string literals in .rodata (skip in bootloader mode) */
-    if (!bootloader && ctx->rodata_string_count > 0) {
-        emit("\n.rodata");
-        EMIT_RODATA_STRINGS();
-    }
-
-    /* Emit global variables in .data (skip in bootloader mode) */
+    /* Emit .rodata (string literals + ATTRIB_RODATA globals), .data, and .bss (skip in bootloader mode) */
     if (!bootloader) {
-        BOOL has_globals = FALSE;
+        BOOL has_rodata = FALSE;
+        if (ctx->rodata_string_count > 0) {
+            emit("\n.rodata");
+            has_rodata = TRUE;
+            EMIT_RODATA_STRINGS();
+        }
         for (U32 i = 0; i < sym->count; i++) {
             SYMBOL *s = &sym->entries[i];
-            if (s->kind == SYM_VARIABLE && s->is_global && !s->is_defined) {
-                if (!has_globals) { emit("\n.data"); has_globals = TRUE; }
-                U32 count = (s->array_size > 0) ? s->array_size : 1;
-                U32 elem_size = GEN_TYPE_SIZE(s->type);
-                if (elem_size == 0) elem_size = 4;
-                PU8 der = (elem_size == 1) ? "DB" : (elem_size == 2) ? "DW" : "DD";
+            if (s->kind == SYM_VARIABLE && s->is_global && !s->is_defined && RESOLVED_VAR_SECTION(s) == SYM_SEC_RODATA) {
+                if (!has_rodata) { emit("\n.rodata"); has_rodata = TRUE; }
+                EMIT_GLOBAL_VAR(s, FALSE);
+            }
+        }
 
-                /* Brace-enclosed initializer list → emit the values directly. */
-                if (s->init_list && s->init_count > 0) {
-                    AC_FPRINTF(outf, "%s:\n", s->name);
-                    U32 per_line = 16;
-                    U32 j = 0;
-                    while (j < s->init_count) {
-                        AC_FPRINTF(outf, "%s", der);
-                        U32 k = 0;
-                        for (; k < per_line && j < s->init_count; k++, j++) {
-                            AC_FPRINTF(outf, " 0x%X%s", s->init_list[j],
-                                       (k + 1 < per_line && j + 1 < s->init_count) ? "," : "");
-                        }
-                        AC_FPRINTF(outf, "\n");
-                    }
-                    /* Zero-fill any remaining elements not covered by the list. */
-                    if (s->array_size > s->init_count)
-                        AC_FPRINTF(outf, ".times %u %s 0\n",
-                                   s->array_size - s->init_count, der);
-                    continue;
-                }
+        BOOL has_data = FALSE;
+        for (U32 i = 0; i < sym->count; i++) {
+            SYMBOL *s = &sym->entries[i];
+            if (s->kind == SYM_VARIABLE && s->is_global && !s->is_defined && RESOLVED_VAR_SECTION(s) == SYM_SEC_DATA) {
+                if (!has_data) { emit("\n.data"); has_data = TRUE; }
+                EMIT_GLOBAL_VAR(s, FALSE);
+            }
+        }
 
-                U32 init_val = s->has_init ? s->init_value : 0;
-                BOOL is_struct_or_union = (s->type.ptr_depth == 0 && (s->type.base == CTYPE_STRUCT || s->type.base == CTYPE_UNION));
-                if (is_struct_or_union || (elem_size != 1 && elem_size != 2 && elem_size != 4)) {
-                    U32 total_bytes = count * elem_size;
-                    AC_FPRINTF(outf, "%s:\n.times %u DB 0x%X\n", s->name, total_bytes, init_val);
-                } else if (count == 1) {
-                    AC_FPRINTF(outf, "%s %s 0x%X\n", s->name, der, init_val);
-                } else {
-                    AC_FPRINTF(outf, "%s:\n.times %u %s 0x%X\n", s->name, count, der, init_val);
-                }
+        BOOL has_bss = FALSE;
+        for (U32 i = 0; i < sym->count; i++) {
+            SYMBOL *s = &sym->entries[i];
+            if (s->kind == SYM_VARIABLE && s->is_global && !s->is_defined && RESOLVED_VAR_SECTION(s) == SYM_SEC_BSS) {
+                if (!has_bss) { emit("\n.bss"); has_bss = TRUE; }
+                EMIT_GLOBAL_VAR(s, TRUE);
             }
         }
     }

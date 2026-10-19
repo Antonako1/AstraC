@@ -114,6 +114,7 @@ typedef enum _ASM_DIRECTIVE {
     DIR_NONE,
     DIR_DATA,
     DIR_RODATA,
+    DIR_BSS,
     DIR_CODE,
     DIR_CODE_TYPE_32,
     DIR_CODE_TYPE_16,
@@ -134,12 +135,13 @@ typedef struct {
     U32 patch_offset;
 } ASM_IMPORT_PATCH;
 
-#define MAX_ASM_IMPORTS 1024
 typedef struct {
-    ASM_IMPORT_DECL decls[MAX_ASM_IMPORTS];
+    ASM_IMPORT_DECL *decls;
     U32 decl_count;
-    ASM_IMPORT_PATCH patches[MAX_ASM_IMPORTS];
+    U32 decl_cap;
+    ASM_IMPORT_PATCH *patches;
     U32 patch_count;
+    U32 patch_cap;
 } ASM_IMPORT_TABLE;
 
 VOID ADD_ASM_IMPORT(PU8 lib_name, PU8 func_name);
@@ -164,11 +166,10 @@ typedef struct {
     };
 } ASM_TOK, *PASM_TOK;
 
-#define MAX_TOKENS (65536 * 4)
-
 typedef struct {
     U32      len;
-    PASM_TOK toks[MAX_TOKENS];
+    U32      cap;
+    PASM_TOK *toks;
 } ASM_TOK_ARRAY;
 
 
@@ -395,11 +396,10 @@ typedef struct ASM_NODE {
     };
 } ASM_NODE, *PASM_NODE;
 
-#define MAX_NODES 65536
-
 typedef struct {
     U32       len;
-    PASM_NODE nodes[MAX_NODES];
+    U32       cap;
+    PASM_NODE *nodes;
 } ASM_AST_ARRAY;
 
 

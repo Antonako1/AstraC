@@ -92,6 +92,6 @@ __MAIN_ret:
 .rodata
 _str1 DB "[E100] Allocated RX RFD descriptor #%d at 0x%08X", 0
 
-.data
+.bss
 g_G_E100_DEV:
 .times 164 DB 0x0

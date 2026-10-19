@@ -25,11 +25,10 @@ typedef struct {
     U32  node_index;        /* index in AST where this label is defined */
 } LABEL_ENTRY, *PLABEL_ENTRY;
 
-#define MAX_LABELS 4096
-
 typedef struct {
-    PLABEL_ENTRY entries[MAX_LABELS];
+    PLABEL_ENTRY *entries;
     U32 len;
+    U32 cap;
 } LABEL_TABLE, *PLABEL_TABLE;
 
 STATIC PLABEL_TABLE alloc_label_table() {
@@ -40,11 +39,14 @@ STATIC PLABEL_TABLE alloc_label_table() {
 
 STATIC VOID free_label_table(PLABEL_TABLE t) {
     if (!t) return;
-    for (U32 i = 0; i < t->len; i++) {
-        if (t->entries[i]) {
-            if (t->entries[i]->name) AC_MFree(t->entries[i]->name);
-            AC_MFree(t->entries[i]);
+    if (t->entries) {
+        for (U32 i = 0; i < t->len; i++) {
+            if (t->entries[i]) {
+                if (t->entries[i]->name) AC_MFree(t->entries[i]->name);
+                AC_MFree(t->entries[i]);
+            }
         }
+        AC_MFree(t->entries);
     }
     AC_MFree(t);
 }
@@ -60,7 +62,14 @@ STATIC PLABEL_ENTRY find_label(PLABEL_TABLE t, PU8 name) {
 }
 
 STATIC BOOL add_label(PLABEL_TABLE t, PU8 name, U32 node_index) {
-    if (!t || t->len >= MAX_LABELS) return FALSE;
+    if (!t) return FALSE;
+    if (t->len >= t->cap) {
+        U32 new_cap = (t->cap == 0) ? 256 : t->cap * 2;
+        PLABEL_ENTRY *new_entries = (PLABEL_ENTRY *)AC_ReAlloc(t->entries, new_cap * sizeof(PLABEL_ENTRY));
+        if (!new_entries) return FALSE;
+        t->entries = new_entries;
+        t->cap     = new_cap;
+    }
     PLABEL_ENTRY e = AC_MAlloc(sizeof(LABEL_ENTRY));
     if (!e) return FALSE;
     e->name = AC_STRDUP(name);

@@ -263,6 +263,28 @@ done:
 
 #define DSM_IBUF_SZ 96
 
+static const U8 *dsm_lookup_func(const AC_FUNC_ENTRY *entries, U32 count,
+                                 const U8 *strtab, U32 strtab_sz, U32 code_off) {
+    if (!entries || !strtab) return NULLPTR;
+    for (U32 i = 0; i < count; i++) {
+        if (entries[i].address == code_off && entries[i].name_offset < strtab_sz) {
+            return strtab + entries[i].name_offset;
+        }
+    }
+    return NULLPTR;
+}
+
+static const AC_IMPORT_ENTRY *dsm_lookup_import(const AC_IMPORT_ENTRY *entries, U32 count,
+                                                U32 file_start, U32 file_end) {
+    if (!entries) return NULLPTR;
+    for (U32 i = 0; i < count; i++) {
+        if (entries[i].patch_offset >= file_start && entries[i].patch_offset < file_end) {
+            return &entries[i];
+        }
+    }
+    return NULLPTR;
+}
+
 /*
  * Format: OFFSET  HH HH ... (16 padded)  MNEMONIC OPERANDS (32 padded)  |ascii|
  */
@@ -270,23 +292,95 @@ BOOL DISASSEMBLE_FILE(FILE *input, FILE *output, ASTRAC_ARGS *cfg) {
     if (!input || !output) return FALSE;
 
     fseek(input, 0, SEEK_END);
-    U32 size = (U32)ftell(input);
+    U32 file_size = (U32)ftell(input);
     fseek(input, 0, SEEK_SET);
-    if (size == 0) return FALSE;
+    if (file_size == 0) return FALSE;
 
-    U8 *file_data = (U8 *)AC_MAlloc(size);
+    U8 *file_data = (U8 *)AC_MAlloc(file_size);
     if (!file_data) return FALSE;
-    AC_FREAD(input, file_data, size);
+    AC_FREAD(input, file_data, file_size);
     const U8 *data = (const U8 *)file_data;
+    U32 size = file_size;
 
-    U32 off  = 0;
+    U32 off = 0;
     U32 org = cfg->org;   /* origin offset (0 unless --org specified) */
+    U32 code_file_base = 0;
+    BOOL is_acfh = FALSE;
+    U32 entry_off = OFFSET_NON_EXISTENT;
+
+    const AC_FUNC_ENTRY *ft_entries = NULLPTR;
+    U32 ft_count = 0;
+    const U8 *ft_strtab = NULLPTR;
+    U32 ft_strtab_sz = 0;
+
+    const AC_IMPORT_ENTRY *it_entries = NULLPTR;
+    U32 it_count = 0;
+    const U8 *it_strtab = NULLPTR;
+    U32 it_strtab_sz = 0;
+
+    /* Auto-detect ACFH binary header */
+    if (file_size >= sizeof(AC_FILE_HEADER) &&
+        AC_MEMCMP(file_data, AC_FILE_MAGIC, AC_FILE_MAGIC_LEN) == 0) {
+        const AC_FILE_HEADER *hdr = (const AC_FILE_HEADER *)file_data;
+        if (hdr->code_offset <= file_size) {
+            is_acfh = TRUE;
+            code_file_base = hdr->code_offset;
+            data = file_data + hdr->code_offset;
+            size = (hdr->code_offset + hdr->code_size <= file_size)
+                 ? hdr->code_size
+                 : (file_size - hdr->code_offset);
+            if (cfg->org > 0) org = cfg->org + hdr->code_offset;
+            entry_off = hdr->entry_point_offset;
+
+            if ((hdr->flags & AC_FLAG_HAS_FUNCS) &&
+                hdr->func_table_offset != OFFSET_NON_EXISTENT &&
+                hdr->func_table_offset + sizeof(AC_FUNC_TABLE_HDR) <= file_size) {
+                const AC_FUNC_TABLE_HDR *fhdr = (const AC_FUNC_TABLE_HDR *)(file_data + hdr->func_table_offset);
+                U32 entries_off = hdr->func_table_offset + (U32)sizeof(AC_FUNC_TABLE_HDR);
+                U32 strtab_off  = entries_off + fhdr->entry_count * (U32)sizeof(AC_FUNC_ENTRY);
+                if (strtab_off + fhdr->string_table_size <= file_size) {
+                    ft_entries   = (const AC_FUNC_ENTRY *)(file_data + entries_off);
+                    ft_count     = fhdr->entry_count;
+                    ft_strtab    = file_data + strtab_off;
+                    ft_strtab_sz = fhdr->string_table_size;
+                }
+            }
+
+            if ((hdr->flags & AC_FLAG_HAS_IMPORTS) &&
+                hdr->import_table_offset != OFFSET_NON_EXISTENT &&
+                hdr->import_table_offset + sizeof(AC_IMPORT_TABLE_HDR) <= file_size) {
+                const AC_IMPORT_TABLE_HDR *ihdr = (const AC_IMPORT_TABLE_HDR *)(file_data + hdr->import_table_offset);
+                U32 entries_off = hdr->import_table_offset + (U32)sizeof(AC_IMPORT_TABLE_HDR);
+                U32 strtab_off  = entries_off + ihdr->entry_count * (U32)sizeof(AC_IMPORT_ENTRY);
+                if (strtab_off + ihdr->string_table_size <= file_size) {
+                    it_entries   = (const AC_IMPORT_ENTRY *)(file_data + entries_off);
+                    it_count     = ihdr->entry_count;
+                    it_strtab    = file_data + strtab_off;
+                    it_strtab_sz = ihdr->string_table_size;
+                }
+            }
+
+            AC_FPRINTF(output, "; ACFH Binary (.code offset=0x%X, size=%u bytes", hdr->code_offset, size);
+            if (entry_off != OFFSET_NON_EXISTENT)
+                AC_FPRINTF(output, ", entry=0x%X", entry_off + org);
+            AC_FPRINTF(output, ")\n");
+        }
+    }
 
     /* Code mode: 16 or 32 bits (affects default operand/address size) */
     BOOL bits16 = (cfg->dsm_bits == 16);
 
     while (off < size) {
         U32 start = off;
+
+        if (is_acfh) {
+            const U8 *fn_label = dsm_lookup_func(ft_entries, ft_count, ft_strtab, ft_strtab_sz, start);
+            if (fn_label) {
+                AC_FPRINTF(output, "\n%08X <%s>:\n", start + org, fn_label);
+            } else if (start == entry_off) {
+                AC_FPRINTF(output, "\n%08X <_entry>:\n", start + org);
+            }
+        }
 
         /* ── Legacy prefix detection ───────────────────────────────────── */
         U8   raw_prefix  = PF_NONE;
@@ -441,7 +535,11 @@ BOOL DISASSEMBLE_FILE(FILE *input, FILE *output, ASTRAC_ARGS *cfg) {
                             if (off < size) {
                                 I8  rel8   = (I8)data[off++];
                                 U32 target = (U32)((I32)off + (I32)rel8);
-                                ilen = dsm_apnd(instr_buf, ilen, DSM_IBUF_SZ, "0x%08X", target);
+                                ilen = dsm_apnd(instr_buf, ilen, DSM_IBUF_SZ, "0x%08X", target + org);
+                                if (is_acfh) {
+                                    const U8 *fn = dsm_lookup_func(ft_entries, ft_count, ft_strtab, ft_strtab_sz, target);
+                                    if (fn) ilen = dsm_apnd(instr_buf, ilen, DSM_IBUF_SZ, " <%s>", fn);
+                                }
                             }
                         } else if (m->rel_type == RL_REL32) {
                             /*
@@ -455,14 +553,25 @@ BOOL DISASSEMBLE_FILE(FILE *input, FILE *output, ASTRAC_ARGS *cfg) {
                                     I16 rel16 = 0;
                                     AC_MEMCPY(&rel16, data + off, 2); off += 2;
                                     U32 target = (U32)((I32)off + (I32)rel16);
-                                    ilen = dsm_apnd(instr_buf, ilen, DSM_IBUF_SZ, "0x%04X", target & 0xFFFF);
+                                    ilen = dsm_apnd(instr_buf, ilen, DSM_IBUF_SZ, "0x%04X", (target + org) & 0xFFFF);
                                 }
                             } else {
                                 if (off + 4 <= size) {
                                     I32 rel32 = 0;
                                     AC_MEMCPY(&rel32, data + off, 4); off += 4;
                                     U32 target = (U32)((I32)off + rel32);
-                                    ilen = dsm_apnd(instr_buf, ilen, DSM_IBUF_SZ, "0x%08X", target);
+                                    ilen = dsm_apnd(instr_buf, ilen, DSM_IBUF_SZ, "0x%08X", target + org);
+                                    if (is_acfh) {
+                                        const AC_IMPORT_ENTRY *imp = dsm_lookup_import(it_entries, it_count, code_file_base + start, code_file_base + off);
+                                        if (imp && imp->lib_name_offset < it_strtab_sz && imp->func_name_offset < it_strtab_sz) {
+                                            ilen = dsm_apnd(instr_buf, ilen, DSM_IBUF_SZ, " <%s::%s>",
+                                                            it_strtab + imp->lib_name_offset,
+                                                            it_strtab + imp->func_name_offset);
+                                        } else {
+                                            const U8 *fn = dsm_lookup_func(ft_entries, ft_count, ft_strtab, ft_strtab_sz, target);
+                                            if (fn) ilen = dsm_apnd(instr_buf, ilen, DSM_IBUF_SZ, " <%s>", fn);
+                                        }
+                                    }
                                 }
                             }
                         } else if (opsz == SZ_8BIT) {

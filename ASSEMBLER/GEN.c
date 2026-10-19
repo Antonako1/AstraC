@@ -20,17 +20,17 @@ typedef struct {
     ASM_DIRECTIVE section; // which section this label belongs to (code/data/rodata) - affects how origin is applied when resolving addresses
 } ASM_PTR;
 
-#define MAX_PTRS 4096
-
 typedef struct {
     U32 code; // current code section offset
     U32 data; // current data section offset
     U32 rodata; // current rodata section offset
+    U32 bss; // current bss section offset (uninitialized, 0 disk bytes)
     U32 origin;             /* .org base address    */
     ASM_DIRECTIVE current_section;
     ASM_DIRECTIVE code_type;
-    ASM_PTR ptrs[MAX_PTRS];
+    ASM_PTR *ptrs;
     U32 arr_tail;
+    U32 arr_cap;
 } ASM_PTR_ARRAY;
 
 STATIC ASM_PTR_ARRAY ptrs ATTRIB_DATA;
@@ -41,6 +41,8 @@ STATIC U8 CURRENT_PASS ATTRIB_DATA = FIRST_PASS; /* 0 = first pass, 1 = second p
 STATIC U32 pass1_code_size;
 STATIC U32 pass1_data_size;
 STATIC U32 pass1_rodata_size;
+STATIC U32 pass1_bss_size;
+STATIC U32 pass1_table_bytes;
 
 STATIC ASM_IMPORT_TABLE asm_imports ATTRIB_DATA;
 
@@ -51,11 +53,16 @@ VOID ADD_ASM_IMPORT(PU8 lib_name, PU8 func_name) {
             AC_STRICMP(asm_imports.decls[i].func_name, func_name) == 0)
             return;
     }
-    if (asm_imports.decl_count < MAX_ASM_IMPORTS) {
-        asm_imports.decls[asm_imports.decl_count].lib_name = AC_STRDUP(lib_name);
-        asm_imports.decls[asm_imports.decl_count].func_name = AC_STRDUP(func_name);
-        asm_imports.decl_count++;
+    if (asm_imports.decl_count >= asm_imports.decl_cap) {
+        U32 new_cap = (asm_imports.decl_cap == 0) ? 64 : asm_imports.decl_cap * 2;
+        ASM_IMPORT_DECL *nd = (ASM_IMPORT_DECL *)AC_ReAlloc(asm_imports.decls, new_cap * sizeof(ASM_IMPORT_DECL));
+        if (!nd) return;
+        asm_imports.decls = nd;
+        asm_imports.decl_cap = new_cap;
     }
+    asm_imports.decls[asm_imports.decl_count].lib_name = AC_STRDUP(lib_name);
+    asm_imports.decls[asm_imports.decl_count].func_name = AC_STRDUP(func_name);
+    asm_imports.decl_count++;
 }
 
 BOOL IS_ASM_IMPORTED_SYMBOL(PU8 name) {
@@ -73,7 +80,7 @@ BOOL IS_ASM_IMPORTED_SYMBOL(PU8 name) {
 }
 
 STATIC VOID RECORD_IMPORT_PATCH(PU8 name, U32 offset) {
-    if (CURRENT_PASS != SECOND_PASS || !name || !*name) return;
+    if (!name || !*name) return;
     PU8 p = name;
     if (*p == '_') p++;
 
@@ -98,12 +105,17 @@ STATIC VOID RECORD_IMPORT_PATCH(PU8 name, U32 offset) {
         return;
     }
 
-    if (asm_imports.patch_count < MAX_ASM_IMPORTS) {
-        asm_imports.patches[asm_imports.patch_count].lib_name = lib_name;
-        asm_imports.patches[asm_imports.patch_count].func_name = func_name;
-        asm_imports.patches[asm_imports.patch_count].patch_offset = offset;
-        asm_imports.patch_count++;
+    if (asm_imports.patch_count >= asm_imports.patch_cap) {
+        U32 new_cap = (asm_imports.patch_cap == 0) ? 64 : asm_imports.patch_cap * 2;
+        ASM_IMPORT_PATCH *np = (ASM_IMPORT_PATCH *)AC_ReAlloc(asm_imports.patches, new_cap * sizeof(ASM_IMPORT_PATCH));
+        if (!np) return;
+        asm_imports.patches = np;
+        asm_imports.patch_cap = new_cap;
     }
+    asm_imports.patches[asm_imports.patch_count].lib_name = lib_name;
+    asm_imports.patches[asm_imports.patch_count].func_name = func_name;
+    asm_imports.patches[asm_imports.patch_count].patch_offset = offset;
+    asm_imports.patch_count++;
 }
 
 /* ── Assembler debug (.ASD output) ──────────────────────────────────────── */
@@ -127,7 +139,7 @@ STATIC U32  reloc_count ATTRIB_DATA;
 STATIC U32  reloc_cap   ATTRIB_DATA;
 
 STATIC VOID RECORD_RELOC(U32 instr_offset) {
-    if (CURRENT_PASS != SECOND_PASS) return;
+    if (ptrs.current_section == DIR_BSS) return;
     if (reloc_count > 0 && reloc_buf && reloc_buf[reloc_count - 1] == instr_offset) return;
     if (reloc_count >= reloc_cap) {
         reloc_cap = (reloc_cap == 0) ? 256 : reloc_cap * 2;
@@ -152,6 +164,7 @@ STATIC U32 CURRENT_OFFSET(VOID) {
             return ptrs.code;
         case DIR_DATA:   return ptrs.data;
         case DIR_RODATA: return ptrs.rodata;
+        case DIR_BSS:    return ptrs.bss;
         default:         return ptrs.code;
     }
 }
@@ -161,6 +174,7 @@ STATIC U32 CURRENT_CUMULATIVE_OFFSET(VOID) {
     switch (ptrs.current_section) {
         case DIR_DATA:   return pass1_code_size + ptrs.data;
         case DIR_RODATA: return pass1_code_size + pass1_data_size + ptrs.rodata;
+        case DIR_BSS:    return pass1_code_size + pass1_data_size + pass1_rodata_size + pass1_table_bytes + ptrs.bss;
         default:         return ptrs.code;
     }
 }
@@ -190,6 +204,9 @@ STATIC VOID EMIT(FILE *file, const U8 *buf, U32 len) {
             dst = rodata_buf + ptrs.rodata;
             ptrs.rodata += len;
             break;
+        case DIR_BSS:
+            ptrs.bss += len;
+            return; /* .bss emits 0 bytes to disk */
         default:
             /* No explicit section yet — default to code. */
             dst = code_buf + ptrs.code;
@@ -246,9 +263,15 @@ STATIC BOOL ADD_ASM_PTR(PU8 name, U32 offset, ASM_DIRECTIVE section) {
             return TRUE;
         }
     }
-    if (ptrs.arr_tail >= MAX_PTRS) {
-        AC_PRINTF_ERR("[ASM GEN] Error: Exceeded maximum number of ptrs (%u)\n", MAX_PTRS);
-        return FALSE;
+    if (ptrs.arr_tail >= ptrs.arr_cap) {
+        U32 new_cap = (ptrs.arr_cap == 0) ? 256 : ptrs.arr_cap * 2;
+        ASM_PTR *np = (ASM_PTR *)AC_ReAlloc(ptrs.ptrs, new_cap * sizeof(ASM_PTR));
+        if (!np) {
+            AC_PRINTF_ERR("[ASM GEN] Error: Failed to grow ptrs table\n");
+            return FALSE;
+        }
+        ptrs.ptrs = np;
+        ptrs.arr_cap = new_cap;
     }
     ptrs.ptrs[ptrs.arr_tail].name      = name;
     ptrs.ptrs[ptrs.arr_tail].offset    = offset;
@@ -296,6 +319,7 @@ STATIC U32 RESOLVE_SYMBOL_ADDR(PU8 name) {
     switch (p->section) {
         case DIR_DATA:   base = pass1_code_size; break;
         case DIR_RODATA: base = pass1_code_size + pass1_data_size; break;
+        case DIR_BSS:    base = pass1_code_size + pass1_data_size + pass1_rodata_size + pass1_table_bytes; break;
         default: break; /* DIR_CODE or DIR_NONE: base=0 */
     }
     return p->offset + base + ptrs.origin;
@@ -1600,9 +1624,16 @@ STATIC S32 REL_BRANCH_DISP(PASM_NODE node) {
 STATIC BOOL RELAX_JUMPS(ASM_AST_ARRAY *ast, ASTRAC_ARGS *cfg) {
     for (U32 iter = 0; iter < 64; iter++) {
         /* Fresh Pass 1 (offset calculation only) with current encodings. */
-        AC_MEMSET(&ptrs, 0, sizeof(ptrs));
+        ptrs.code   = 0;
+        ptrs.data   = 0;
+        ptrs.rodata = 0;
+        ptrs.bss    = 0;
+        ptrs.arr_tail = 0;
         ptrs.current_section = DIR_NONE;
         ptrs.code_type       = DIR_CODE_TYPE_32;
+        ptrs.origin          = cfg->org;
+        reloc_count          = 0;
+        asm_imports.patch_count = 0;
         CURRENT_PASS = FIRST_PASS;
         if (!GEN_EMIT_PASS(NULLPTR, ast, cfg)) return FALSE;
 
@@ -1659,6 +1690,75 @@ STATIC U32 GET_OR_ADD_STRTAB(PU8 *pstrtab, U32 *pstrtab_len, U32 *pstr_cap, PU8 
     return ret;
 }
 
+/* Compute exact ACFH trailing table size (relocs + func_table + import_table)
+ * after Pass 1 so .bss virtual addresses in Pass 2 sit immediately after all
+ * in-file sections and tables. */
+STATIC U32 COMPUTE_ACFH_TABLE_BYTES(ASTRAC_ARGS *cfg) {
+    if (!cfg || cfg->output_type == OUTPUT_NONE) return 0;
+
+    U32 reloc_bytes = reloc_count * sizeof(U32);
+    U32 ft_bytes = 0;
+    U32 it_bytes = 0;
+
+    if (cfg->emit_func_table) {
+        U32 idx = 0;
+        U32 ft_strtab_len = 0;
+        for (U32 i = 0; i < ptrs.arr_tail; i++) {
+            ASM_PTR *p = &ptrs.ptrs[i];
+            if (!p->name || p->name[0] == '\0') continue;
+            if (p->name[0] == '@' || p->name[0] == '.') continue;
+            if (p->name[0] == '_' && p->name[1] == '_') continue;
+            if (AC_STRNCMP(p->name, "_str", 4) == 0) continue;
+            if (p->section != DIR_DATA && p->section != DIR_RODATA && p->section != DIR_BSS) {
+                PU8 export_name = (p->name[0] == '_') ? (p->name + 1) : p->name;
+                ft_strtab_len += (U32)AC_STRLEN(export_name) + 1;
+                idx++;
+            }
+        }
+        if (idx > 0) {
+            ft_bytes = sizeof(AC_FUNC_TABLE_HDR) + (idx * sizeof(AC_FUNC_ENTRY)) + ft_strtab_len;
+        }
+    }
+
+    if (cfg->emit_import_table || asm_imports.decl_count > 0) {
+        U32 it_count = asm_imports.patch_count ? asm_imports.patch_count : asm_imports.decl_count;
+        if (it_count > 0) {
+            U32 str_cap = it_count * 128 + 64;
+            PU8 it_strtab = (PU8)AC_MAlloc(str_cap);
+            U32 it_strtab_len = 0;
+            U32 idx = 0;
+            if (it_strtab) {
+                AC_MEMZERO(it_strtab, str_cap);
+                if (asm_imports.patch_count > 0) {
+                    for (U32 i = 0; i < asm_imports.patch_count; i++) {
+                        PU8 lib = asm_imports.patches[i].lib_name;
+                        PU8 fn  = asm_imports.patches[i].func_name;
+                        if (!lib || !fn) continue;
+                        GET_OR_ADD_STRTAB(&it_strtab, &it_strtab_len, &str_cap, lib);
+                        GET_OR_ADD_STRTAB(&it_strtab, &it_strtab_len, &str_cap, fn);
+                        idx++;
+                    }
+                } else {
+                    for (U32 i = 0; i < asm_imports.decl_count; i++) {
+                        PU8 lib = asm_imports.decls[i].lib_name;
+                        PU8 fn  = asm_imports.decls[i].func_name;
+                        if (!lib || !fn) continue;
+                        GET_OR_ADD_STRTAB(&it_strtab, &it_strtab_len, &str_cap, lib);
+                        GET_OR_ADD_STRTAB(&it_strtab, &it_strtab_len, &str_cap, fn);
+                        idx++;
+                    }
+                }
+                AC_MFree(it_strtab);
+            }
+            if (idx > 0) {
+                it_bytes = sizeof(AC_IMPORT_TABLE_HDR) + (idx * sizeof(AC_IMPORT_ENTRY)) + it_strtab_len;
+            }
+        }
+    }
+
+    return reloc_bytes + ft_bytes + it_bytes;
+}
+
 /*
  * ════════════════════════════════════════════════════════════════════════════
  *  GEN_BINARY  —  main code generation entry point
@@ -1683,10 +1783,19 @@ BOOLEAN GEN_BINARY(ASM_AST_ARRAY *ast, PASM_INFO info) {
     }
 
     /* ── Reset state ──────────────────────────────────────────────────── */
-    AC_MEMSET(&ptrs, 0, sizeof(ptrs));
+    ptrs.code    = 0;
+    ptrs.data    = 0;
+    ptrs.rodata  = 0;
+    ptrs.bss     = 0;
+    ptrs.arr_tail = 0;
     ptrs.current_section = DIR_NONE;
     ptrs.code_type       = DIR_CODE_TYPE_32;
     ptrs.origin          = cfg->org;
+    pass1_code_size   = 0;
+    pass1_data_size   = 0;
+    pass1_rodata_size = 0;
+    pass1_bss_size    = 0;
+    pass1_table_bytes = 0;
     CURRENT_PASS = FIRST_PASS;
 
     /* ── Scope local labels (@@name, .name) to enclosing global label ──── */
@@ -1705,24 +1814,27 @@ BOOLEAN GEN_BINARY(ASM_AST_ARRAY *ast, PASM_INFO info) {
     }
 
     if (cfg->verbose)
-        AC_PRINTF("[ASM GEN] Pass 1 complete: %u labels, code=%u data=%u rodata=%u origin=0x%X\n",
-               ptrs.arr_tail, ptrs.code, ptrs.data, ptrs.rodata, ptrs.origin);
+        AC_PRINTF("[ASM GEN] Pass 1 complete: %u labels, code=%u data=%u rodata=%u bss=%u origin=0x%X\n",
+               ptrs.arr_tail, ptrs.code, ptrs.data, ptrs.rodata, ptrs.bss, ptrs.origin);
 
-        AC_DEBUG_PRINTF("[ASM GEN] Pass 1 complete: %u labels, code=%u data=%u rodata=%u origin=0x%X\n",
-               ptrs.arr_tail, ptrs.code, ptrs.data, ptrs.rodata, ptrs.origin);
+    AC_DEBUG_PRINTF("[ASM GEN] Pass 1 complete: %u labels, code=%u data=%u rodata=%u bss=%u origin=0x%X\n",
+               ptrs.arr_tail, ptrs.code, ptrs.data, ptrs.rodata, ptrs.bss, ptrs.origin);
 
     pass1_code_size   = ptrs.code;
     pass1_data_size   = ptrs.data;
     pass1_rodata_size = ptrs.rodata;
+    pass1_bss_size    = ptrs.bss;
+    pass1_table_bytes = COMPUTE_ACFH_TABLE_BYTES(cfg);
 
     /* ── Reset offsets for Pass 2 (keep labels + origin) ──────────────── */
     ptrs.code    = 0;
     ptrs.data    = 0;
     ptrs.rodata  = 0;
+    ptrs.bss     = 0;
     ptrs.current_section = DIR_NONE;
     ptrs.code_type       = DIR_CODE_TYPE_32;
     ptrs.origin          = cfg->org;
-    AC_DEBUG_PRINTF("[ASM GEN] Offsets reset for Pass 2: code=0, data=0, rodata=0, origin=0x%X\n", ptrs.origin);
+    AC_DEBUG_PRINTF("[ASM GEN] Offsets reset for Pass 2: code=0, data=0, rodata=0, bss=0, origin=0x%X\n", ptrs.origin);
 
     /* ── Allocate per-section output buffers from Pass 1 sizes ─────────── */
     code_buf   = pass1_code_size   ? AC_MAlloc(pass1_code_size)   : NULLPTR;
@@ -1812,21 +1924,18 @@ BOOLEAN GEN_BINARY(ASM_AST_ARRAY *ast, PASM_INFO info) {
         return FALSE;
     }
 
-    AC_DEBUG_PRINTF("[ASM GEN] Pass 2 complete: code=%u bytes, data=%u bytes, rodata=%u bytes, relocs=%u\n",
-                 ptrs.code, ptrs.data, ptrs.rodata, reloc_count);
+    AC_DEBUG_PRINTF("[ASM GEN] Pass 2 complete: code=%u bytes, data=%u bytes, rodata=%u bytes, bss=%u bytes, relocs=%u\n",
+                 ptrs.code, ptrs.data, ptrs.rodata, ptrs.bss, reloc_count);
 
     /* ──────────────────────────────────────────────────────────────────
-     *  Write the output file in fixed layout:  [header] code data rodata [relocs]
+     *  Write the output file in fixed layout:  [header] code data rodata [tables]
      *
      *  RESOLVE_SYMBOL_ADDR() computes absolute addresses as
      *      data:   symbol.offset + pass1_code_size                   + origin
      *      rodata: symbol.offset + pass1_code_size + pass1_data_size + origin
-     *  i.e. it assumes the runtime layout is `code | data | rodata` with no
-     *  gaps. Emitting the file in that exact order keeps the physical file
-     *  layout consistent with the resolved addresses. (For --exe/--lib the
-     *  header precedes the sections; its size is recorded in the header's
-     *  *_offset fields, but absolute symbol addresses are still computed
-     *  relative to the section base, not the file start.)
+     *      bss:    symbol.offset + pass1_code_size + pass1_data_size + pass1_rodata_size + pass1_table_bytes + origin
+     *  i.e. it assumes the runtime layout is `code | data | rodata | [tables] | bss`
+     *  with 0 disk bytes emitted for .bss.
      * ────────────────────────────────────────────────────────────────── */
     if (cfg->output_type != OUTPUT_NONE) {
         AC_MEMCPY(h.magic, AC_FILE_MAGIC, AC_FILE_MAGIC_LEN);
@@ -1849,7 +1958,7 @@ BOOLEAN GEN_BINARY(ASM_AST_ARRAY *ast, PASM_INFO info) {
                 if (!p->name || p->name[0] == '\0') continue;
                 if (p->name[0] == '@' || p->name[0] == '.') continue;
                 if (AC_STRNCMP(p->name, "_str", 4) == 0) continue;
-                if (p->section != DIR_DATA && p->section != DIR_RODATA) {
+                if (p->section != DIR_DATA && p->section != DIR_RODATA && p->section != DIR_BSS) {
                     ft_entry_count++;
                 }
             }
@@ -1867,7 +1976,7 @@ BOOLEAN GEN_BINARY(ASM_AST_ARRAY *ast, PASM_INFO info) {
                     if (p->name[0] == '@' || p->name[0] == '.') continue;
                     if (p->name[0] == '_' && p->name[1] == '_') continue;
                     if (AC_STRNCMP(p->name, "_str", 4) == 0) continue;
-                    if (p->section != DIR_DATA && p->section != DIR_RODATA) {
+                    if (p->section != DIR_DATA && p->section != DIR_RODATA && p->section != DIR_BSS) {
                         PU8 raw_name = p->name;
                         PU8 export_name = raw_name;
                         if (raw_name[0] == '_') export_name = raw_name + 1;
@@ -2002,8 +2111,8 @@ BOOLEAN GEN_BINARY(ASM_AST_ARRAY *ast, PASM_INFO info) {
         h.data_size     = ptrs.data;
         h.rodata_offset = sizeof(AC_FILE_HEADER) + ptrs.code + ptrs.data;
         h.rodata_size   = ptrs.rodata;
-        h.bss_offset    = sizeof(AC_FILE_HEADER) + ptrs.code + ptrs.data + ptrs.rodata;
-        h.bss_size      = 0;
+        h.bss_offset    = sizeof(AC_FILE_HEADER) + ptrs.code + ptrs.data + ptrs.rodata + reloc_bytes + ft_bytes + it_bytes;
+        h.bss_size      = ptrs.bss;
         h.reloc_offset  = (reloc_bytes > 0 || cfg->emit_offset_table) ? (sizeof(AC_FILE_HEADER) + ptrs.code + ptrs.data + ptrs.rodata) : OFFSET_NON_EXISTENT;
         h.reloc_size    = reloc_bytes;
         h.func_table_offset   = (ft_bytes > 0) ? (sizeof(AC_FILE_HEADER) + ptrs.code + ptrs.data + ptrs.rodata + reloc_bytes) : OFFSET_NON_EXISTENT;
@@ -2011,11 +2120,12 @@ BOOLEAN GEN_BINARY(ASM_AST_ARRAY *ast, PASM_INFO info) {
         h.import_table_offset = (it_bytes > 0) ? (sizeof(AC_FILE_HEADER) + ptrs.code + ptrs.data + ptrs.rodata + reloc_bytes + ft_bytes) : OFFSET_NON_EXISTENT;
         h.import_table_size   = it_bytes;
 
-        AC_DEBUG_PRINTF("[ASM GEN] Writing file header (entry=0x%X, code=0x%X+0x%X, data=0x%X+0x%X, rodata=0x%X+0x%X, reloc=0x%X+0x%X, funcs=0x%X+0x%X, imports=0x%X+0x%X)\n",
+        AC_DEBUG_PRINTF("[ASM GEN] Writing file header (entry=0x%X, code=0x%X+0x%X, data=0x%X+0x%X, rodata=0x%X+0x%X, bss=0x%X+0x%X, reloc=0x%X+0x%X, funcs=0x%X+0x%X, imports=0x%X+0x%X)\n",
                     h.entry_point_offset,
                     h.code_offset, h.code_size,
                     h.data_offset, h.data_size,
                     h.rodata_offset, h.rodata_size,
+                    h.bss_offset, h.bss_size,
                     h.reloc_offset, h.reloc_size,
                     h.func_table_offset, h.func_table_size,
                     h.import_table_offset, h.import_table_size);
@@ -2056,6 +2166,22 @@ BOOLEAN GEN_BINARY(ASM_AST_ARRAY *ast, PASM_INFO info) {
     }
     reloc_count = 0;
     reloc_cap = 0;
+    for (U32 i = 0; i < asm_imports.decl_count; i++) {
+        if (asm_imports.decls[i].lib_name)  AC_MFree(asm_imports.decls[i].lib_name);
+        if (asm_imports.decls[i].func_name) AC_MFree(asm_imports.decls[i].func_name);
+    }
+    if (asm_imports.decls)   { AC_MFree(asm_imports.decls);   asm_imports.decls = NULLPTR; }
+    if (asm_imports.patches) { AC_MFree(asm_imports.patches); asm_imports.patches = NULLPTR; }
+    asm_imports.decl_count  = 0;
+    asm_imports.decl_cap    = 0;
+    asm_imports.patch_count = 0;
+    asm_imports.patch_cap   = 0;
+    if (ptrs.ptrs) {
+        AC_MFree(ptrs.ptrs);
+        ptrs.ptrs = NULLPTR;
+        ptrs.arr_tail = 0;
+        ptrs.arr_cap  = 0;
+    }
 
     if (cfg->verbose) AC_PRINTF("[ASM GEN] Finished writing output file: %s, sz %u bytes\n", outputfile, AC_FSIZE(out));
     if (asd_out) AC_FCLOSE(asd_out);

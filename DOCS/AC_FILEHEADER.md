@@ -6,7 +6,7 @@ The **ACFH** (AstraC File Header) format is the native executable and dynamic li
 
 ## 1. File Layout Overview
 
-An ACFH binary file consists of a fixed 112-byte (0x70) header followed by up to six contiguous sections:
+An ACFH binary file consists of a fixed 112-byte (0x70) header followed by up to six contiguous on-disk sections, plus a memory-only `.bss` region immediately following the file in RAM:
 
 ```text
 +-------------------------------------------------------------+
@@ -23,8 +23,12 @@ An ACFH binary file consists of a fixed 112-byte (0x70) header followed by up to
 | Function Export Table Section (function_table / ft)         |
 +-------------------------------------------------------------+
 | Import Table Section (import_table / it)                    |
++=============================================================+ <-- End of file on disk (bss_offset)
+| Uninitialized Data Section (.bss) [0 bytes on disk, in RAM] |
 +-------------------------------------------------------------+
 ```
+
+Because flat in-place OS loaders (such as atOS) read the entire ACFH binary file directly into memory at `load_base`, `.bss` virtual addresses are placed **after** all trailing ACFH tables (`bss_offset` equals the total file size on disk) so zeroing `[load_base + bss_offset .. load_base + bss_offset + bss_size)` in RAM never overwrites the relocation, function export, or import tables.
 
 ---
 
@@ -41,14 +45,14 @@ typedef struct {
     U32 code_offset;             /* File offset to .code section */
     U32 data_offset;             /* File offset to .data section */
     U32 rodata_offset;           /* File offset to .rodata section */
-    U32 bss_offset;              /* File offset to BSS section */
+    U32 bss_offset;              /* Memory offset to .bss section (end of file on disk) */
     U32 reloc_offset;            /* File offset to Relocation Table */
     U32 func_table_offset;       /* File offset to Function Export Table */
     U32 import_table_offset;     /* File offset to Import Table */
     U32 code_size;               /* Size of .code section in bytes */
     U32 data_size;               /* Size of .data section in bytes */
     U32 rodata_size;             /* Size of .rodata section in bytes */
-    U32 bss_size;                /* Uninitialized BSS size in bytes (memory-only) */
+    U32 bss_size;                /* Uninitialized .bss size in bytes (0 disk bytes, memory-only) */
     U32 reloc_size;              /* Size of Relocation Table in bytes */
     U32 func_table_size;         /* Size of Function Export Table section in bytes */
     U32 import_table_size;       /* Size of Import Table section in bytes */

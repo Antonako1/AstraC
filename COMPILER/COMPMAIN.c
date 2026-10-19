@@ -15,6 +15,24 @@
 #include "../AstraC.h"
 #include "../ASSEMBLER/ASSEMBLER.h"
 
+STATIC VOID FREE_COMP_CTX(COMP_CTX *comp_ctx, PU8 src_copy) {
+    if (!comp_ctx) return;
+    SYM_FREE_ALL();
+    if (comp_ctx->rodata_strings) AC_MFree(comp_ctx->rodata_strings);
+    if (comp_ctx->imports)        AC_MFree(comp_ctx->imports);
+    if (comp_ctx->files) {
+        for (U32 i = 0; i < comp_ctx->file_count; i++) {
+            if (comp_ctx->files[i]) AC_MFree(comp_ctx->files[i]);
+        }
+        AC_MFree(comp_ctx->files);
+    }
+    if (src_copy)            AC_MFree(src_copy);
+    if (comp_ctx->src_lines) AC_MFree(comp_ctx->src_lines);
+    if (comp_ctx->tmp_src)   AC_MFree(comp_ctx->tmp_src);
+    if (comp_ctx->out_asm)   AC_MFree(comp_ctx->out_asm);
+    AC_MFree(comp_ctx);
+}
+
 U32 START_COMPILER() {
     ASTRAC_ARGS *cfg = GET_ARGS();
     if (!cfg || !cfg->input_file) {
@@ -28,25 +46,24 @@ U32 START_COMPILER() {
     comp_ctx->verbose    = cfg->verbose;
     comp_ctx->debug      = cfg->debug;
     comp_ctx->file_scope = 1;
+    PU8 src_copy         = NULLPTR;
 
     /* ── Stage 1: Preprocessing ────────────────────────────────────────── */
     if (cfg->verbose) AC_PRINTF("[COMP] Stage 1/5: Preprocessing...\n");
-    #ifdef _WIN32
-    PU8 tmp_src_path = (PU8)"C:\\TMP\\00.AC";
-    #else
-    PU8 tmp_src_path = (PU8)"/tmp/00.AC";
-    #endif
 
     PASM_INFO info = PREPROCESS_C();
-    if (!info) {
+    if (!info || info->tmp_file_count == 0 || !info->tmp_files[0]) {
         AC_PRINTF_ERR("[COMP] Preprocessor failed\n");
-        AC_MFree(comp_ctx);
+        if (info) DESTROY_ASM_INFO(info);
+        FREE_COMP_CTX(comp_ctx, src_copy);
         return ASTRAC_ERR_PREPROCESS;
     }
+    PU8 tmp_src_path = info->tmp_files[0];
 
     if (cfg->stepoff_level == 1 || cfg->build_type == BUILD_TYPE_PREPROCESS_ONLY) {
         AC_PRINTF("[COMP] Preprocess-only: output in %s\n", tmp_src_path);
-        AC_MFree(comp_ctx);
+        DESTROY_ASM_INFO(info);
+        FREE_COMP_CTX(comp_ctx, src_copy);
         return ASTRAC_OK;
     }
 
@@ -54,10 +71,11 @@ U32 START_COMPILER() {
 
     /* Read preprocessed source into memory */
     {
-        FILE *pf = fopen(tmp_src_path, "rb");
+        FILE *pf = fopen((const char *)tmp_src_path, "rb");
         if (!pf) {
             AC_PRINTF("[COMP] Cannot open preprocessed file: %s\n", tmp_src_path);
-            AC_MFree(comp_ctx);
+            DESTROY_ASM_INFO(info);
+            FREE_COMP_CTX(comp_ctx, src_copy);
             return ASTRAC_ERR_PREPROCESS;
         }
         fseek(pf, 0, SEEK_END);
@@ -65,7 +83,9 @@ U32 START_COMPILER() {
         fseek(pf, 0, SEEK_SET);
         comp_ctx->tmp_src = (PU8)AC_MAlloc(psize + 1);
         if (!comp_ctx->tmp_src) {
-            fclose(pf); AC_MFree(comp_ctx);
+            fclose(pf);
+            DESTROY_ASM_INFO(info);
+            FREE_COMP_CTX(comp_ctx, src_copy);
             return ASTRAC_ERR_INTERNAL;
         }
         fread(comp_ctx->tmp_src, 1, psize, pf);
@@ -73,24 +93,62 @@ U32 START_COMPILER() {
         fclose(pf);
     }
 
-    /* Build source-line index for debug mode */
+    /* Remove temporary .I file unless debug mode is enabled */
+    if (!cfg->debug && AC_FILE_EXISTS(tmp_src_path)) {
+        AC_FILE_DELETE(tmp_src_path);
+    }
+    DESTROY_ASM_INFO(info);
+
+    /* Build source-line index for debug mode (aware of #line markers) */
     if (comp_ctx->debug) {
         PU8 src = comp_ctx->tmp_src;
         U32 len = AC_STRLEN(src);
-        U32 count = 0;
+        U32 max_line = 0, cur_line = 1;
         PU8 p = src;
-        while (p < src + len) { count++; while (p < src + len && *p != '\n') p++; if (p < src + len) p++; }
-        comp_ctx->src_line_count = count;
-        comp_ctx->src_lines = (PU8 *)AC_MAlloc(sizeof(PU8) * count);
-        if (comp_ctx->src_lines) {
-            PU8 copy = (PU8)AC_MAlloc(len + 1);
-            if (copy) {
-                AC_MEMCPY(copy, src, len + 1);
-                U32 i = 0; p = copy;
-                while (p < copy + len) {
-                    comp_ctx->src_lines[i++] = p;
-                    while (p < copy + len && *p != '\n') p++;
-                    if (p < copy + len) *p++ = '\0';
+        while (p < src + len) {
+            PU8 ls = p;
+            while (p < src + len && *p != '\n') p++;
+            if (p < src + len) p++;
+            if (ls[0] == '#' && ls[1] == 'l' && ls[2] == 'i' && ls[3] == 'n' && ls[4] == 'e'
+                && (ls[5] == ' ' || ls[5] == '\t')) {
+                PU8 lp = ls + 5;
+                while (*lp == ' ' || *lp == '\t') lp++;
+                U32 lnum = 0;
+                while (*lp >= '0' && *lp <= '9') { lnum = lnum * 10 + (U32)(*lp - '0'); lp++; }
+                if (lnum > 0) cur_line = lnum;
+            } else {
+                if (cur_line > max_line) max_line = cur_line;
+                cur_line++;
+            }
+        }
+        comp_ctx->src_line_count = max_line;
+        if (max_line > 0) {
+            comp_ctx->src_lines = (PU8 *)AC_MAlloc(sizeof(PU8) * max_line);
+            if (comp_ctx->src_lines) {
+                AC_MEMZERO(comp_ctx->src_lines, sizeof(PU8) * max_line);
+                src_copy = (PU8)AC_MAlloc(len + 1);
+                if (src_copy) {
+                    AC_MEMCPY(src_copy, src, len + 1);
+                    cur_line = 1;
+                    p = src_copy;
+                    while (p < src_copy + len) {
+                        PU8 ls = p;
+                        while (p < src_copy + len && *p != '\n') p++;
+                        if (p > ls && *(p - 1) == '\r') *(p - 1) = '\0';
+                        if (p < src_copy + len) *p++ = '\0';
+                        if (ls[0] == '#' && ls[1] == 'l' && ls[2] == 'i' && ls[3] == 'n' && ls[4] == 'e'
+                            && (ls[5] == ' ' || ls[5] == '\t')) {
+                            PU8 lp = ls + 5;
+                            while (*lp == ' ' || *lp == '\t') lp++;
+                            U32 lnum = 0;
+                            while (*lp >= '0' && *lp <= '9') { lnum = lnum * 10 + (U32)(*lp - '0'); lp++; }
+                            if (lnum > 0) cur_line = lnum;
+                        } else {
+                            if (cur_line >= 1 && cur_line <= max_line && !comp_ctx->src_lines[cur_line - 1])
+                                comp_ctx->src_lines[cur_line - 1] = ls;
+                            cur_line++;
+                        }
+                    }
                 }
             }
         }
@@ -101,7 +159,7 @@ U32 START_COMPILER() {
     PCOMP_TOK_ARRAY toks = COMP_LEX(comp_ctx);
     if (!toks) {
         AC_PRINTF_ERR("[COMP] Lexer failed\n");
-        AC_MFree(comp_ctx);
+        FREE_COMP_CTX(comp_ctx, src_copy);
         return ASTRAC_ERR_LEX;
     }
 
@@ -111,7 +169,7 @@ U32 START_COMPILER() {
     if (!ast) {
         AC_PRINTF_ERR("[COMP] Parser failed\n");
         DESTROY_COMP_TOK_ARRAY(toks);
-        AC_MFree(comp_ctx);
+        FREE_COMP_CTX(comp_ctx, src_copy);
         return ASTRAC_ERR_AST;
     }
 
@@ -121,7 +179,7 @@ U32 START_COMPILER() {
         AC_PRINTF_ERR("[COMP] Verification failed\n");
         DESTROY_CNODE_TREE(ast);
         DESTROY_COMP_TOK_ARRAY(toks);
-        AC_MFree(comp_ctx);
+        FREE_COMP_CTX(comp_ctx, src_copy);
         return ASTRAC_ERR_VERIFY;
     }
 
@@ -147,27 +205,27 @@ U32 START_COMPILER() {
         AC_PRINTF_ERR("[COMP] Code generation failed\n");
         DESTROY_CNODE_TREE(ast);
         DESTROY_COMP_TOK_ARRAY(toks);
-        AC_MFree(comp_ctx);
+        FREE_COMP_CTX(comp_ctx, src_copy);
         return ASTRAC_ERR_CODEGEN;
     }
 
-    /* Cleanup */
-    if (comp_ctx->src_lines && comp_ctx->src_line_count > 0) {
-        AC_MFree(comp_ctx->src_lines[0]);
-        AC_MFree(comp_ctx->src_lines);
-    }
     DESTROY_CNODE_TREE(ast);
     DESTROY_COMP_TOK_ARRAY(toks);
 
     /* ── Assemble ────────────────────────────────────────────────────────── */
     if (cfg->stepoff_level != 2 && cfg->stepoff_level != 1 && cfg->build_type != BUILD_TYPE_PREPROCESS_ONLY) {
-        cfg->input_file = comp_ctx->out_asm;
-        if (cfg->verbose) AC_PRINTF("[COMP] Assembling %s...\n", comp_ctx->out_asm);
+        PU8 saved_out_asm = AC_STRDUP(comp_ctx->out_asm);
+        cfg->input_file = saved_out_asm;
+        if (cfg->verbose) AC_PRINTF("[COMP] Assembling %s...\n", saved_out_asm);
         ASTRAC_RESULT asm_res = START_ASSEMBLING();
-        if (asm_res != ASTRAC_OK) { if (comp_ctx->src_lines && comp_ctx->src_line_count > 0) { AC_MFree(comp_ctx->src_lines[0]); AC_MFree(comp_ctx->src_lines); } AC_MFree(comp_ctx); return asm_res; }
+        if (saved_out_asm) AC_MFree(saved_out_asm);
+        FREE_COMP_CTX(comp_ctx, src_copy);
+        if (asm_res != ASTRAC_OK) return asm_res;
+        if (cfg->verbose) AC_PRINTF("[COMP] Compilation complete.\n");
+        return ASTRAC_OK;
     }
 
     if (cfg->verbose) AC_PRINTF("[COMP] Compilation complete.\n");
-    AC_MFree(comp_ctx);
+    FREE_COMP_CTX(comp_ctx, src_copy);
     return ASTRAC_OK;
 }

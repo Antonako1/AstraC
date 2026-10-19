@@ -36,6 +36,7 @@ STATIC CONST KEYWORD s_registers[] ATTRIB_RODATA = {
 STATIC CONST KEYWORD s_directives[] ATTRIB_RODATA = {
     { "data",   DIR_DATA          },
     { "rodata", DIR_RODATA        },
+    { "bss",    DIR_BSS           },
     { "code",   DIR_CODE          },
     { "use32",  DIR_CODE_TYPE_32  },
     { "use16",  DIR_CODE_TYPE_16  },
@@ -119,7 +120,13 @@ const char *TOKEN_TYPE_STR(ASM_TOKEN_TYPE t) {
 
 STATIC BOOL LEX_ADD_TOKEN(ASM_TOK_ARRAY *arr, ASM_TOKEN_TYPE type,
                           PU8 txt, U32 uval, U32 line, U32 col) {
-    if (arr->len >= MAX_TOKENS) return FALSE;
+    if (arr->len >= arr->cap) {
+        U32 new_cap = (arr->cap == 0) ? 1024 : arr->cap * 2;
+        PASM_TOK *new_toks = (PASM_TOK *)AC_ReAlloc(arr->toks, new_cap * sizeof(PASM_TOK));
+        if (!new_toks) return FALSE;
+        arr->toks = new_toks;
+        arr->cap  = new_cap;
+    }
     PASM_TOK tok = (PASM_TOK)AC_MAlloc(sizeof(ASM_TOK));
     if (!tok) return FALSE;
     AC_MEMSET(tok, 0, sizeof(ASM_TOK));
@@ -263,6 +270,21 @@ ASM_TOK_ARRAY *LEX(PASM_INFO info) {
             while (len > 0 && (linebuf[len-1]=='\n'||linebuf[len-1]=='\r'))
                 linebuf[--len] = '\0';
 
+            U32 ws = 0;
+            while (ws < len && (linebuf[ws] == ' ' || linebuf[ws] == '\t')) ws++;
+            if (ws + 5 <= len && linebuf[ws] == '#' && AC_STRNCMP(linebuf + ws + 1, "line", 4) == 0 &&
+                (linebuf[ws + 5] == ' ' || linebuf[ws + 5] == '\t')) {
+                U32 p = ws + 5;
+                while (p < len && (linebuf[p] == ' ' || linebuf[p] == '\t')) p++;
+                U32 new_line = 0;
+                while (p < len && linebuf[p] >= '0' && linebuf[p] <= '9') {
+                    new_line = new_line * 10 + (linebuf[p] - '0');
+                    p++;
+                }
+                if (new_line > 0) lineno = new_line - 1;
+                continue;
+            }
+
             U32 i = 0, tok_len = 0;
 
             while (i <= len && ok) {
@@ -350,7 +372,7 @@ ASM_TOK_ARRAY *LEX(PASM_INFO info) {
 
     if (!ok) {
         if(cfg->warning_level > 0) {
-            AC_PRINTF("[AS LEX] Not ok, lexer array count: %u/%u\n", res->len, MAX_TOKENS);
+            AC_PRINTF("[AS LEX] Not ok, lexer array count: %u\n", res->len);
         }
         DESTROY_TOK_ARR(res);
         return NULLPTR;

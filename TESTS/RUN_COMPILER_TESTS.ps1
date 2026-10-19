@@ -154,6 +154,28 @@ foreach ($file in $testFiles) {
         }
     }
 
+    # Check 15_toolchain_improvements: verify .bss zero disk bytes, ATTRIB_RODATA/DATA/BSS, local scoping, and ACFH disasm
+    if ($testName -eq "15_toolchain_improvements.ac" -and (Test-Path $asPath)) {
+        $asContent = Get-Content $asPath -Raw
+        $hasBssSec = $asContent -match "\.bss"
+        $hasRodataConst = $asContent -match "g_RODATA_CONST1"
+        $hasScopedLocal = $asContent -match "f2_g_FILE_PRIVATE_VAL"
+
+        $exeProc = Start-Process -FilePath $ASTRAC -ArgumentList @("comp", "`"$filePath`"", "type", "exe", "ot", "ft", "it") -NoNewWindow -PassThru -Wait
+        $binLen = if (Test-Path $binPath) { (Get-Item $binPath).Length } else { 999999 }
+        $dsmPath = [System.IO.Path]::ChangeExtension($filePath, ".DSM")
+        $dsmProc = Start-Process -FilePath $ASTRAC -ArgumentList @("disasm", "`"$binPath`"") -NoNewWindow -PassThru -Wait
+        $dsmContent = if (Test-Path $dsmPath) { Get-Content $dsmPath -Raw } else { "" }
+        $hasDsmSym = ($dsmContent -match "<MAIN>:") -and ($dsmContent -match "<HELPER_PUBLIC_FN>")
+
+        if ($hasBssSec -and $hasRodataConst -and $hasScopedLocal -and $exeProc.ExitCode -eq 0 -and $binLen -lt 1024 -and $hasDsmSym) {
+            Write-Host -NoNewline "[.bss 0-disk-bytes ($binLen B), ATTRIB_*, local-scope & ACFH-disasm verified] " -ForegroundColor DarkGray
+        } else {
+            $specificCheckFailed = $true
+            $specificDetail = "Verification failed for 15_toolchain_improvements (bss:$hasBssSec, rodata:$hasRodataConst, local:$hasScopedLocal, binLen:$binLen, dsm:$hasDsmSym)"
+        }
+    }
+
     if ($specificCheckFailed) {
         Write-Host "FAILED ($specificDetail)" -ForegroundColor Red
         $failed++

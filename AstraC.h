@@ -155,6 +155,7 @@ typedef struct _ASTRAC_ARGS {
     BOOL debug;
 
     /* showline arguments */
+    PU8  showline_file;      /* explicit file path for showline (NULLPTR = legacy AS/AC) */
     BOOL showline_is_ac;     /* TRUE = show 00.AC, FALSE = show 00.AS */
     U32  showline_ctx;       /* plus/minus context window size */
     U32  showline_start;     /* start line number */

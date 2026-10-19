@@ -73,6 +73,7 @@ typedef PI32*               PPI32;
 #  define ATTRIB_PACKED
 #  define ATTRIB_DATA
 #  define ATTRIB_RODATA
+#  define ATTRIB_BSS
 
 // atOS build system defines __USER__, __PROCESS__, and __UP__ for user-space processes
 #elif defined(__USER__) && defined(__PROCESS__) && defined(__UP__)
@@ -88,12 +89,14 @@ typedef PI32*               PPI32;
 #  define ATTRIB_PACKED __attribute__((packed))
 #  define ATTRIB_DATA __attribute__((section(".data")))
 #  define ATTRIB_RODATA __attribute__((section(".rodata")))
+#  define ATTRIB_BSS __attribute__((section(".bss")))
 
 // Else, use nothing
 #else
 #  define ATTRIB_PACKED 
 #  define ATTRIB_DATA
 #  define ATTRIB_RODATA
+#  define ATTRIB_BSS
 #endif
 
 /* ── Numeric limits ────────────────────────────────────────────────────── */

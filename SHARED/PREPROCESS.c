@@ -33,6 +33,7 @@ typedef enum {
     IDENT_PUSH,
     IDENT_POP,
     IDENT_IMPORT,
+    IDENT_LINE,
 
     IDENT_MAX,
 } MACRO_IDENT;
@@ -53,9 +54,10 @@ static const MACRO_KW macros_kw[] ATTRIB_RODATA = {
     { "#warning",  IDENT_WARNING  },
     { "#define",   IDENT_DEFINE   },
     { "#undef",    IDENT_UNDEF    },
-    { "#push",    IDENT_PUSH    },
-    { "#pop",    IDENT_POP    },
-    { "#import",  IDENT_IMPORT },
+    { "#push",     IDENT_PUSH     },
+    { "#pop",      IDENT_POP      },
+    { "#import",   IDENT_IMPORT   },
+    { "#line",     IDENT_LINE     },
 };
 
 
@@ -821,7 +823,8 @@ STATIC VOID REPLACE_MACROS_IN_LINE(PU8 line, MACRO_ARR *local) {
  *  Joins backslash-continued physical lines into one logical line.
  *  Returns TRUE when a line was read, FALSE at EOF.
  */
-BOOL READ_LOGICAL_LINE(FILE *file, U8 *out, U32 out_size) {
+BOOL READ_LOGICAL_LINE_CNT(FILE *file, U8 *out, U32 out_size, U32 *phys_lines) {
+    if (phys_lines) *phys_lines = 0;
     if (!file || !out || out_size == 0) return FALSE;
 
     U8  phys[BUF_SZ];
@@ -831,6 +834,7 @@ BOOL READ_LOGICAL_LINE(FILE *file, U8 *out, U32 out_size) {
     while (TRUE) {
         if (!AC_FILE_GET_LINE(file, phys, sizeof(phys)))
             return (out_len > 0);
+        if (phys_lines) (*phys_lines)++;
 
         /* trim trailing CR/LF and whitespace */
         U32 p = (U32)AC_STRLEN(phys);
@@ -850,6 +854,10 @@ BOOL READ_LOGICAL_LINE(FILE *file, U8 *out, U32 out_size) {
 
         if (!continuation) return TRUE;
     }
+}
+
+BOOL READ_LOGICAL_LINE(FILE *file, U8 *out, U32 out_size) {
+    return READ_LOGICAL_LINE_CNT(file, out, out_size, NULLPTR);
 }
 
 
@@ -966,6 +974,24 @@ STATIC VOID PP_NORMALIZE(PU8 path) {
     path[BUF_SZ - 1] = '\0';
 }
 
+/* Build a per-target temporary file path (<base>.I for C, <base>.ASI for ASM)
+ * so concurrent AstraC invocations on different files never collide. */
+VOID PP_BUILD_TMP_PATH(ASTRAC_ARGS *args, U8 *out, U32 out_sz, BOOL is_c) {
+    PU8 base = (args && args->input_file && *args->input_file) ? args->input_file
+             : (args && args->outfile && *args->outfile) ? args->outfile
+             : (PU8)"00";
+    AC_STRNCPY(out, base, out_sz - 6);
+    out[out_sz - 6] = '\0';
+    PU8 dot = AC_STRRCHR(out, '.');
+    PU8 slash1 = AC_STRRCHR(out, '/');
+    PU8 slash2 = AC_STRRCHR(out, '\\');
+    PU8 last_slash = (slash1 > slash2) ? slash1 : slash2;
+    if (dot && (!last_slash || dot > last_slash)) {
+        *dot = '\0';
+    }
+    AC_STRCAT(out, is_c ? ".I" : ".ASI");
+}
+
 /* ── #include recursion guard ──────────────────────────────────────────────── */
 /* A depth limit converts runaway (unguarded) circular includes into a clean
  * error instead of a stack overflow.  Guarded headers break cycles via
@@ -981,9 +1007,21 @@ static U32  pp_open_depth ATTRIB_DATA = 0;
  * Returns 0 on failure, otherwise the line count
  */
 STATIC U32 PREPROCESS_FILE(FILE *file, FILE *tmp_file, MACRO_ARR *mcr,
-                            PREPROCESSING_UNIT *unit, PU8 cur_dir, U32 *total_lines) {
-    U8 buf[BUF_SZ] = { 0 };
-    while (READ_LOGICAL_LINE(file, buf, sizeof(buf))) {
+                            PREPROCESSING_UNIT *unit, PU8 cur_dir, PU8 cur_file_path, U32 *total_lines) {
+    U8  buf[BUF_SZ] = { 0 };
+    U32 cur_src_line = 1;
+    U32 emitted_expected_line = 1;
+    U32 phys_read = 0;
+
+    if (cur_file_path && *cur_file_path) {
+        AC_FPRINTF(tmp_file, "#line 1 \"%s\"\n", cur_file_path);
+        (*total_lines)++;
+    }
+
+    while (READ_LOGICAL_LINE_CNT(file, buf, sizeof(buf), &phys_read)) {
+        U32 line_start = cur_src_line;
+        cur_src_line += (phys_read > 0) ? phys_read : 1;
+
         REMOVE_COMMENTS(buf, unit->type);
         if (IS_EMPTY(buf)) continue;
 
@@ -997,7 +1035,8 @@ STATIC U32 PREPROCESS_FILE(FILE *file, FILE *tmp_file, MACRO_ARR *mcr,
             }
 
             if (matched == U32_MAX) {
-                AC_PRINTF("[PP] Unknown preprocessor directive: %s\n", buf);
+                AC_PRINTF("[PP] %s:%u: Unknown preprocessor directive: %s\n",
+                          cur_file_path ? cur_file_path : (PU8)"<input>", line_start, buf);
                 return FALSE;
             }
 
@@ -1027,19 +1066,23 @@ STATIC U32 PREPROCESS_FILE(FILE *file, FILE *tmp_file, MACRO_ARR *mcr,
                     if (!active) break;    /* skip remaining directives in dead branch */
 
                     switch (matched) {
-                        case IDENT_IMPORT: {
+                        case IDENT_LINE: {
                             AC_FPRINTF(tmp_file, "%s\n", buf);
                             (*total_lines)++;
                             break;
                         }
+                        case IDENT_IMPORT: {
+                            if (emitted_expected_line != line_start && cur_file_path && *cur_file_path) {
+                                AC_FPRINTF(tmp_file, "#line %u \"%s\"\n", line_start, cur_file_path);
+                                (*total_lines)++;
+                            }
+                            AC_FPRINTF(tmp_file, "%s\n", buf);
+                            (*total_lines)++;
+                            emitted_expected_line = line_start + 1;
+                            break;
+                        }
                         /* ── #define ── */
                         case IDENT_DEFINE: {
-                            /* Expand macros in the value, then try to evaluate
-                               it as a constant integer expression.  Expansion
-                               runs in a full-size buffer: `value` is allocated
-                               to the exact source length and macro expansion
-                               (e.g. `#define X (1000/PIT_TICK_H)`) can grow it,
-                               so replacing directly in `value` overflows it. */
                             U8 exp[BUF_SZ];
                             PU8 v = value;
                             if (v) {
@@ -1050,7 +1093,8 @@ STATIC U32 PREPROCESS_FILE(FILE *file, FILE *tmp_file, MACRO_ARR *mcr,
                                 v = exp;
                             }
                             if (!DEFINE_MACRO(name, v, mcr)) {
-                                AC_PRINTF("[PP] Failed to define macro '%s'\n", name);
+                                AC_PRINTF("[PP] %s:%u: Failed to define macro '%s'\n",
+                                          cur_file_path ? cur_file_path : (PU8)"<input>", line_start, name);
                                 AC_MFree(name); AC_MFree(value);
                                 return FALSE;
                             }
@@ -1067,7 +1111,8 @@ STATIC U32 PREPROCESS_FILE(FILE *file, FILE *tmp_file, MACRO_ARR *mcr,
                             AC_MFree(value);
                             value = EXTRACT_SINGLE_VALUE(buf, matched);
                             if (!value || !*value) {
-                                AC_PRINTF("[PP] Invalid include path: %s\n", buf);
+                                AC_PRINTF("[PP] %s:%u: Invalid include path: %s\n",
+                                          cur_file_path ? cur_file_path : (PU8)"<input>", line_start, buf);
                                 AC_MFree(name);
                                 return FALSE;
                             }
@@ -1077,52 +1122,64 @@ STATIC U32 PREPROCESS_FILE(FILE *file, FILE *tmp_file, MACRO_ARR *mcr,
                             if (*path == '<') { is_system = TRUE; path++; PU8 e = AC_STRCHR(path, '>'); if (e) *e = '\0'; }
                             else if (*path == '"') { path++; PU8 e = AC_STRCHR(path, '"'); if (e) *e = '\0'; }
 
+                            U8 inc_path[512] = { 0 };
                             if (is_system) {
-                                AC_STRCPY(tmp_str, "/ATOS/SYS_SRC");
-                                if (path[0] != '/') AC_STRCAT(tmp_str, "/");
-                                AC_STRCAT(tmp_str, path);
+                                AC_STRCPY(inc_path, "/ATOS/SYS_SRC");
+                                if (path[0] != '/') AC_STRCAT(inc_path, "/");
+                                AC_STRCAT(inc_path, path);
                             } else {
                                 /* Resolve relative includes against the
                                  * including file's directory. */
-                                PP_JOIN_PATH(cur_dir, path, tmp_str, sizeof(tmp_str));
+                                PP_JOIN_PATH(cur_dir, path, inc_path, sizeof(inc_path));
                             }
-                            PP_NORMALIZE(tmp_str);
+                            PP_NORMALIZE(inc_path);
 
                             if (pp_open_depth >= PP_INCLUDE_DEPTH_MAX) {
-                                AC_PRINTF("[PP] #include nesting too deep (>= %u): %s\n",
-                                          PP_INCLUDE_DEPTH_MAX, tmp_str);
+                                AC_PRINTF("[PP] %s:%u: #include nesting too deep (>= %u): %s\n",
+                                          cur_file_path ? cur_file_path : (PU8)"<input>", line_start,
+                                          PP_INCLUDE_DEPTH_MAX, inc_path);
                                 AC_MFree(name); AC_MFree(value);
                                 return FALSE;
                             }
 
-                            FILE *inc = AC_FOPEN(tmp_str, MODE_R | MODE_FAT32);
+                            FILE *inc = AC_FOPEN(inc_path, MODE_R | MODE_FAT32);
                             if (!inc) {
-                                AC_PRINTF("[PP] Cannot open include: %s\n", tmp_str);
+                                AC_PRINTF("[PP] %s:%u: Cannot open include: %s\n",
+                                          cur_file_path ? cur_file_path : (PU8)"<input>", line_start, inc_path);
                                 AC_MFree(name); AC_MFree(value);
                                 return FALSE;
                             }
 
-                            if (GET_ARGS()->verbose) AC_PRINTF("[PP] Including: %s\n", tmp_str);
+                            if (GET_ARGS()->verbose) AC_PRINTF("[PP] Including: %s\n", inc_path);
 
                             /* Compute the included file's directory for nested
                              * includes, then recurse. */
                             U8 sub_dir[BUF_SZ] = { 0 };
-                            PP_GET_DIR(tmp_str, sub_dir, sizeof(sub_dir));
+                            PP_GET_DIR(inc_path, sub_dir, sizeof(sub_dir));
                             PP_NORMALIZE(sub_dir);
                             pp_open_depth++;
 
-                            BOOL ok = PREPROCESS_FILE(inc, tmp_file, mcr, unit, sub_dir, total_lines);
+                            BOOL ok = PREPROCESS_FILE(inc, tmp_file, mcr, unit, sub_dir, inc_path, total_lines);
 
                             pp_open_depth--;
                             AC_FCLOSE(inc);
                             if (!ok) { AC_MFree(name); AC_MFree(value); return FALSE; }
+
+                            /* Restore parent file context immediately after #include */
+                            if (cur_file_path && *cur_file_path) {
+                                AC_FPRINTF(tmp_file, "#line %u \"%s\"\n", cur_src_line, cur_file_path);
+                                (*total_lines)++;
+                                emitted_expected_line = cur_src_line;
+                            }
                         } break;
 
                         /* ── #error ── */
                         case IDENT_ERROR: {
                             AC_MFree(value);
                             value = EXTRACT_SINGLE_VALUE(buf, matched);
-                            AC_PRINTF_ERR("[PP] ERROR: %s\n", value ? value : "(empty)");
+                            AC_PRINTF_ERR("[PP] %s:%u: ERROR: %s\n",
+                                          cur_file_path ? cur_file_path : (PU8)"<input>", line_start,
+                                          value ? value : "(empty)");
                             AC_MFree(name); AC_MFree(value);
                             return FALSE;
                         }
@@ -1131,7 +1188,9 @@ STATIC U32 PREPROCESS_FILE(FILE *file, FILE *tmp_file, MACRO_ARR *mcr,
                         case IDENT_WARNING: {
                             AC_MFree(value);
                             value = EXTRACT_SINGLE_VALUE(buf, matched);
-                            AC_PRINTF_WARN("[PP] WARNING: %s\n", value ? value : "(empty)");
+                            AC_PRINTF_WARN("[PP] %s:%u: WARNING: %s\n",
+                                           cur_file_path ? cur_file_path : (PU8)"<input>", line_start,
+                                           value ? value : "(empty)");
                         } break;
                     }
                     break;
@@ -1149,10 +1208,15 @@ STATIC U32 PREPROCESS_FILE(FILE *file, FILE *tmp_file, MACRO_ARR *mcr,
         REPLACE_MACROS_IN_LINE(buf, mcr);
         U32 len = (U32)AC_STRLEN(buf);
         if (len > 0 && len + 1 < BUF_SZ) {
+            if (emitted_expected_line != line_start && cur_file_path && *cur_file_path) {
+                AC_FPRINTF(tmp_file, "#line %u \"%s\"\n", line_start, cur_file_path);
+                (*total_lines)++;
+            }
             buf[len] = '\n';
             buf[len + 1] = '\0';
             if (!AC_FWRITE(tmp_file, buf, len + 1))
                 return FALSE;
+            emitted_expected_line = line_start + 1;
         }
         (*total_lines)++;
     }
@@ -1180,11 +1244,6 @@ VOID FREE_PREPROCESSING_UNITS() {
  * ════════════════════════════════════════════════════════════════════════════
  *  PREPROCESS_ASM — top-level entry point
  * ════════════════════════════════════════════════════════════════════════════
- *  1. Create /tmp/00.AS
- *  2. Open the input file
- *  3. Run PREPROCESS_FILE (recursive for includes)
- *  4. Store the temp path in info->tmp_files[0]
- *  Returns the filled ASM_INFO, or NULL on fatal error.
  */
 PASM_INFO PREPROCESS_ASM() {
     unit_cnt = 0;
@@ -1207,8 +1266,8 @@ PASM_INFO PREPROCESS_ASM() {
     }
 
     /* ── Build temp file path ── */
-    U8 tmp_path[32];
-    AC_SPRINTF(tmp_path, "/tmp/00.AS");
+    U8 tmp_path[512];
+    PP_BUILD_TMP_PATH(args, tmp_path, sizeof(tmp_path), FALSE);
     if (AC_FILE_EXISTS(tmp_path)) {
         if (!AC_FILE_DELETE(tmp_path)) {
             AC_PRINTF("[PP] Cannot delete existing temp file: %s\n", tmp_path);
@@ -1245,10 +1304,13 @@ PASM_INFO PREPROCESS_ASM() {
     /* ── Run preprocessor ── */
     {
         U8 top_dir[BUF_SZ] = { 0 };
-        PP_GET_DIR(args->input_file, top_dir, sizeof(top_dir));
+        U8 norm_input[512] = { 0 };
+        AC_STRNCPY(norm_input, args->input_file, sizeof(norm_input) - 1);
+        PP_NORMALIZE(norm_input);
+        PP_GET_DIR(norm_input, top_dir, sizeof(top_dir));
         PP_NORMALIZE(top_dir);
         pp_open_depth = 0;
-        BOOL ok = PREPROCESS_FILE(unit->file, tmp, &unit->macros, unit, top_dir, &lines);
+        BOOL ok = PREPROCESS_FILE(unit->file, tmp, &unit->macros, unit, top_dir, norm_input, &lines);
         pp_open_depth--;
         AC_FCLOSE(tmp);
 
@@ -1294,12 +1356,8 @@ PASM_INFO PREPROCESS_C() {
     }
 
     /* ── Build temp file path ── */
-    U8 tmp_path[32];
-    #ifdef _WIN32
-    AC_SPRINTF(tmp_path, "C:\\TMP\\00.AC");
-    #else
-    AC_SPRINTF(tmp_path, "/tmp/00.AC");
-    #endif
+    U8 tmp_path[512];
+    PP_BUILD_TMP_PATH(args, tmp_path, sizeof(tmp_path), TRUE);
     if (AC_FILE_EXISTS(tmp_path)) {
         if (!AC_FILE_DELETE(tmp_path)) {
             AC_PRINTF("[PP] Cannot delete existing temp file: %s\n", tmp_path);
@@ -1336,11 +1394,14 @@ PASM_INFO PREPROCESS_C() {
     /* ── Run preprocessor ── */
     {
         U8 top_dir[BUF_SZ] = { 0 };
-        PP_GET_DIR(args->input_file, top_dir, sizeof(top_dir));
+        U8 norm_input[512] = { 0 };
+        AC_STRNCPY(norm_input, args->input_file, sizeof(norm_input) - 1);
+        PP_NORMALIZE(norm_input);
+        PP_GET_DIR(norm_input, top_dir, sizeof(top_dir));
         PP_NORMALIZE(top_dir);
         pp_open_depth = 0;
         U32 lines = 0;
-        BOOL ok = PREPROCESS_FILE(unit->file, tmp, &unit->macros, unit, top_dir, &lines);
+        BOOL ok = PREPROCESS_FILE(unit->file, tmp, &unit->macros, unit, top_dir, norm_input, &lines);
         pp_open_depth--;
         AC_FCLOSE(tmp);
 

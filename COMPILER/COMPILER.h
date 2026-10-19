@@ -56,6 +56,7 @@ typedef enum _COMP_TOK_TYPE {
     CTOK_KW_ENUM,    CTOK_KW_SIZEOF,
     CTOK_KW_TYPEDEF, CTOK_KW_STATIC, CTOK_KW_LOCAL,
     CTOK_KW_IMPORT,
+    CTOK_KW_ATTRIB_DATA, CTOK_KW_ATTRIB_RODATA, CTOK_KW_ATTRIB_BSS,
 
     CTOK_KW_ASM,
     CTOK_ASM_BODY, /* raw text inside asm { ... } */
@@ -101,6 +102,7 @@ typedef struct _COMP_TOK {
     PU8  txt;
     U32  line;
     U32  col;
+    U32  file_id;
     union {
         U32 ival;
         F32 fval;
@@ -154,6 +156,13 @@ typedef enum _SYM_KIND {
     SYM_TYPEDEF,
 } SYM_KIND;
 
+typedef enum _SYM_SECTION {
+    SYM_SEC_DEFAULT = 0,
+    SYM_SEC_DATA,
+    SYM_SEC_RODATA,
+    SYM_SEC_BSS,
+} SYM_SECTION;
+
 typedef struct _TYPE_FIELD {
     PU8 name;
     COMP_TYPE type;
@@ -168,16 +177,17 @@ typedef struct _SYMBOL {
     PU8  name;
     PU8  func_name;          /* NULLPTR for globals, or owning function name for locals/params */
     SYM_KIND kind;
+    SYM_SECTION section;      /* explicit section attribute (ATTRIB_DATA/RODATA/BSS) or default */
     COMP_TYPE type;           /* for variables/functions/typedefs */
     COMP_TYPE ret_type;       /* for functions */
     U32  offset;              /* stack offset for locals, 0 for globals */
     U32  ival;                /* enum constant value */
-    BOOL is_global;           /* TRUE = .data/.rodata, FALSE = stack */
+    BOOL is_global;           /* TRUE = .data/.rodata/.bss, FALSE = stack */
     BOOL is_defined;          /* function has body (not just forward decl) */
     BOOL is_variadic;
     BOOL is_union;            /* for struct/unions */
     BOOL is_file_local;       /* 'local' keyword — only visible in defining file */
-    U32  file_scope;          /* scope depth for file-local visibility */
+    U32  file_scope;          /* source file_id for file-local visibility */
     U32  array_size;          /* >0 = array element count; 0 = scalar */
     U32  init_value;          /* compile-time initializer value (globals) */
     BOOL has_init;            /* TRUE if init_value is meaningful */
@@ -197,11 +207,10 @@ typedef struct _SYMBOL {
     /* Enum values: enum constant name -> U32 value stored via type */
 } SYMBOL;
 
-#define SYM_MAX_ENTRIES 8192
-
 typedef struct _SYM_TABLE {
-    SYMBOL entries[SYM_MAX_ENTRIES];
-    U32    count;
+    SYMBOL *entries;
+    U32     count;
+    U32     cap;
 } SYM_TABLE;
 
 typedef struct {
@@ -242,6 +251,7 @@ typedef struct _CNODE {
     PU8            txt;
     U32            line;
     U32            col;
+    U32            file_id;
     COMP_TOK_TYPE  op;
     union {
         U32 ival;
@@ -269,12 +279,9 @@ typedef struct {
     U8 func_name[128];
 } COMP_IMPORT_ENTRY;
 
-#define MAX_COMP_IMPORTS 256
-
 /* ════════════════════════════════════════════════════════════════════════════
  *  COMPILER CONTEXT
  * ════════════════════════════════════════════════════════════════════════════ */
-#define MAX_RODATA_STRINGS 512
 typedef struct _COMP_CTX {
     PU8 tmp_src;
     PU8 out_asm;
@@ -283,17 +290,23 @@ typedef struct _COMP_CTX {
     U32 loop_label_stack[32];
     U32 loop_label_stack_top;
 
-    RODATA_STR rodata_strings[MAX_RODATA_STRINGS];
-    U32        rodata_string_count;
+    RODATA_STR *rodata_strings;
+    U32         rodata_string_count;
+    U32         rodata_string_cap;
 
-    COMP_IMPORT_ENTRY imports[MAX_COMP_IMPORTS];
-    U32               import_count;
+    COMP_IMPORT_ENTRY *imports;
+    U32                import_count;
+    U32                import_cap;
+
+    PU8 *files;              /* interned source file paths from #line */
+    U32  file_count;
+    U32  file_cap;
 
     SYM_TABLE  symtab;       /* symbol table for parser/verifier/codegen */
     BOOL       in_func;      /* inside a function body */
     BOOL       verbose;      /* verbose output */
     BOOL       debug;        /* emit source-line comments in generated .AS */
-    U32        file_scope;   /* incrementing scope for file-local visibility */
+    U32        file_scope;   /* current source file_id for file-local visibility */
     PCNODE     cur_func;     /* current function node */
 
     PU8       *src_lines;    /* source line pointers (into tmp_src) for debug */
@@ -302,6 +315,9 @@ typedef struct _COMP_CTX {
     U32 errors;
     U32 warnings;
 } COMP_CTX, *PCOMP_CTX;
+
+U32 COMP_INTERN_FILE(PCOMP_CTX ctx, PU8 path);
+PU8 COMP_GET_FILE(PCOMP_CTX ctx, U32 file_id);
 
 /* ════════════════════════════════════════════════════════════════════════════
  *  FUNCTION DECLARATIONS

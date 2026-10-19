@@ -13,7 +13,7 @@ bootloaders, embedded firmware, and bare-metal applications.
 
 | Stage | Description | Stop flag |
 |-------|-------------|-----------|
-| Preprocess | Handle `#include`, `#define`, `#if`/`#else`/`#endif` | `stepoff 1` |
+| Preprocess | Handle `#include`, `#define`, `#if`/`#else`/`#endif`, emit `#line` markers | `stepoff 1` |
 | Lex | Tokenize into keyword, identifier, literal, and operator tokens | -- |
 | Parse | Build AST from token stream | -- |
 | Verify | Semantic checks -- types, scopes, forward declarations | -- |
@@ -29,19 +29,19 @@ Options:
   asm <file.AS>                    ; Assemble input file
   comp <file.AC>                   ; Compile input file
   disasm <file.BIN>                ; Disassemble input file
-  objdump <file.BIN>               ; Dump ACFH binary header and tables
+  objdump <file.BIN> [sub-arg]     ; Dump ACFH binary header and tables (all, header, tables, funcs, relocs, imports)
   strdump <file.BIN>               ; Dump strings from ACFH binary rodata section
-  preproc <file.AC|file.AS>        ; Preprocess file
+  preproc <file.AC|file.AS>        ; Preprocess file to <base>.I / <base>.ASI
   info <mnemonic>                  ; Show information about a mnemonic
-  showline <AS|AC> <ctx> <start> [end] ; Show source lines around a line number
+  showline <file|AS|AC> <ctx> <start> [end] ; Show source lines around a line number
   version                          ; Show version information
   help                             ; Show this help message
 
 Flags:
   macro <name> <value>             ; Define a macro for preprocessing
-  stepoff <level>                  ; Levels: 1=After preprocessing, 2=After assembling 3=After compiling
+  stepoff <level>                  ; Levels: 1=After preprocessing, 2=After compiling (emit .AS), 3=After assembling
   verbose                          ; Verbose output
-  debug                            ; Debug output to files. (AC->AS, AS->ASD)
+  debug                            ; Debug output to files & emit source comments in .AS
   arch <architecture>              ; Specify target architecture: i386 or i286. Default=i386
   type {exe|lib} [ot|ft|it]        ; Output binary format with header and tables (offset_table/ot, function_table/ft, import_table/it)
   exe                              ; Shortcut for executable binary header output
@@ -50,7 +50,6 @@ Flags:
   org <address>                    ; Specify memory origin address for raw binaries (e.g., 0x7C00)
   entry <label>                    ; Define the entry point for executables
   warn <level>                     ; Warning level (0=none, 1=standard, 2=all, err=treat as errors)
-  debug                           ; Emit source-line comments in generated .AS for debugging
 ```
 
 ---
@@ -70,10 +69,15 @@ AC supports three comment styles:
 `;` comments are available throughout (inherited from the assembler). `//` and
 `/* */` are available in all contexts.
 
-### Identifiers and keywords
+### Identifiers, keywords, and namespaces
 
 Language is **case-insensitive**. All identifiers and keywords are normalized to
 UPPER CASE during lexing. `MyVar`, `myvar`, and `MYVAR` are the same identifier.
+
+Type names (`typedef`, `struct`, `union`, `enum`) and variable/function names
+live in **separate symbol table namespaces**, so declaring a variable with the
+same case-insensitive name as its type (`STUDENT student; STUDENT student2;`)
+works cleanly without shadowing the type.
 
 Keywords are reserved and cannot be used as identifiers:
 
@@ -84,6 +88,7 @@ Keywords are reserved and cannot be used as identifiers:
 | Literals | `TRUE`, `FALSE`, `NULLPTR` |
 | Control flow | `IF`, `ELSE`, `FOR`, `WHILE`, `DO`, `RETURN`, `BREAK`, `CONTINUE`, `SWITCH`, `CASE`, `DEFAULT`, `GOTO` |
 | Declarations | `STRUCT`, `UNION`, `ENUM`, `TYPEDEF`, `SIZEOF`, `STATIC`, `LOCAL` |
+| Section Attributes | `ATTRIB_DATA`, `ATTRIB_RODATA`, `ATTRIB_BSS` |
 | Misc | `ASM` |
 
 ### Numeric literals
@@ -206,9 +211,9 @@ U8   b = (U8)x;            // narrowing -- no runtime check
 
 | Keyword | Meaning |
 |---------|---------|
-| _(none)_ | Function-local variable (stack) or block-local |
-| `static` | **Cross-file** global -- visible across all files (opposite of C convention) |
-| `local` | **File-local** -- visible only within the defining file |
+| _(none)_ | Function-local variable (stack), block-local, or cross-file global at top level |
+| `static` | **Cross-file** global -- visible across all files (opposite of C's file-scope `static`) |
+| `local` | **File-local** -- visible only within the defining source/header file |
 
 ```c
 static U32 global_counter;   // accessible in all files
@@ -225,6 +230,7 @@ U32 main() {
 
 ### Scope rules
 
+- **File-local scope (`local`)**: Enforced across `#include` boundaries using `#line` file markers; two files may define same-named `local` globals or functions independently.
 - **Function scope**: Variables and parameters declared within a function are scoped to that function, preventing symbol collisions across functions and shadowing same-named globals. Labels (`goto label:`) are also scoped to the defining function.
 - **Block scope**: Variables declared inside `{ }` are scoped to that block (C99-style).
 - **Loop variables**: `for (U32 i = 0; ...)` -- `i` is scoped to the loop body only.
@@ -248,19 +254,31 @@ typedef struct _POINT { U32 x; U32 y; } POINT, *PPOINT;
 
 ---
 
-## Variables and storage
+## Variables, Sections, and `ATTRIB_*` Placement
 
-### Global variables
+### Global variables & `.bss` / `.data` / `.rodata`
 
-Globals are placed in `.data` (mutable) or `.rodata` (read-only). Scalar globals support compile-time constant initializers. Uninitialized globals default to **zero**. There is no `.bss` section.
+By default:
+- **Initialized** global variables and arrays are placed in `.data` (mutable).
+- **Uninitialized** global variables and arrays are placed in `.bss` (0 disk bytes; virtual addresses reserved in memory after the loaded image).
+- String literals are placed in `.rodata` (read-only).
+
+You can explicitly control section placement on any global variable or array using `ATTRIB_DATA`, `ATTRIB_RODATA`, or `ATTRIB_BSS` (in either prefix or suffix position):
 
 ```c
-U32  counter = 42;          // .data, initialized constant
-PU8  msg     = "Hello";     // .data -- pointer to .rodata string
+U32  counter = 42;                           // .data (initialized default)
+U8   page_buf[4096];                         // .bss  (uninitialized default -- 0 disk bytes!)
+PU8  msg     = "Hello";                      // .data -- pointer to .rodata string
+
+ATTRIB_RODATA U32 magic_const = 0xCAFEBABE;  // .rodata (prefix attribute)
+U32 version_tag ATTRIB_RODATA = 0x00010000;  // .rodata (suffix attribute)
+U32 zero_in_data ATTRIB_DATA;                // .data (forced into .data on disk)
+U8  scratch[1024] ATTRIB_BSS;                // .bss  (explicit .bss placement)
 ```
 
 All global variables are emitted with a `g_` prefix on their assembler symbol
-name (e.g. `counter` becomes `g_COUNTER`). This keeps globals from colliding
+name (e.g. `counter` becomes `g_COUNTER`, and file-local globals in included files
+are scoped as `f<file_id>_g_<NAME>`). This keeps globals from colliding
 with local variables, function names, or x86 register names, so a global can
 share its name with a local variable, and names such as `eax`, `dx`, or `cx`
 are valid global identifiers. Inside `asm { ... }` blocks, refer to a global
@@ -588,13 +606,14 @@ C preprocessor functionality:
 
 | Directive | Description |
 |-----------|-------------|
-| `#include "file"` | Include another file (concatenation -- no separate linking) |
+| `#include "file"` | Include another file (concatenation with `#line` markers) |
 | `#import funcs from "lib"` | Import external dynamic library functions for ACFH Import Table (`#import draw_rect, clear_screen from "graphics.lib"`) |
-| `#define NAME value` | Define object-like macro (no function-like macros) |
+| `#define NAME value` | Define object-like or function-like macro (`#define ADD(a,b) ((a)+(b))`) |
 | `#undef NAME` | Remove a macro definition |
 | `#ifdef NAME` / `#ifndef NAME` | Conditional on macro defined/undefined |
 | `#if expr` / `#elif expr` / `#else` | Conditional on preprocessor expression |
 | `#endif` | End conditional block |
+| `#line <line> "<file>"` | Override tracked source line number and filename |
 | `#error "msg"` | Emit error and halt |
 | `#warning "msg"` | Emit warning |
 
@@ -616,8 +635,9 @@ C preprocessor functionality:
 ### Multi-file compilation
 
 Multiple `.AC` files are combined via `#include`. The preprocessor concatenates
-all included files into a single preprocessed source (`/tmp/00.AC`). There is
-no separate object-linking step -- everything compiles to one `.BIN`.
+all included files into a per-target preprocessed source (`<base>.I`) and automatically
+emits `#line <line> "<file>"` markers so diagnostics and `local` file-scoped symbols
+accurately track their original source file and line number.
 
 ---
 
@@ -633,11 +653,10 @@ is enabled via `bits 16`.
 
 | Section | Content |
 |---------|---------|
-| `.data` | Mutable globals -- initialized or default-zero |
-| `.rodata` | Read-only data -- string literals, const globals |
 | `.code` | All generated instructions |
-
-There is no `.bss` section. Uninitialized globals default to zero in `.data`.
+| `.data` | Mutable initialized globals and `ATTRIB_DATA` globals |
+| `.rodata` | Read-only data -- string literals and `ATTRIB_RODATA` globals |
+| `.bss` | Uninitialized globals and `ATTRIB_BSS` globals (0 bytes on disk, virtual memory reserved after image/tables) |
 
 ### Strings
 

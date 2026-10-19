@@ -2,6 +2,32 @@
 
 All notable changes to AstraC will be documented in this file.
 
+## 2026-10-19
+
+### Preprocessor `#line` Source Tracking & Per-Target Temporary Files
+- Implemented automatic `#line <line> "<file>"` marker emission in `SHARED/PREPROCESS.c` across file entry, `#include` enter/return boundaries, and multi-line comments/skipped conditional blocks (`READ_LOGICAL_LINE_CNT`).
+- Added explicit `#line <line> ["file"]` directive support (`IDENT_LINE`) in `SHARED/PREPROCESS.c`, `COMPILER/LEX.c`, and `ASSEMBLER/LEXER.c` so compiler and assembler diagnostics accurately report original source files and line numbers instead of preprocessed temporary paths.
+- Replaced hardcoded global `/TMP/00.AC` and `/TMP/00.AS` temporary files with per-target `<base>.I` (AC compiler) and `<base>.ASI` (assembler) files to eliminate race conditions during parallel builds, automatically cleaning them up unless `stepoff 1`, `preproc`, or `debug` is specified.
+
+### `.bss` Section Support & `ATTRIB_DATA` / `ATTRIB_RODATA` / `ATTRIB_BSS` Variable Attributes
+- Added `ATTRIB_DATA`, `ATTRIB_RODATA`, and `ATTRIB_BSS` variable placement attributes to `STDLIB/TYPEDEF.h`, `COMPILER/COMPILER.h`, `COMPILER/LEX.c`, `COMPILER/PARSER.c`, and `COMPILER/GEN.c` (supported in both prefix and suffix positions on global variables and arrays).
+- Defaulted uninitialized AC global variables and arrays to `.bss` (`SYM_SEC_BSS`) and initialized globals to `.data` (`SYM_SEC_DATA`), while honoring explicit `ATTRIB_DATA`, `ATTRIB_RODATA`, and `ATTRIB_BSS` overrides.
+- Implemented `.bss` (`DIR_BSS`) section directive in `ASSEMBLER/LEXER.c`, `ASSEMBLER/AST.c`, `ASSEMBLER/VERIFY_AST.c`, and `ASSEMBLER/GEN.c` with **0 disk bytes** emitted. Computed ACFH table byte sizes (`COMPUTE_ACFH_TABLE_BYTES`) after Pass 1 so `.bss` virtual addresses sit after all trailing ACFH tables (`h.bss_offset` = end of file on disk, `h.bss_size = ptrs.bss`) for flat in-place OS loaders.
+
+### Cross-File `local` Scoping & Separate Type vs. Variable/Function Namespaces
+- Enforced file-private `local` visibility across `#include` files in `COMPILER/PARSER.c`, `COMPILER/VERIFY_AST.c`, and `COMPILER/GEN.c` using `#line`-derived `file_id`s, and scoped assembly labels (`SYM_ASM_NAME` -> `f<file_id>_<name>`) so multiple files can define same-named `local` globals or functions without assembler collisions.
+- Separated type symbols (`SYM_STRUCT`, `SYM_UNION`, `SYM_ENUM`, `SYM_TYPEDEF`) from variable/function symbols (`SYM_VARIABLE`, `SYM_FUNCTION`, `SYM_ENUM_VAL`) via dedicated `SYM_LOOKUP_TYPE` / `V_FIND_TYPE_SYM` / `FIND_TYPE_SYM` lookups so case-insensitive declarations like `STUDENT student; STUDENT student2;` never shadow or overwrite the type definition.
+
+### ACFH-Aware Disassembler (`disasm`) & Symbol/Import Annotation
+- Upgraded `DISSASEMBLER/DISMAIN.c` to automatically detect `"ACFH"` headers at byte 0, skip the 112-byte header, and disassemble only the `.code` section (`code_offset..code_offset+code_size`).
+- Added automatic symbol resolution in `disasm` using the ACFH Function Export Table (`ft`) and Import Table (`it`): emits `<func>:` headers before function entry points and annotates relative `CALL`/`JMP` instructions with `<func>` or `<lib::func>`.
+
+### Dynamic `AC_ReAlloc` Table Growth & CLI Improvements
+- Replaced fixed-capacity arrays across `COMPILER/` (`SYM_TABLE`, `rodata_strings`, `imports`, `files`) and `ASSEMBLER/` (`ASM_TOK_ARRAY`, `ASM_AST_ARRAY`, `LABEL_TABLE`, `ASM_PTR_ARRAY`, `ASM_IMPORT_TABLE`) with dynamically growing `AC_ReAlloc` buffers.
+- Wired `preproc <file.AC|file.AS>` in `MAIN.c` to execute `PREPROCESS_ASM` / `PREPROCESS_C` and output `<base>.I` / `<base>.ASI`.
+- Enhanced `showline <file|AS|AC> <ctx> <start> [end]` in `MAIN.c` to accept arbitrary source file paths in addition to legacy `AS`/`AC` aliases.
+- Fixed CLI help output in `MAIN.c` (`stepoff` stage order description and duplicate `debug` line) and added compiler test suite `TESTS/COMPILER/15_toolchain_improvements.ac` (15/15 tests passing).
+
 ## 2026-10-12
 
 ### ACFH Header & Binary Code Section Offset Alignment

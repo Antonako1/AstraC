@@ -73,17 +73,18 @@ Section and mode directives are prefixed with a dot (`.`):
 |-----------|-------------|
 | `.data` | Switch to the **mutable data** section |
 | `.rodata` | Switch to the **read-only data** section |
+| `.bss` | Switch to the **uninitialized data** section (0 bytes on disk; virtual addresses reserved after loaded image/tables) |
 | `.code` | Switch to the **code** (text) section |
 | `.use32` | Set **32-bit** code mode (protected mode default) |
 | `.use16` | Set **16-bit** code mode (real mode) |
 | `.org ADDR` | Set the **origin address** (base offset for label calculations) |
-| `.times N db V` | Fill **N** bytes with value **V** (supports `$` and `$$` in expressions) |
+| `.times N db V` | Fill **N** bytes with value **V** (supports `$` and `$$` in expressions; in `.bss`, advances `.bss` size by **N** bytes without writing disk bytes) |
 | `.import "lib.lib" FUNCS` | Register external dynamic library function imports for ACFH binaries |
 
 ### Section Model
 
-- **`.data`** and **`.rodata`** sections contain only data variable declarations
-  (`DB`, `DW`, `DD`)
+- **`.data`** and **`.rodata`** sections contain initialized data variable declarations (`DB`, `DW`, `DD`, `REAL4`) and `.times` fills emitted to disk
+- **`.bss`** section contains uninitialized variable declarations and `.times` reservations that advance virtual `.bss` addresses without emitting any bytes to disk
 - **`.code`** sections contain labels, instructions, and raw numeric literals
 - `.use16` / `.use32` change the operand-size default but do not switch sections
 
@@ -148,12 +149,9 @@ strncmp:
 `@f` and `@b` also respect scoping — they resolve to the nearest local
 label within the current global scope.
 
-### Label Limits
+### Label Capacity
 
-- Verification pass: up to **512** labels
-- Code generation: up to **1024** labels
-
-Duplicate label names produce an error.
+Label, AST, token, relocation, and import tables grow **dynamically** via `AC_ReAlloc` with no fixed compile-time limit. Duplicate label names within the same scope produce an error.
 
 ---
 

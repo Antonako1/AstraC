@@ -22,6 +22,8 @@ CMakeFiles/
 *.BIN
 *.DSM
 *.ASD
+*.I
+*.ASI
 # /TESTS
 # Generated compiler output from .AC sources
 TESTS/KERNEL/KERNEL.AS

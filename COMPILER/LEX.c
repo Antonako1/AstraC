@@ -38,8 +38,36 @@ STATIC const COMP_KW_MAP kw_map[] = {
     {CTOK_KW_STATIC, "STATIC"}, {CTOK_KW_LOCAL, "LOCAL"},
     {CTOK_KW_TYPEDEF, "TYPEDEF"}, {CTOK_KW_VOID, "VOID"},
     {CTOK_KW_IMPORT, "IMPORT"},
+    {CTOK_KW_ATTRIB_DATA, "ATTRIB_DATA"},
+    {CTOK_KW_ATTRIB_RODATA, "ATTRIB_RODATA"},
+    {CTOK_KW_ATTRIB_BSS, "ATTRIB_BSS"},
     {CTOK_EOF, NULLPTR}
 };
+
+STATIC U32 lex_cur_file_id ATTRIB_DATA = 1;
+
+U32 COMP_INTERN_FILE(PCOMP_CTX ctx, PU8 path) {
+    if (!ctx || !path || !*path) return 1;
+    for (U32 i = 0; i < ctx->file_count; i++) {
+        if (ctx->files[i] && AC_STRICMP(ctx->files[i], path) == 0)
+            return i + 1;
+    }
+    if (ctx->file_count >= ctx->file_cap) {
+        U32 ncap = ctx->file_cap ? ctx->file_cap * 2 : 16;
+        PU8 *nf = (PU8 *)AC_ReAlloc(ctx->files, ncap * sizeof(PU8));
+        if (!nf) return 1;
+        ctx->files = nf;
+        ctx->file_cap = ncap;
+    }
+    ctx->files[ctx->file_count++] = AC_STRDUP(path);
+    return ctx->file_count;
+}
+
+PU8 COMP_GET_FILE(PCOMP_CTX ctx, U32 file_id) {
+    if (!ctx || file_id == 0 || file_id > ctx->file_count || !ctx->files)
+        return (PU8)"<input>";
+    return ctx->files[file_id - 1];
+}
 
 STATIC COMP_TOK_TYPE COMP_KW_LOOKUP(PU8 s) {
     for (U32 i = 0; kw_map[i].kw_str; i++)
@@ -51,9 +79,10 @@ STATIC PCOMP_TOK TOK_NEW(COMP_TOK_TYPE type, PU8 txt, U32 line, U32 col) {
     PCOMP_TOK t = (PCOMP_TOK)AC_MAlloc(sizeof(COMP_TOK));
     if (!t) return NULLPTR;
     AC_MEMZERO(t, sizeof(COMP_TOK));
-    t->type = type;
-    t->line = line;
-    t->col  = col;
+    t->type    = type;
+    t->line    = line;
+    t->col     = col;
+    t->file_id = lex_cur_file_id;
     if (txt) { t->txt = AC_STRDUP(txt); }
     return t;
 }
@@ -103,6 +132,7 @@ PCOMP_TOK_ARRAY COMP_LEX(PCOMP_CTX ctx) {
     PU8 src = ctx->tmp_src;
     U32 line = 1, col = 1;
     BOOL saw_asm = FALSE;
+    lex_cur_file_id = 1;
 
     while (*src) {
         U8 c = (U8)*src;
@@ -112,7 +142,7 @@ PCOMP_TOK_ARRAY COMP_LEX(PCOMP_CTX ctx) {
         if (c == '\r') { src++; col = 1; continue; }
         if (c == '\n') { src++; line++; col = 1; continue; }
 
-        /* Directives starting with # (e.g. #import) */
+        /* Directives starting with # (e.g. #import, #line) */
         if (c == '#') {
             U32 sl = line, sc = col;
             src++; col++;
@@ -122,6 +152,31 @@ PCOMP_TOK_ARRAY COMP_LEX(PCOMP_CTX ctx) {
             }
             buf[i] = '\0';
             STR_UPPER(buf);
+            if (AC_STRCMP(buf, "LINE") == 0) {
+                while (*src == ' ' || *src == '\t') { src++; col++; }
+                U32 new_line = 0;
+                while (*src >= '0' && *src <= '9') {
+                    new_line = new_line * 10 + (U32)(*src - '0');
+                    src++; col++;
+                }
+                while (*src == ' ' || *src == '\t') { src++; col++; }
+                if (*src == '"') {
+                    src++; col++;
+                    U8 fname[512]; U32 fi = 0;
+                    while (*src && *src != '"' && *src != '\n' && *src != '\r' && fi < sizeof(fname) - 1) {
+                        fname[fi++] = (U8)*src;
+                        src++; col++;
+                    }
+                    fname[fi] = '\0';
+                    if (*src == '"') { src++; col++; }
+                    lex_cur_file_id = COMP_INTERN_FILE(ctx, fname);
+                }
+                while (*src && *src != '\n') src++;
+                if (*src == '\n') src++;
+                if (new_line > 0) line = new_line;
+                col = 1;
+                continue;
+            }
             if (AC_STRCMP(buf, "IMPORT") == 0) {
                 TOK_ARR_APPEND(arr, TOK_NEW(CTOK_KW_IMPORT, "IMPORT", sl, sc));
                 continue;
@@ -317,6 +372,18 @@ single_char:
                     U32 ai = 0;
                     U32 depth = 1;
                     while (*src && depth > 0 && ai < 4094) {
+                        if (col == 1 && src[0] == '#' && src[1] == 'l' && src[2] == 'i'
+                            && src[3] == 'n' && src[4] == 'e' && (src[5] == ' ' || src[5] == '\t')) {
+                            src += 6;
+                            while (*src == ' ' || *src == '\t') src++;
+                            U32 nl = 0;
+                            while (*src >= '0' && *src <= '9') { nl = nl * 10 + (U32)(*src - '0'); src++; }
+                            while (*src && *src != '\n') src++;
+                            if (*src == '\n') src++;
+                            if (nl > 0) line = nl;
+                            col = 1;
+                            continue;
+                        }
                         if (*src == '{') depth++;
                         else if (*src == '}') { depth--; if (depth == 0) break; }
                         if (*src == '\n') { asm_buf[ai++] = '\n'; line++; col = 1; src++; continue; }

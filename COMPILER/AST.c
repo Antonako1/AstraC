@@ -35,6 +35,8 @@ STATIC COMP_TYPE COMP_BASE_TO_TYPE(COMP_BASE_TYPE base, U32 ptr_depth, PU8 name)
     return t;
 }
 
+U32 comp_cur_file_id = 1;
+
 PCNODE CNODE_NEW(CNODE_TYPE ntype, U32 line, U32 col) {
     PCNODE n = (PCNODE)AC_MAlloc(sizeof(CNODE));
     if (!n) return NULLPTR;
@@ -42,6 +44,7 @@ PCNODE CNODE_NEW(CNODE_TYPE ntype, U32 line, U32 col) {
     n->ntype       = ntype;
     n->line        = line;
     n->col         = col;
+    n->file_id     = comp_cur_file_id;
     n->dtype.base  = CTYPE_NONE;
     n->children    = NULLPTR;
     n->child_count = 0;

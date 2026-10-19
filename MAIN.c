@@ -25,11 +25,14 @@ ASTRAC_ARGS *GET_ARGS() { return &args; }
  * Output format: "{line number} : {content}".
  */
 STATIC ASTRAC_RESULT START_SHOWLINE() {
-    #ifdef _WIN32
-    PU8 path = args.showline_is_ac ? (PU8)"C:\\TMP\\00.AC" : (PU8)"C:\\TMP\\00.AS";
-    #else
-    PU8 path = args.showline_is_ac ? (PU8)"/tmp/00.AC" : (PU8)"/tmp/00.AS";
-    #endif
+    PU8 path = args.showline_file;
+    if (!path) {
+        #ifdef _WIN32
+        path = args.showline_is_ac ? (PU8)"C:\\TMP\\00.AC" : (PU8)"C:\\TMP\\00.AS";
+        #else
+        path = args.showline_is_ac ? (PU8)"/tmp/00.AC" : (PU8)"/tmp/00.AS";
+        #endif
+    }
 
     FILE *f = AC_FOPEN(path, MODE_R | MODE_FAT32);
     if (!f) {
@@ -73,15 +76,15 @@ VOID PRINT_HELP() {
             "  strdump <file.BIN>               ; Dump strings from ACFH binary rodata section\n"
             "  preproc <file.AC|file.AS>        ; Preprocess file\n"
             "  info <mnemonic>                  ; Show information about a mnemonic\n"
-            "  showline <AS|AC> <ctx> <start> [end] ; Show source lines around a line number\n"
+            "  showline <file|AS|AC> <ctx> <start> [end] ; Show source lines around a line number\n"
             "  version / -v / --version         ; Show version information\n"
             "  help / -h / --help               ; Show this help message\n\n"
         
         "Flags:\n"
             "  macro <name> <value>             ; Define a macro for preprocessing\n"
-            "  stepoff <level>                  ; Levels: 1=After preprocessing, 2=After assembling 3=After compiling\n"
+            "  stepoff <level>                  ; Levels: 1=After preprocessing, 2=After compiling (emit .AS), 3=After assembling\n"
             "  verbose                          ; Verbose output (lists symbols & table contents)\n"
-            "  debug                            ; Debug output to files. (AC->AS, AS->ASD)\n"
+            "  debug                            ; Debug output to files (AC->AS with source comments, AS->ASD)\n"
             "  arch <architecture>              ; Specify target architecture: i386 or i286. Default=i386\n"
             "  type <exe|lib> [tables...]       ; Binary output format (exe/lib) with optional tables (offset_table|ot, function_table|ft, import_table|it)\n"
             "  exe                              ; Specify to output a binary file with an executable ACFH header\n"
@@ -93,7 +96,6 @@ VOID PRINT_HELP() {
             "  org <address>                    ; Specify memory origin address for raw binaries (e.g., 0x7C00)\n"
             "  entry <label>                    ; Define the entry point for executables\n"
             "  warn <level>                     ; Warning level (0=none, 1=standard, 2=all, err=treat as errors)\n"
-            "  debug                            ; Emit source-line comments in generated .AS for debugging\n"
     );
 }
 
@@ -110,7 +112,20 @@ ASTRAC_RESULT START_WORKLOAD() {
         case BUILD_TYPE_DISASSEMBLE:    return START_DISSASEMBLER();
         case BUILD_TYPE_OBJDUMP:        return START_OBJDUMP();
         case BUILD_TYPE_STRDUMP:        return START_STRDUMP();
-        case BUILD_TYPE_PREPROCESS_ONLY: return ASTRAC_OK;
+        case BUILD_TYPE_PREPROCESS_ONLY: {
+            PU8 dot = AC_STRRCHR(args.input_file, '.');
+            BOOL is_asm = (dot && (AC_STRICMP(dot, ".AS") == 0 || AC_STRICMP(dot, ".ASM") == 0));
+            PASM_INFO info = is_asm ? PREPROCESS_ASM() : PREPROCESS_C();
+            if (!info || info->tmp_file_count == 0) {
+                DESTROY_ASM_INFO(info);
+                return ASTRAC_ERR_PREPROCESS;
+            }
+            if (args.verbose && info->tmp_files[0]) {
+                AC_PRINTF("[PREPROC] Preprocessed output written to '%s'\n", info->tmp_files[0]);
+            }
+            DESTROY_ASM_INFO(info);
+            return ASTRAC_OK;
+        }
         case BUILD_TYPE_COMPILE:       return (ASTRAC_RESULT)START_COMPILER();
         case BUILD_TYPE_ASSEMBLE:       return START_ASSEMBLING();
         default:
@@ -205,15 +220,14 @@ U32 main(U32 argc, PPU8 argv) {
         else if(ARG_CMP1("showline")) {
             args.build_type = BUILD_TYPE_SHOWLINE;
             if (i + 3 >= argc) {
-                AC_PRINTF_ERR("[ASTRAC] Error: showline requires: {AS|AC} {context} {start line} [end line]\n");
+                AC_PRINTF_ERR("[ASTRAC] Error: showline requires: {file|AS|AC} {context} {start line} [end line]\n");
                 return ASTRAC_ERR_ARGS;
             }
             PU8 kind = argv[++i];
-            if (AC_STRICMP(kind, "AC") == 0)      args.showline_is_ac = TRUE;
-            else if (AC_STRICMP(kind, "AS") == 0) args.showline_is_ac = FALSE;
+            if (AC_STRICMP(kind, "AC") == 0)      { args.showline_is_ac = TRUE;  args.showline_file = NULLPTR; }
+            else if (AC_STRICMP(kind, "AS") == 0) { args.showline_is_ac = FALSE; args.showline_file = NULLPTR; }
             else {
-                AC_PRINTF_ERR("[ASTRAC] Error: showline file kind must be 'AS' or 'AC' (got '%s').\n", kind);
-                return ASTRAC_ERR_ARGS;
+                args.showline_file = kind;
             }
             PU8 ctx_str = argv[++i];
             if (!AC_ATOI_E(ctx_str, &args.showline_ctx)) {

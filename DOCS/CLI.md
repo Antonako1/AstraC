@@ -33,10 +33,11 @@ AstraC comp app.AC type exe offset_table,function_table,import_table
 ```
 
 ### 3. `disasm <file.BIN>`
-Disassembles an x86 binary file (`.BIN`) into a human-readable assembly listing (`.DSM`).
+Disassembles an x86 binary file (`.BIN`) into a human-readable assembly listing (`.DSM`). Automatically detects ACFH headers (`"ACFH"` magic at byte 0), disassembles only the `.code` section, and annotates functions and dynamic imports using the Function Export Table (`ft`) and Import Table (`it`).
 
 ```sh
 AstraC disasm kernel.BIN bits 32 org 0x100000
+AstraC disasm app.BIN
 ```
 
 ### 4. `objdump <file.BIN> [sub-arg]`
@@ -44,7 +45,7 @@ Inspects and dumps ACFH binary header fields, relocation tables, function export
 
 Sub-arguments:
 - `all`: Dumps header info and all present tables (relocations, function export table, import table).
-- `header` / `hdr`: Dumps only the 108-byte `AC_FILE_HEADER` metadata.
+- `header` / `hdr`: Dumps only the 112-byte `AC_FILE_HEADER` metadata.
 - `tables` / `tbl`: Dumps overview of present tables.
 - `funcs` / `ft` / `function_table`: Dumps exported function table symbols and addresses.
 - `relocs` / `rel` / `offset_table`: Dumps relocation offset table entries.
@@ -65,10 +66,11 @@ AstraC strdump app.BIN
 ```
 
 ### 6. `preproc <file.AC|file.AS>`
-Runs the preprocessor pass on a source file and outputs the preprocessed temporary file (`00.AC` or `00.AS`).
+Runs the preprocessor pass on an `.AC` or `.AS` source file and outputs the per-target preprocessed file (`<base>.I` for AC or `<base>.ASI` for AS) with `#line` markers preserved.
 
 ```sh
 AstraC preproc main.AC macro DEBUG 1
+AstraC preproc boot.AS
 ```
 
 ### 7. `info <mnemonic>`
@@ -79,11 +81,11 @@ AstraC info mov
 AstraC info pusha
 ```
 
-### 8. `showline <AS|AC> <ctx> <start> [end]`
-Displays source lines from an assembly (`AS`) or AC compiler (`AC`) file centered around line numbers with line previews and context padding.
+### 8. `showline <file|AS|AC> <ctx> <start> [end]`
+Displays source lines from any specified source file path (or legacy `AS` / `AC` aliases) centered around `<start>` (or `<start>..<end>`) with `<ctx>` lines of context padding.
 
 ```sh
-AstraC showline AC 3 45 55
+AstraC showline src/main.AC 3 45 55
 ```
 
 ### 9. `version`

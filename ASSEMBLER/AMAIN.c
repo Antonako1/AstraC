@@ -21,12 +21,15 @@ VOID DESTROY_ASM_INFO(PASM_INFO info) {
 
 VOID DESTROY_TOK_ARR(ASM_TOK_ARRAY *toks) {
     if (!toks) return;
-    for (U32 i = 0; i < toks->len; i++) {
-        PASM_TOK tok = toks->toks[i];
-        if (tok) {
-            if (tok->txt) AC_MFree(tok->txt);
-            AC_MFree(tok);
+    if (toks->toks) {
+        for (U32 i = 0; i < toks->len; i++) {
+            PASM_TOK tok = toks->toks[i];
+            if (tok) {
+                if (tok->txt) AC_MFree(tok->txt);
+                AC_MFree(tok);
+            }
         }
+        AC_MFree(toks->toks);
     }
     AC_MFree(toks);
 }
@@ -60,6 +63,12 @@ ASTRAC_RESULT START_ASSEMBLING() {
         AC_PRINTF("[AS] Preprocessing failed.\n");
         result = ASTRAC_ERR_PREPROCESS;
         goto cleanup;
+    }
+
+    if (cfg->stepoff_level == 1 || cfg->build_type == BUILD_TYPE_PREPROCESS_ONLY) {
+        if (cfg->verbose) AC_PRINTF("[AS] Stopping after Stage 1 (stepoff=1).\n");
+        DESTROY_ASM_INFO(info);
+        return ASTRAC_OK;
     }
 
     if (cfg->verbose) AC_PRINTF("[AS] Stage 2/6: Lexing...\n");
@@ -102,6 +111,12 @@ ASTRAC_RESULT START_ASSEMBLING() {
     }
     
 cleanup:
+    if (info && !cfg->debug) {
+        for (U32 i = 0; i < info->tmp_file_count; i++) {
+            if (info->tmp_files[i] && AC_FILE_EXISTS(info->tmp_files[i]))
+                AC_FILE_DELETE(info->tmp_files[i]);
+        }
+    }
     DESTROY_AST_ARR(ast_arr);
     DESTROY_TOK_ARR(tok_arr);
     DESTROY_ASM_INFO(info);

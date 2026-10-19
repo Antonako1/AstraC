@@ -1,14 +1,15 @@
 # AstraC Disassembler
 
-The AstraC disassembler converts raw x86 binary files into human-readable
-assembly listings. It performs linear-sweep disassembly in both 16-bit and
-32-bit x86 modes.
+The AstraC disassembler converts raw x86 binary files and ACFH executables/libraries
+into human-readable assembly listings. It performs linear-sweep disassembly in both
+16-bit and 32-bit x86 modes, and automatically detects ACFH headers to disassemble
+only the `.code` section while annotating function symbols and dynamic library imports.
 
 ## Quick start
 
 ```sh
 AstraC.exe disasm file.BIN
-AstraC.exe disasm file.BIN bits 16 org 7C00 verbose
+AstraC.exe disasm file.BIN bits 16 org 0x7C00 verbose
 ```
 
 ## CLI reference
@@ -20,47 +21,49 @@ Options:
   asm <file.AS>                    ; Assemble input file
   comp <file.AC>                   ; Compile input file
   disasm <file.BIN>                ; Disassemble input file
-  objdump <file.BIN>               ; Dump ACFH binary header and tables
+  objdump <file.BIN> [sub-arg]     ; Dump ACFH binary header and tables (all, header, tables, funcs, relocs, imports)
   strdump <file.BIN>               ; Dump strings from ACFH binary rodata section
-  preproc <file.AC|file.AS>        ; Preprocess file
+  preproc <file.AC|file.AS>        ; Preprocess file to <base>.I / <base>.ASI
   info <mnemonic>                  ; Show information about a mnemonic
-  showline <AS|AC> <ctx> <start> [end] ; Show source lines around a line number
+  showline <file|AS|AC> <ctx> <start> [end] ; Show source lines around a line number
   version                          ; Show version information
   help                             ; Show this help message
 
 Flags:
   macro <name> <value>             ; Define a macro for preprocessing
-  stepoff <level>                  ; Levels: 1=After preprocessing, 2=After assembling 3=After compiling
+  stepoff <level>                  ; Levels: 1=After preprocessing, 2=After compiling (emit .AS), 3=After assembling
   verbose                          ; Verbose output
-  debug                            ; Debug output to files. (AC->AS, AS->ASD)
+  debug                            ; Debug output to files & emit source comments in .AS
   arch <architecture>              ; Specify target architecture: i386 or i286. Default=i386
-  exe                              ; Specify to output a binary file with a simple header. Off by default.
-  lib                              ; Specify to output a binary file with a simple header. Off by default.
+  type {exe|lib} [ot|ft|it]        ; Output binary format with header and tables (offset_table/ot, function_table/ft, import_table/it)
+  exe                              ; Shortcut for executable binary header output
+  lib                              ; Shortcut for library binary header output
   bits <16|32>                     ; Force 16-bit or 32-bit instruction encoding
   org <address>                    ; Specify memory origin address for raw binaries (e.g., 0x7C00)
   entry <label>                    ; Define the entry point for executables
   warn <level>                     ; Warning level (0=none, 1=standard, 2=all, err=treat as errors)
-  debug                           ; Emit source-line comments in generated .AS for debugging
 ```
 
 - `bits 16` interprets the binary as 16-bit code (real mode, 16-bit addressing).
 - `bits 32` interprets the binary as 32-bit code (protected mode, 32-bit addressing).
-- `org` adds a constant offset to all displayed addresses. Use `org 7C00` for
-  bootloader binaries loaded at the classic 0x7C00 segment. The value must be
-  a hexadecimal number **without** the `0x` prefix.
+- `org` adds a constant offset to all displayed addresses. Use `org 0x7C00` (or `org 7C00`) for
+  bootloader binaries loaded at the classic 0x7C00 segment.
 
 Output is written to `<input>`.DSM by default (e.g. `MAIN.BIN` → `MAIN.DSM`).
 
 ## How it works
 
-The disassembler uses **linear-sweep disassembly** — it walks the binary from
-start to end, decoding each instruction sequentially without following control
-flow. No symbol table or relocation information is consumed; all addresses and
-immediates are rendered as hex constants.
+The disassembler uses **linear-sweep disassembly** — it walks the code stream from
+start to end, decoding each instruction sequentially.
+
+When an **ACFH binary** is passed (`magic == "ACFH"` at byte 0):
+- The disassembler automatically skips the 112-byte (`0x70`) header and disassembles only the `.code` section (`code_offset..code_offset+code_size`), avoiding decoding `.data`, `.rodata`, or trailing tables as instructions.
+- If a **Function Export Table (`ft`)** is present, function headers (`0000002A <MAIN>:`) are emitted before each function's entry point, and relative `CALL`/`JMP` instructions targeting known functions are annotated (`call 0x00000012 <HELPER_PUBLIC_FN>`).
+- If an **Import Table (`it`)** is present, `CALL` instructions whose displacement field matches an `AC_IMPORT_ENTRY.patch_offset` are annotated with `<lib::func>` (`call 0x00000000 <libc.lib::MALLOC>`).
 
 ### Pipeline
 
-1. **Read** — The entire binary is loaded into memory.
+1. **Read & ACFH Check** — The binary is loaded into memory and checked for the `"ACFH"` header magic.
 2. **Prefix scan** — Legacy prefixes (`66h`, `F2h`, `F3h`) and the address-size
    override (`67h`) are consumed before each instruction.
 3. **Opcode lookup** — The mnemonic table (shared with the assembler) is searched
@@ -68,7 +71,7 @@ immediates are rendered as hex constants.
 4. **Operand decode** — ModRM, SIB, displacement, and immediate bytes are
    consumed according to the matched table entry. Register names and addressing
    modes adapt to the selected `bits` mode.
-5. **Format & emit** — One line per instruction in a fixed-layout hex dump.
+5. **Format & emit** — One line per instruction in a fixed-layout hex dump, with symbol and import annotations when ACFH tables are present.
 
 ### 16-bit vs 32-bit mode
 
@@ -105,29 +108,30 @@ OOOOOOOO  HH HH HH HH HH HH HH HH  HH HH HH HH HH HH HH HH  MNEMONIC OPS     |AS
 |-------|-------|-------------|
 | Offset | 8 hex digits | Address in the binary (`org` offset applied) |
 | Hex dump | 16 bytes (48 chars) | Raw bytes of the instruction, padded with spaces |
-| Disassembly | 32 chars (left-aligned) | Decoded mnemonic and operands |
+| Disassembly | 32 chars (left-aligned) | Decoded mnemonic, operands, and `<symbol>` / `<lib::func>` annotations |
 | ASCII | 16 chars | Printable representation (`.` for non-printable) |
 
 Unrecognised opcode bytes are emitted as `db 0xNN`.
 
-### Example
+### Example (ACFH Binary with Function & Import Tables)
 
 ```
-00007C00  55                                               push ebp                         |U|
-00007C01  89 E5                                            mov ebp, esp                     |..|
-00007C03  B8 01 00 00 00                                   mov eax, 0x00000001              |.....|
-00007C08  74 05                                            jz 0x00007C0F                    |t.|
-00007C0A  55 AA                                            db 0x55                          |U.|
+; ACFH Binary (.code offset=0x70, size=189 bytes, entry=0x5)
+00000000  E9 00 00 00 00                                   jmp 0x00000005 <MAIN>            |.....|
+
+00000005 <MAIN>:
+00000005  55                                               push ebp                         |U|
+00000006  89 E5                                            mov ebp, esp                     |..|
+00000008  83 EC 08                                         sub esp, 0x08                    |...|
+0000003F  B8 00 04 00 00                                   mov eax, 0x00000400              |.....|
+00000044  50                                               push eax                         |P|
+00000045  E8 B6 FF FF FF                                   call 0x00000000 <libc.lib::MALLOC> |.....|
 ```
 
 ## Known limitations
 
-- **Linear sweep** — The disassembler does not follow control flow, so data
-  embedded in code sections is decoded as instructions.
-- **No symbol resolution** — Labels and variable names are not recovered.
-- **No disassembly of data sections** — The binary is treated as a flat code
-  stream. The separate `.data` and `.rodata` sections from the assembler
-  appear at the start of the binary and will be decoded as instructions.
+- **Linear sweep within `.code`** — Data embedded directly inside `.code` is decoded as instructions.
+- **Raw binaries without ACFH header** — For flat raw binaries (compiled without `exe`/`lib`), no section boundaries or symbol tables exist, so the entire file is decoded as a flat instruction stream.
 
 ## Return codes
 

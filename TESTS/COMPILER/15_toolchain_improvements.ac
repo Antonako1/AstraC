@@ -1,0 +1,51 @@
+// 15_toolchain_improvements.ac
+// Tests:
+// 1. Type vs Variable namespace separation (STUDENT student; STUDENT student2;)
+// 2. ATTRIB_DATA, ATTRIB_RODATA, ATTRIB_BSS (prefix & suffix) and default .bss
+// 3. 0-disk-byte .bss section sizing for large uninitialized arrays
+// 4. Negative global constant initializers
+// 5. File-local ('local') vs global ('static') scoping across #include boundaries
+
+#include "15_included_helper.h"
+
+// Same name as 'local' variable in 15_included_helper.h — must not collide
+local U32 file_private_val = 50;
+
+// 1. Type vs variable namespace separation
+typedef struct {
+    U32 id;
+    U32 score;
+} STUDENT;
+
+// Global variables using type name in lowercase (uppercased by lexer to STUDENT)
+STUDENT student;
+STUDENT student2;
+
+// 2. Section placement attributes & default .bss
+U8 large_bss_buffer[4096];                     // default -> .bss (4096 bytes in RAM, 0 bytes on disk)
+ATTRIB_BSS U32 explicit_bss_prefix;            // prefix ATTRIB_BSS -> .bss
+U32 explicit_bss_suffix ATTRIB_BSS;            // suffix ATTRIB_BSS -> .bss
+U32 uninit_forced_data ATTRIB_DATA;            // suffix ATTRIB_DATA -> .data
+ATTRIB_DATA U32 init_data_prefix = 0x11223344; // prefix ATTRIB_DATA -> .data
+ATTRIB_RODATA U32 rodata_const1 = 0xCAFEBABE;  // prefix ATTRIB_RODATA -> .rodata
+U32 rodata_const2 ATTRIB_RODATA = 0xDEADBEEF;  // suffix ATTRIB_RODATA -> .rodata
+I32 neg_global_init = -42;                     // negative constant initializer -> .data
+
+U32 main(VOID) {
+    // Local variables named after their typedefs
+    STUDENT s_local;
+    s_local.id = 1;
+    s_local.score = 95;
+
+    student.id = s_local.id;
+    student2.score = s_local.score;
+
+    explicit_bss_prefix = student.id;
+    explicit_bss_suffix = student2.score;
+    uninit_forced_data  = rodata_const1 + rodata_const2;
+    large_bss_buffer[0] = 0xAA;
+    large_bss_buffer[4095] = 0x55;
+
+    U32 from_header = helper_public_fn();
+    return from_header + file_private_val + explicit_bss_prefix + explicit_bss_suffix + (U32)neg_global_init;
+}

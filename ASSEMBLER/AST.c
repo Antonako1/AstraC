@@ -403,7 +403,14 @@ STATIC PASM_NODE ALLOC_NODE(ASM_NODE_TYPE type, PASM_TOK tok) {
 }
 
 STATIC BOOL PUSH_NODE(ASM_AST_ARRAY *arr, PASM_NODE node) {
-    if (!node || arr->len >= MAX_NODES) return FALSE;
+    if (!node) return FALSE;
+    if (arr->len >= arr->cap) {
+        U32 new_cap = (arr->cap == 0) ? 512 : arr->cap * 2;
+        PASM_NODE *new_nodes = (PASM_NODE *)AC_ReAlloc(arr->nodes, new_cap * sizeof(PASM_NODE));
+        if (!new_nodes) return FALSE;
+        arr->nodes = new_nodes;
+        arr->cap   = new_cap;
+    }
     arr->nodes[arr->len++] = node;
     return TRUE;
 }
@@ -436,9 +443,10 @@ STATIC PASM_NODE PARSE_SECTION(TOK_CURSOR *cur) {
         return n;
     }
 
-    /* ── .data / .rodata / .code  (optional type keyword) ─────────────── */
+    /* ── .data / .rodata / .bss / .code  (optional type keyword) ──────── */
     if (dir_tok->directive == DIR_DATA ||
         dir_tok->directive == DIR_RODATA ||
+        dir_tok->directive == DIR_BSS ||
         dir_tok->directive == DIR_CODE
     ) {
         /* consume optional type keyword (e.g. DWORD, BYTE …) */
@@ -1481,5 +1489,6 @@ VOID DESTROY_AST_ARR(ASM_AST_ARRAY *ast) {
         AC_MFree(n);
     }
 
+    if (ast->nodes) AC_MFree(ast->nodes);
     AC_MFree(ast);
 }

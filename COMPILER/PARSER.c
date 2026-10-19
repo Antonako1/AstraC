@@ -15,13 +15,40 @@ STATIC PU8            parse_cur_func;
 
 /* ── Helpers ──────────────────────────────────────────────────────────────── */
 STATIC PCOMP_TOK PEEK_PREV()  { return (pos > toks->len) ? toks->toks[pos-1] : NULLPTR; }
-STATIC PCOMP_TOK PEEK()  { return (pos < toks->len) ? toks->toks[pos] : NULLPTR; }
-STATIC PCOMP_TOK ADV()   { return (pos < toks->len) ? toks->toks[pos++] : NULLPTR; }
+STATIC PCOMP_TOK PEEK() {
+    if (pos < toks->len) {
+        PCOMP_TOK tk = toks->toks[pos];
+        if (tk && tk->file_id) {
+            comp_cur_file_id = tk->file_id;
+            if (ctx) ctx->file_scope = tk->file_id;
+        }
+        return tk;
+    }
+    return NULLPTR;
+}
+STATIC PCOMP_TOK ADV() {
+    if (pos < toks->len) {
+        PCOMP_TOK tk = toks->toks[pos++];
+        if (tk && tk->file_id) {
+            comp_cur_file_id = tk->file_id;
+            if (ctx) ctx->file_scope = tk->file_id;
+        }
+        return tk;
+    }
+    return NULLPTR;
+}
 STATIC BOOL     MATCH(COMP_TOK_TYPE t) { return (PEEK() && PEEK()->type == t); }
 STATIC PCOMP_TOK EXPECT(COMP_TOK_TYPE t) {
     if (MATCH(t)) return ADV();
-    if (PEEK()) AC_PRINTF("[PARSE] L%u:%u expected token type %u, got %u\n",
-        PEEK()->line, PEEK()->col, t, PEEK()->type);
+    if (PEEK()) {
+        PU8 fn = COMP_GET_FILE(ctx, PEEK()->file_id);
+        if (fn && *fn)
+            AC_PRINTF("[PARSE] %s:%u:%u expected token type %u, got %u\n",
+                fn, PEEK()->line, PEEK()->col, t, PEEK()->type);
+        else
+            AC_PRINTF("[PARSE] L%u:%u expected token type %u, got %u\n",
+                PEEK()->line, PEEK()->col, t, PEEK()->type);
+    }
     return NULLPTR;
 }
 STATIC BOOL EXPECT_PREV(COMP_TOK_TYPE t) {
@@ -35,10 +62,41 @@ STATIC VOID SKIP_TO_SEMI() {
            && PEEK()->type != CTOK_EOF) ADV();
 }
 
+STATIC BOOL SYM_IS_TYPE_KIND(SYM_KIND k) {
+    return (k == SYM_TYPEDEF || k == SYM_STRUCT || k == SYM_UNION || k == SYM_ENUM);
+}
+
+/* TRUE if a symbol names a usable type (typedef, struct, union, or enum). */
+STATIC BOOL SYM_IS_TYPE(SYMBOL *s) {
+    return s && SYM_IS_TYPE_KIND(s->kind);
+}
+
+STATIC BOOL SYM_ENSURE_CAP(U32 min_cap) {
+    if (!sym) return FALSE;
+    if (sym->cap >= min_cap && sym->entries) return TRUE;
+    U32 new_cap = sym->cap ? sym->cap : 256;
+    while (new_cap < min_cap) new_cap *= 2;
+    SYMBOL *ne = (SYMBOL *)AC_ReAlloc(sym->entries, new_cap * sizeof(SYMBOL));
+    if (!ne) {
+        AC_PRINTF_ERR("[PARSE] Out of memory growing symbol table\n");
+        if (ctx) ctx->errors++;
+        return FALSE;
+    }
+    if (new_cap > sym->cap) {
+        AC_MEMZERO(ne + sym->cap, (new_cap - sym->cap) * sizeof(SYMBOL));
+    }
+    sym->entries = ne;
+    sym->cap     = new_cap;
+    return TRUE;
+}
+
 STATIC SYMBOL *SYM_ADD(PU8 name, SYM_KIND kind) {
+    if (!SYM_ENSURE_CAP(sym->count + 1)) return NULLPTR;
     PU8 cur_func = parse_cur_func;
+    BOOL want_type = SYM_IS_TYPE_KIND(kind);
     for (U32 i = 0; i < sym->count; i++) {
         if (!sym->entries[i].name) continue;
+        if (SYM_IS_TYPE(&sym->entries[i]) != want_type) continue;
         if (AC_STRCMP(sym->entries[i].name, name) == 0) {
             /* File-local symbols from different scopes don't collide */
             if (sym->entries[i].is_file_local && sym->entries[i].file_scope != ctx->file_scope)
@@ -58,11 +116,6 @@ STATIC SYMBOL *SYM_ADD(PU8 name, SYM_KIND kind) {
             }
         }
     }
-    if (sym->count >= SYM_MAX_ENTRIES) {
-        AC_PRINTF_ERR("[PARSE] Symbol table full (maximum %u symbols reached)\n", SYM_MAX_ENTRIES);
-        ctx->errors++;
-        return NULLPTR;
-    }
     SYMBOL *s = &sym->entries[sym->count++];
     AC_MEMZERO(s, sizeof(SYMBOL));
     s->name = AC_STRDUP(name);
@@ -73,10 +126,24 @@ STATIC SYMBOL *SYM_ADD(PU8 name, SYM_KIND kind) {
     return s;
 }
 
+STATIC SYMBOL *SYM_LOOKUP_TYPE(PU8 name) {
+    if (!sym || !sym->entries || !name || !*name) return NULLPTR;
+    for (U32 i = 0; i < sym->count; i++) {
+        if (!SYM_IS_TYPE(&sym->entries[i])) continue;
+        if (sym->entries[i].name && AC_STRCMP(sym->entries[i].name, name) == 0) {
+            if (sym->entries[i].is_file_local && sym->entries[i].file_scope != ctx->file_scope)
+                continue;
+            return &sym->entries[i];
+        }
+    }
+    return NULLPTR;
+}
+
 STATIC SYMBOL *SYM_LOOKUP(PU8 name) {
-    if (!name || !*name) return NULLPTR;
+    if (!sym || !sym->entries || !name || !*name) return NULLPTR;
     if (parse_cur_func) {
         for (U32 i = 0; i < sym->count; i++) {
+            if (SYM_IS_TYPE(&sym->entries[i])) continue;
             if (sym->entries[i].name && AC_STRCMP(sym->entries[i].name, name) == 0) {
                 if (sym->entries[i].func_name && AC_STRCMP(sym->entries[i].func_name, parse_cur_func) == 0)
                     return &sym->entries[i];
@@ -84,10 +151,11 @@ STATIC SYMBOL *SYM_LOOKUP(PU8 name) {
         }
     }
     for (U32 i = 0; i < sym->count; i++) {
+        if (SYM_IS_TYPE(&sym->entries[i])) continue;
         if (sym->entries[i].name && AC_STRCMP(sym->entries[i].name, name) == 0) {
             if (!sym->entries[i].func_name) {
                 if (sym->entries[i].is_file_local && sym->entries[i].file_scope != ctx->file_scope)
-                    return NULLPTR; /* file-local from another file — invisible */
+                    continue; /* file-local from another file — invisible */
                 return &sym->entries[i];
             }
         }
@@ -95,16 +163,24 @@ STATIC SYMBOL *SYM_LOOKUP(PU8 name) {
     return NULLPTR;
 }
 
-/* TRUE if a symbol names a usable type (typedef, struct, union, or enum). */
-STATIC BOOL SYM_IS_TYPE(SYMBOL *s) {
-    return s && (s->kind == SYM_TYPEDEF || s->kind == SYM_STRUCT
-              || s->kind == SYM_UNION  || s->kind == SYM_ENUM);
+STATIC BOOL IS_ATTRIB_TOK(VOID) {
+    return MATCH(CTOK_KW_ATTRIB_DATA) || MATCH(CTOK_KW_ATTRIB_RODATA) || MATCH(CTOK_KW_ATTRIB_BSS);
+}
+
+STATIC SYM_SECTION PARSE_OPT_ATTRIB(SYM_SECTION cur) {
+    while (IS_ATTRIB_TOK()) {
+        COMP_TOK_TYPE t = ADV()->type;
+        if (t == CTOK_KW_ATTRIB_DATA)        cur = SYM_SEC_DATA;
+        else if (t == CTOK_KW_ATTRIB_RODATA) cur = SYM_SEC_RODATA;
+        else if (t == CTOK_KW_ATTRIB_BSS)    cur = SYM_SEC_BSS;
+    }
+    return cur;
 }
 
 STATIC BOOL IS_TYPE_START(VOID) {
     if (!PEEK()) return FALSE;
     if (MATCH(CTOK_IDENT)) {
-        SYMBOL *ts = SYM_LOOKUP(PEEK()->txt);
+        SYMBOL *ts = SYM_LOOKUP_TYPE(PEEK()->txt);
         return SYM_IS_TYPE(ts);
     }
     return MATCH(CTOK_KW_U8) || MATCH(CTOK_KW_U16) || MATCH(CTOK_KW_U32)
@@ -119,6 +195,7 @@ STATIC BOOL IS_TYPE_START(VOID) {
 }
 
 STATIC VOID SYM_FREE_ALL() {
+    if (!sym || !sym->entries) return;
     for (U32 i = 0; i < sym->count; i++) {
         if (sym->entries[i].name) AC_MFree(sym->entries[i].name);
         if (sym->entries[i].func_name) AC_MFree(sym->entries[i].func_name);
@@ -128,6 +205,10 @@ STATIC VOID SYM_FREE_ALL() {
         for (U32 j = 0; j < sym->entries[i].field_count; j++)
             if (sym->entries[i].fields[j].name) AC_MFree(sym->entries[i].fields[j].name);
     }
+    AC_MFree(sym->entries);
+    sym->entries = NULLPTR;
+    sym->count   = 0;
+    sym->cap     = 0;
 }
 
 STATIC COMP_TYPE COMP_MAKE_TYPE(COMP_BASE_TYPE base, U8 ptr_depth, PU8 name) {
@@ -142,7 +223,7 @@ STATIC COMP_TYPE COMP_MAKE_TYPE(COMP_BASE_TYPE base, U8 ptr_depth, PU8 name) {
 STATIC U32 FIELD_TYPE_SIZE(COMP_TYPE t) {
     if (t.ptr_depth == 0 && (t.base == CTYPE_STRUCT || t.base == CTYPE_UNION)) {
         if (t.name) {
-            SYMBOL *s = SYM_LOOKUP(t.name);
+            SYMBOL *s = SYM_LOOKUP_TYPE(t.name);
             if (s) {
                 if (s->kind == SYM_TYPEDEF)
                     return FIELD_TYPE_SIZE(s->type);
@@ -198,7 +279,7 @@ STATIC COMP_TYPE parse_type() {
         if (MATCH(CTOK_IDENT)) {
             PCOMP_TOK n = ADV();
             name = n->txt;
-            SYMBOL *s = SYM_LOOKUP(name);
+            SYMBOL *s = SYM_LOOKUP_TYPE(name);
             if (!s) { AC_PRINTF("[PARSE] L%u unknown type '%s'\n", n->line, name); }
         }
         bt = (bt_tok == CTOK_KW_STRUCT) ? CTYPE_STRUCT :
@@ -206,7 +287,7 @@ STATIC COMP_TYPE parse_type() {
     } else if (MATCH(CTOK_IDENT)) {
         /* Typedef name or bare struct/union/enum tag name */
         PCOMP_TOK n = ADV();
-        SYMBOL *s = SYM_LOOKUP(n->txt);
+        SYMBOL *s = SYM_LOOKUP_TYPE(n->txt);
         if (s && s->kind == SYM_TYPEDEF) {
             bt   = s->type.base;
             pd   = s->type.ptr_depth;
@@ -284,18 +365,22 @@ STATIC PCNODE parse_atom() {
                      || next == CTOK_KW_VOID || next == CTOK_KW_STRUCT
                      || next == CTOK_KW_UNION || next == CTOK_KW_ENUM;
         if (next == CTOK_IDENT) {
-            SYMBOL *ts = SYM_LOOKUP(PEEK()->txt);
+            SYMBOL *ts = SYM_LOOKUP_TYPE(PEEK()->txt);
             try_cast = SYM_IS_TYPE(ts);
         }
         if (try_cast) {
             COMP_TYPE ct = parse_type();
             if (ct.base != CTYPE_NONE && MATCH(CTOK_RPAREN)) {
                 ADV();
-                PCNODE e = parse_expr_prec(2);
-                PCNODE n = CNODE_NEW(CNODE_CAST, t->line, t->col);
-                n->dtype = ct;
-                if (e) CNODE_ADD_CHILD(n, e);
-                return n;
+                if (PEEK() && PEEK()->type != CTOK_DOT && PEEK()->type != CTOK_ARROW
+                    && PEEK()->type != CTOK_LBRACKET && PEEK()->type != CTOK_SEMICOLON
+                    && PEEK()->type != CTOK_COMMA && PEEK()->type != CTOK_RPAREN) {
+                    PCNODE e = parse_expr_prec(2);
+                    PCNODE n = CNODE_NEW(CNODE_CAST, t->line, t->col);
+                    n->dtype = ct;
+                    if (e) CNODE_ADD_CHILD(n, e);
+                    return n;
+                }
             }
             pos = save; /* backtrack: not a cast */
         }
@@ -312,12 +397,16 @@ STATIC PCNODE parse_atom() {
         if (op == CTOK_KW_SIZEOF) {
             if (MATCH(CTOK_LPAREN)) {
                 ADV();
+                U32 save_sz = pos;
                 if (IS_TYPE_START()) {
                     COMP_TYPE st = parse_type();
-                    EXPECT(CTOK_RPAREN);
-                    n = CNODE_NEW(CNODE_SIZEOF_TYPE, t->line, t->col);
-                    n->dtype = st;
-                    return n;
+                    if (st.base != CTYPE_NONE && MATCH(CTOK_RPAREN)) {
+                        ADV();
+                        n = CNODE_NEW(CNODE_SIZEOF_TYPE, t->line, t->col);
+                        n->dtype = st;
+                        return n;
+                    }
+                    pos = save_sz;
                 }
                 PCNODE se = parse_expr();
                 EXPECT(CTOK_RPAREN);
@@ -358,7 +447,15 @@ STATIC PCNODE parse_atom() {
         ADV();
         PCNODE n = CNODE_STR(t->txt, t->line, t->col);
         /* Assign rodata label */
-        if (ctx->rodata_string_count < MAX_RODATA_STRINGS) {
+        if (ctx->rodata_string_count >= ctx->rodata_string_cap) {
+            U32 new_cap = ctx->rodata_string_cap ? ctx->rodata_string_cap * 2 : 128;
+            RODATA_STR *nr = (RODATA_STR *)AC_ReAlloc(ctx->rodata_strings, new_cap * sizeof(RODATA_STR));
+            if (nr) {
+                ctx->rodata_strings = nr;
+                ctx->rodata_string_cap = new_cap;
+            }
+        }
+        if (ctx->rodata_strings && ctx->rodata_string_count < ctx->rodata_string_cap) {
             ctx->rodata_strings[ctx->rodata_string_count].label = ++ctx->label_counter;
             ctx->rodata_strings[ctx->rodata_string_count].node  = n;
             n->ival = ctx->rodata_strings[ctx->rodata_string_count].label;
@@ -560,6 +657,7 @@ STATIC VOID PARSE_INIT_LIST(SYMBOL *vs) {
 /* ── Statement parsing ────────────────────────────────────────────────────── */
 
 STATIC PCNODE parse_stmt() {
+    SYM_ENSURE_CAP(sym->count + 128);
     PCOMP_TOK t = PEEK();
     if (!t) return NULLPTR;
     U32 sl = t->line, sc = t->col;
@@ -592,9 +690,10 @@ STATIC PCNODE parse_stmt() {
             isType = (ft >= CTOK_KW_U8 && ft <= CTOK_KW_PPI32) || ft == CTOK_KW_F32
                    || ft == CTOK_KW_BOOL || ft == CTOK_KW_U0 || ft == CTOK_KW_VOIDPTR
                    || ft == CTOK_KW_VOID;
-            if (ft == CTOK_IDENT) {
-                SYMBOL *ts = SYM_LOOKUP(PEEK()->txt);
-                isType = SYM_IS_TYPE(ts);
+            if (ft == CTOK_IDENT && pos + 1 < toks->len) {
+                SYMBOL *ts = SYM_LOOKUP_TYPE(PEEK()->txt);
+                COMP_TOK_TYPE next = toks->toks[pos + 1]->type;
+                isType = SYM_IS_TYPE(ts) && (next == CTOK_IDENT || next == CTOK_STAR);
             }
             if (isType) {
                 /* Parse var decl without consuming final semicolon */
@@ -728,7 +827,7 @@ STATIC PCNODE parse_stmt() {
     /* Variable declaration (type identifier ...) or expression statement */
     BOOL is_typedef_name = FALSE;
     if (MATCH(CTOK_IDENT)) {
-        SYMBOL *ts = SYM_LOOKUP(PEEK()->txt);
+        SYMBOL *ts = SYM_LOOKUP_TYPE(PEEK()->txt);
         if (SYM_IS_TYPE(ts) && pos + 1 < toks->len) {
             /* Only enter type chain if next token is an identifier (var name),
              * * (pointer), or function pointer param (*name) */
@@ -747,8 +846,10 @@ STATIC PCNODE parse_stmt() {
         || MATCH(CTOK_KW_PPI32) || MATCH(CTOK_KW_STRUCT) || MATCH(CTOK_KW_UNION)
         || MATCH(CTOK_KW_ENUM) || MATCH(CTOK_KW_VOID)) {
         COMP_TYPE vt = parse_type();
+        SYM_SECTION var_sec = PARSE_OPT_ATTRIB(SYM_SEC_DEFAULT);
         PCOMP_TOK it = EXPECT(CTOK_IDENT);
         if (!it) { SKIP_TO_SEMI(); return NULLPTR; }
+        var_sec = PARSE_OPT_ATTRIB(var_sec);
 
         /* Array declaration? */
         if (MATCH(CTOK_LBRACKET)) {
@@ -772,6 +873,7 @@ STATIC PCNODE parse_stmt() {
                 }
                 EXPECT(CTOK_RBRACKET);
             }
+            var_sec = PARSE_OPT_ATTRIB(var_sec);
             if (MATCH(CTOK_ASSIGN)) {
                 ADV();
                 if (MATCH(CTOK_LBRACE)) {
@@ -786,6 +888,8 @@ STATIC PCNODE parse_stmt() {
                     if (init) CNODE_ADD_CHILD(n, init);
                 }
             }
+            var_sec = PARSE_OPT_ATTRIB(var_sec);
+            av->section = var_sec;
             EXPECT(CTOK_SEMICOLON);
             return n;
         }
@@ -901,6 +1005,8 @@ STATIC PCNODE parse_stmt() {
             PCNODE init = parse_expr();
             if (init) CNODE_ADD_CHILD(n, init);
         }
+        var_sec = PARSE_OPT_ATTRIB(var_sec);
+        vs->section = var_sec;
         EXPECT(CTOK_SEMICOLON);
         return n;
     }
@@ -929,6 +1035,7 @@ STATIC PCNODE parse_block() {
 /* ── Top-level declaration parsing ────────────────────────────────────────── */
 
 STATIC PCNODE parse_toplevel() {
+    SYM_ENSURE_CAP(sym->count + 128);
     PCOMP_TOK t = PEEK();
     if (!t || MATCH(CTOK_EOF)) return NULLPTR;
     U32 sl = t->line, sc = t->col;
@@ -975,7 +1082,15 @@ STATIC PCNODE parse_toplevel() {
                     fs->is_global = TRUE;
                     fs->is_defined = TRUE;
                 }
-                if (ctx->import_count < MAX_COMP_IMPORTS) {
+                if (ctx->import_count >= ctx->import_cap) {
+                    U32 new_cap = ctx->import_cap ? ctx->import_cap * 2 : 64;
+                    COMP_IMPORT_ENTRY *ni = (COMP_IMPORT_ENTRY *)AC_ReAlloc(ctx->imports, new_cap * sizeof(COMP_IMPORT_ENTRY));
+                    if (ni) {
+                        ctx->imports = ni;
+                        ctx->import_cap = new_cap;
+                    }
+                }
+                if (ctx->imports && ctx->import_count < ctx->import_cap) {
                     AC_STRCPY(ctx->imports[ctx->import_count].lib_name, lib_name);
                     AC_STRCPY(ctx->imports[ctx->import_count].func_name, funcs[i]);
                     ctx->import_count++;
@@ -1018,6 +1133,7 @@ STATIC PCNODE parse_toplevel() {
             EXPECT(CTOK_LBRACE);
             U32 ev = 0;
             while (PEEK() && !MATCH(CTOK_RBRACE) && !MATCH(CTOK_EOF)) {
+                SYM_ENSURE_CAP(sym->count + 8);
                 PCOMP_TOK fn = EXPECT(CTOK_IDENT);
                 if (!fn) break;
                 if (MATCH(CTOK_ASSIGN)) { ADV(); PCNODE ve = parse_atom(); ev = ve ? ve->ival : 0; }
@@ -1094,8 +1210,9 @@ STATIC PCNODE parse_toplevel() {
                 if (!ss->name) {
                     ss->name = AC_STRDUP(tn->txt);
                 }
+                PU8 sname = ss->name ? ss->name : tn->txt;
                 SYMBOL *ts = SYM_ADD(tn->txt, SYM_TYPEDEF);
-                ts->type = COMP_MAKE_TYPE(ss->is_union ? CTYPE_UNION : CTYPE_STRUCT, pd, ss->name ? ss->name : tn->txt);
+                ts->type = COMP_MAKE_TYPE(is_union ? CTYPE_UNION : CTYPE_STRUCT, pd, sname);
             }
             if (MATCH(CTOK_COMMA)) ADV(); else break;
         }
@@ -1147,18 +1264,21 @@ STATIC PCNODE parse_toplevel() {
         return CNODE_NEW(CNODE_ENUM_DECL, sl, sc);
     }
 
-    /* static/local variable or function */
+    /* Optional variable section attribute and/or static/local storage class */
+    SYM_SECTION var_sec = PARSE_OPT_ATTRIB(SYM_SEC_DEFAULT);
     BOOL is_static = FALSE, is_local = FALSE;
-    if (MATCH(CTOK_KW_STATIC)) { ADV(); is_static = TRUE; }
+    if (MATCH(CTOK_KW_STATIC)) { ADV(); is_static = TRUE; (void)is_static; }
     else if (MATCH(CTOK_KW_LOCAL)) { ADV(); is_local = TRUE; }
+    var_sec = PARSE_OPT_ATTRIB(var_sec);
 
     /* Check for typedef name or bare tag name as type */
     BOOL is_typedef_name2 = FALSE;
     if (MATCH(CTOK_IDENT)) {
-        SYMBOL *ts = SYM_LOOKUP(PEEK()->txt);
+        SYMBOL *ts = SYM_LOOKUP_TYPE(PEEK()->txt);
         if (SYM_IS_TYPE(ts) && pos + 1 < toks->len) {
             COMP_TOK_TYPE next = toks->toks[pos + 1]->type;
             is_typedef_name2 = (next == CTOK_IDENT || next == CTOK_STAR
+                            || next == CTOK_KW_ATTRIB_DATA || next == CTOK_KW_ATTRIB_RODATA || next == CTOK_KW_ATTRIB_BSS
                             || (next == CTOK_LPAREN && pos + 2 < toks->len && toks->toks[pos + 2]->type == CTOK_STAR));
         }
     }
@@ -1173,17 +1293,21 @@ STATIC PCNODE parse_toplevel() {
         || MATCH(CTOK_KW_ENUM) || MATCH(CTOK_KW_VOID)) {
         
         COMP_TYPE vt = parse_type();
+        var_sec = PARSE_OPT_ATTRIB(var_sec);
         PCOMP_TOK it = EXPECT(CTOK_IDENT);
         if (!it) { SKIP_TO_SEMI(); return NULLPTR; }
+        var_sec = PARSE_OPT_ATTRIB(var_sec);
         if (MATCH(CTOK_LPAREN)) {
             /* Function */
             ADV();
             parse_cur_func = it->txt;
             SYMBOL *fs = SYM_ADD(it->txt, SYM_FUNCTION);
-            fs->ret_type  = vt;
-            fs->is_global = !is_static;
-            fs->param_count = 0;
-            fs->is_variadic = FALSE;
+            fs->ret_type      = vt;
+            fs->is_global     = TRUE;
+            fs->is_file_local = is_local;
+            if (is_local) fs->file_scope = ctx->file_scope;
+            fs->param_count   = 0;
+            fs->is_variadic   = FALSE;
             if (!MATCH(CTOK_RPAREN)) {
                 do {
                     if (MATCH(CTOK_DOT) && pos + 2 < toks->len
@@ -1281,6 +1405,7 @@ STATIC PCNODE parse_toplevel() {
             }
             EXPECT(CTOK_RBRACKET);
         }
+        var_sec = PARSE_OPT_ATTRIB(var_sec);
         if (MATCH(CTOK_ASSIGN)) {
             ADV();
             if (MATCH(CTOK_LBRACE)) {
@@ -1295,6 +1420,8 @@ STATIC PCNODE parse_toplevel() {
                 if (init) CNODE_ADD_CHILD(n, init);
             }
         }
+        var_sec = PARSE_OPT_ATTRIB(var_sec);
+        vs->section = var_sec;
         EXPECT(CTOK_SEMICOLON);
         return n;
     }

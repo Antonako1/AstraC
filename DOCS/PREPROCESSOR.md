@@ -4,9 +4,13 @@ AstraC preprocessor is a simple C-like preprocessor that supports macros, condit
 
 ## Good to know
 
-After preprocessing, the output is a single file that can be processed by the assembler or compiler. This file can be found on Windows inside the `C:\TMP\` folder, and on Linux inside the `/tmp/` folder. The output file is named `00.AC` or `00.AS`. For example, if the input file is `main.ac`, the output file will be `00.AC`. If the input file is `main.as`, the output file will be `00.AS`.
+After preprocessing, the output is a per-target single file that is processed by the assembler or compiler:
+- For AC compiler inputs (e.g. `main.AC`), the preprocessed file is `<base>.I` (`main.I`).
+- For Assembler inputs (e.g. `boot.AS`), the preprocessed file is `<base>.ASI` (`boot.ASI`).
 
-The lexers and parsers of the assembler and compiler do not support multiple input files, so the preprocessor is necessary to combine all included files into a single output file. The row and column numbers in the original source files are not preserved in this `00.AC` or `00.AS` file, so if there are errors in the output file, the line numbers will not match the original source files!
+Using per-target temporary files allows parallel `make`/`cmake` builds without race conditions. The temporary `.I` / `.ASI` file is automatically deleted when compilation or assembly finishes, unless `stepoff 1`, `preproc`, or `debug` is active.
+
+Furthermore, the preprocessor automatically emits `#line <line> "<file>"` markers at the start of every file, upon entering and returning from `#include` directives, and after skipped comment or conditional blocks. Both the AC compiler and the assembler track these `#line` markers so all error/warning diagnostics and `local` file-scoped symbols report the exact original source file and line number!
 
 ## Macros
 
@@ -42,7 +46,7 @@ int x = ADD(5, 10);
 
 | Directive | Description |
 |-----------|-------------|
-| `#include "file"` | Includes external header or source file |
+| `#include "file"` | Includes external header or source file (emits `#line` enter/return markers) |
 | `#import funcs from "lib"` | Specifies external dynamic library function imports for ACFH binaries |
 | `#define NAME value` | Defines an object-like macro |
 | `#define NAME(a,b) expr` | Defines a function-like macro |
@@ -53,6 +57,7 @@ int x = ADD(5, 10);
 | `#elif expr` | Else-if branch evaluating `expr` |
 | `#else` | Else branch |
 | `#endif` | Terminates conditional block |
+| `#line <line> ["file"]` | Sets the current source line number (and optional filename) for diagnostics and file scoping |
 | `#error "msg"` | Halts preprocessing and outputs error message |
 | `#warning "msg"` | Outputs preprocessor warning message |
 | `#push <instruction>` | Pushes preprocessor/parser directive setting |
@@ -67,7 +72,7 @@ The `#import` directive specifies external dynamic library dependencies and targ
 #import malloc, free from "libc.lib"
 ```
 
-- **Preprocessing**: In C preprocessor mode, `#import` lines are passed through to the preprocessed file (`00.AC`).
+- **Preprocessing**: In C preprocessor mode, `#import` lines are passed through to the preprocessed file (`<base>.I`).
 - **Compiler**: Registers the function symbols with default `cdecl` signatures and emits `.import` directives to the generated `.AS` source.
 - **Assembler & ACFH Output**: The assembler records the library names, function names, and patch offsets in the ACFH binary's Import Table (`AC_IMPORT_TABLE_HDR` and `AC_IMPORT_ENTRY`).
 
