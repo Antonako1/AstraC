@@ -4,6 +4,12 @@ All notable changes to AstraC will be documented in this file.
 
 ## 2026-10-19
 
+### Web Documentation: PHP Instruction Reference & Responsive Styling
+- Converted `MNEMS.html` into `mnems.php` integrated into the standard site layout (`components/header.php`, `components/nav.php`, `components/footer.php`), with backwards-compatible alias `MNEMS.php` and redirect wrapper for legacy `MNEMS.html`.
+- Added `<meta name="viewport" content="width=device-width, initial-scale=1.0">` to all site header components to enable responsive viewport scaling on mobile and tablet devices.
+- Overhauled website CSS (`css/styles.css`) for full responsiveness: flexible container sizing (`max-width: 1400px` for wide reference tables), touch-friendly flex navigation, horizontal scrolling for wide data tables (`.table-responsive`) and preformatted code blocks, stacked mobile filter controls, and media query breakpoints (840px, 480px).
+- Updated documentation navigation and links across `as.php` and `index.php` to reference the interactive instruction database.
+
 ### Assembler Test Suite & Automated CI Verification
 - Created comprehensive x86 assembly test suite under `TESTS/ASSEMBLER/` featuring 7 test targets:
   - `01_data_and_sections.AS`: Section placement (`.data`, `.rodata`, `.bss`), bare numbers, label addresses, and 0-disk-byte `.bss` sizing verification.
