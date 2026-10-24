@@ -1,0 +1,67 @@
+; ACFH Binary (.code offset=0x70, size=189 bytes, entry=0x5)
+00000000  E9 00 00 00 00                                   jmp 0x00000005 <MAIN>            |.....|
+
+00000005 <MAIN>:
+00000005  55                                               push ebp                         |U|
+00000006  89 E5                                            mov ebp, esp                     |..|
+00000008  83 EC 08                                         sub esp, 0x08                    |...|
+0000000B  B8 00 FF 00 00                                   mov eax, 0x0000FF00              |.....|
+00000010  50                                               push eax                         |P|
+00000011  B8 32 00 00 00                                   mov eax, 0x00000032              |.2...|
+00000016  50                                               push eax                         |P|
+00000017  B8 64 00 00 00                                   mov eax, 0x00000064              |.d...|
+0000001C  50                                               push eax                         |P|
+0000001D  B8 14 00 00 00                                   mov eax, 0x00000014              |.....|
+00000022  50                                               push eax                         |P|
+00000023  B8 0A 00 00 00                                   mov eax, 0x0000000A              |.....|
+00000028  50                                               push eax                         |P|
+00000029  E8 D2 FF FF FF                                   call 0x00000000 <graphics.lib::DRAW_RECT> |.....|
+0000002E  83 C4 14                                         add esp, 0x14                    |...|
+00000031  B8 00 00 00 00                                   mov eax, 0x00000000              |.....|
+00000036  50                                               push eax                         |P|
+00000037  E8 C4 FF FF FF                                   call 0x00000000 <graphics.lib::CLEAR_SCREEN> |.....|
+0000003C  83 C4 04                                         add esp, 0x04                    |...|
+0000003F  B8 00 04 00 00                                   mov eax, 0x00000400              |.....|
+00000044  50                                               push eax                         |P|
+00000045  E8 B6 FF FF FF                                   call 0x00000000 <libc.lib::MALLOC> |.....|
+0000004A  83 C4 04                                         add esp, 0x04                    |...|
+0000004D  89 45 FC                                         mov [ebp-0x04], eax              |.E.|
+00000050  B8 01 00 00 00                                   mov eax, 0x00000001              |.....|
+00000055  50                                               push eax                         |P|
+00000056  B8 01 00 00 00                                   mov eax, 0x00000001              |.....|
+0000005B  89 C3                                            mov ebx, eax                     |..|
+0000005D  58                                               pop eax                          |X|
+0000005E  39 D8                                            cmp eax, ebx                     |9.|
+00000060  0F 94 C0                                         setz al                          |...|
+00000063  0F B6 C0                                         movzx al, al                     |...|
+00000066  85 C0                                            test eax, eax                    |..|
+00000068  74 1B                                            jz 0x00000085                    |t.|
+0000006A  8B 45 FC                                         mov eax, [ebp-0x04]              |.E.|
+0000006D  50                                               push eax                         |P|
+0000006E  E8 8D FF FF FF                                   call 0x00000000 <libc.lib::FREE> |.....|
+00000073  83 C4 04                                         add esp, 0x04                    |...|
+00000076  B8 01 00 00 00                                   mov eax, 0x00000001              |.....|
+0000007B  83 C4 08                                         add esp, 0x08                    |...|
+0000007E  5D                                               pop ebp                          |]|
+0000007F  C3                                               ret                              |.|
+00000080  E9 00 00 00 00                                   jmp 0x00000085                   |.....|
+00000085  B8 9E 02 00 00                                   mov eax, 0x0000029E              |.....|
+0000008A  50                                               push eax                         |P|
+0000008B  E8 70 FF FF FF                                   call 0x00000000 <libc.lib::MALLOC> |.p...|
+00000090  83 C4 04                                         add esp, 0x04                    |...|
+00000093  89 45 F8                                         mov [ebp-0x08], eax              |.E.|
+00000096  8B 45 FC                                         mov eax, [ebp-0x04]              |.E.|
+00000099  50                                               push eax                         |P|
+0000009A  E8 61 FF FF FF                                   call 0x00000000 <libc.lib::FREE> |.a...|
+0000009F  83 C4 04                                         add esp, 0x04                    |...|
+000000A2  8B 45 F8                                         mov eax, [ebp-0x08]              |.E.|
+000000A5  50                                               push eax                         |P|
+000000A6  E8 55 FF FF FF                                   call 0x00000000 <libc.lib::FREE> |.U...|
+000000AB  83 C4 04                                         add esp, 0x04                    |...|
+000000AE  B8 00 00 00 00                                   mov eax, 0x00000000              |.....|
+000000B3  83 C4 08                                         add esp, 0x08                    |...|
+000000B6  5D                                               pop ebp                          |]|
+000000B7  C3                                               ret                              |.|
+000000B8  83 C4 08                                         add esp, 0x08                    |...|
+000000BB  5D                                               pop ebp                          |]|
+000000BC  C3                                               ret                              |.|

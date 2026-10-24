@@ -8,11 +8,14 @@
 .import "libc.lib" MALLOC
 .import "libc.lib" FREE
 jmp _MAIN
+; U32 main() {
 
 _MAIN:
     PUSH EBP
     MOV EBP, ESP
     SUB ESP, 8
+; U32 main() {
+; draw_rect(10, 20, 100, 50, 0x00FF00);
     MOV EAX, 0xFF00
     PUSH EAX
     MOV EAX, 0x32
@@ -25,15 +28,18 @@ _MAIN:
     PUSH EAX
     CALL _DRAW_RECT
     ADD ESP, 20
+; clear_screen(0x000000);
     MOV EAX, 0x0
     PUSH EAX
     CALL _CLEAR_SCREEN
     ADD ESP, 4
+; U32 ptr = malloc(1024);
     MOV EAX, 0x400
     PUSH EAX
     CALL _MALLOC
     ADD ESP, 4
     MOV [EBP-4], EAX
+; if(1==1) {
     MOV EAX, 0x1
     PUSH EAX
     MOV EAX, 0x1
@@ -44,10 +50,13 @@ _MAIN:
     MOVZX EAX, AL
     TEST EAX, EAX
     JZ __lbl1
+; if(1==1) {
+; free(ptr);
     MOV EAX, [EBP-4]
     PUSH EAX
     CALL _FREE
     ADD ESP, 4
+; return 1;
     MOV EAX, 0x1
     ADD ESP, 8
     POP EBP
@@ -55,19 +64,23 @@ _MAIN:
     JMP __lbl2
 __lbl1:
 __lbl2:
+; U32 ptr2 = malloc(670);
     MOV EAX, 0x29E
     PUSH EAX
     CALL _MALLOC
     ADD ESP, 4
     MOV [EBP-8], EAX
+; free(ptr);
     MOV EAX, [EBP-4]
     PUSH EAX
     CALL _FREE
     ADD ESP, 4
+; free(ptr2);
     MOV EAX, [EBP-8]
     PUSH EAX
     CALL _FREE
     ADD ESP, 4
+; return 0;
     MOV EAX, 0x0
     ADD ESP, 8
     POP EBP

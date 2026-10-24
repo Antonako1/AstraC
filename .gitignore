@@ -9,7 +9,6 @@
 *.user
 *.userosscache
 *.sln.docstates
-
 mnemonics.json
 !DOCS/mnemonics.json
 AGENTS.md
@@ -30,6 +29,10 @@ TESTS/KERNEL/KERNEL.AS
 !/TESTS/BUILD
 *.tar.gz
 !/ASTRAC
+!/DOCS/pipeline/*
+
+
+
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
 
